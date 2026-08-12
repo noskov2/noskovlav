@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Target Vânzări — Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:            #f9f9f7;
+    --surface-1:       #fcfcfb;
+    --surface-2:       #f2f1ed;
+    --text-primary:    #0b0b0b;
+    --text-secondary:  #52514e;
+    --text-muted:      #898781;
+    --gridline:        #e1e0d9;
+    --baseline:        #c3c2b7;
+    --border:          rgba(11,11,11,0.10);
+    --series-1:        #2a78d6; /* Echipa 1 */
+    --series-2:        #eb6834; /* Echipa 2 */
+    --series-3:        #1baf7a; /* Echipa 3 */
+    --good:            #0ca30c;
+    --warning:         #fab219;
+    --critical:        #d03b3b;
+    --good-bg:         rgba(12,163,12,0.12);
+    --warning-bg:      rgba(250,178,25,0.16);
+    --critical-bg:     rgba(208,59,59,0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page:            #0d0d0d;
+      --surface-1:       #1a1a19;
+      --surface-2:       #232322;
+      --text-primary:    #ffffff;
+      --text-secondary:  #c3c2b7;
+      --text-muted:      #898781;
+      --gridline:        #2c2c2a;
+      --baseline:        #383835;
+      --border:          rgba(255,255,255,0.10);
+      --series-1:        #3987e5;
+      --series-2:        #d95926;
+      --series-3:        #199e70;
+      --good:            #0ca30c;
+      --warning:         #fab219;
+      --critical:        #e66767;
+      --good-bg:         rgba(12,163,12,0.18);
+      --warning-bg:      rgba(250,178,25,0.14);
+      --critical-bg:     rgba(230,103,103,0.14);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:            #0d0d0d;
+    --surface-1:       #1a1a19;
+    --surface-2:       #232322;
+    --text-primary:    #ffffff;
+    --text-secondary:  #c3c2b7;
+    --text-muted:      #898781;
+    --gridline:        #2c2c2a;
+    --baseline:        #383835;
+    --border:          rgba(255,255,255,0.10);
+    --series-1:        #3987e5;
+    --series-2:        #d95926;
+    --series-3:        #199e70;
+    --good:            #0ca30c;
+    --warning:         #fab219;
+    --critical:        #e66767;
+    --good-bg:         rgba(12,163,12,0.18);
+    --warning-bg:      rgba(250,178,25,0.14);
+    --critical-bg:     rgba(230,103,103,0.14);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--page); color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body { min-height: 100vh; }
+  .page { max-width: 1080px; margin: 0 auto; padding: 16px 16px 64px; }
+
+  header.top {
+    position: sticky; top: 0; z-index: 20; background: var(--page);
+    padding: 14px 16px; margin: -16px -16px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 8px; }
+  .brand h1 { font-size: 17px; margin: 0; font-weight: 700; }
+  .brand .updated { font-size: 12px; color: var(--text-muted); }
+  .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  select, button, .btn {
+    font: inherit; font-size: 13px; color: var(--text-primary);
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 12px; cursor: pointer;
+  }
+  button:hover, .btn:hover { background: var(--surface-2); }
+  .btn-primary { background: var(--series-1); color: #fff; border-color: transparent; }
+  .btn-primary:hover { filter: brightness(1.08); background: var(--series-1); }
+  button.danger { color: var(--critical); }
+
+  #fileInput { display: none; }
+
+  #emptyState {
+    margin-top: 40px; padding: 48px 24px; text-align: center;
+    border: 1.5px dashed var(--baseline); border-radius: 16px; background: var(--surface-1);
+  }
+  #emptyState.dragover { border-color: var(--series-1); background: var(--surface-2); }
+  #emptyState .icon { font-size: 40px; margin-bottom: 8px; }
+  #emptyState h2 { font-size: 17px; margin: 4px 0 6px; }
+  #emptyState p { color: var(--text-secondary); font-size: 14px; max-width: 460px; margin: 0 auto 18px; line-height: 1.5; }
+
+  #errorBox {
+    display: none; margin-top: 16px; padding: 12px 14px; border-radius: 10px;
+    background: var(--critical-bg); color: var(--text-primary); font-size: 13px; border: 1px solid var(--border);
+  }
+  #warnBox {
+    display: none; margin-top: 12px; padding: 10px 14px; border-radius: 10px;
+    background: var(--warning-bg); color: var(--text-primary); font-size: 12.5px; border: 1px solid var(--border);
+  }
+
+  main#dashboard { display: none; flex-direction: column; gap: 20px; }
+  main#dashboard.visible { display: flex; }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+  }
+  .card h3 { margin: 0 0 14px; font-size: 14px; color: var(--text-secondary); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+
+  .hero-title { font-size: 18px; font-weight: 700; margin: 0 0 2px; }
+  .hero-sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 16px; margin-bottom: 16px; }
+  .stat-tile .label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-tile .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat-tile .value.delta-good { color: var(--good); }
+  .stat-tile .value.delta-bad { color: var(--critical); }
+
+  .bar { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
+  .bar .fill { height: 100%; border-radius: 5px; background: var(--series-1); transition: width .3s ease; }
+  .bar.small { height: 7px; border-radius: 4px; }
+  .bar.small .fill { border-radius: 4px; }
+
+  .today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 14px; align-items: center; }
+  .today-date { font-size: 20px; font-weight: 700; }
+  .today-sub { font-size: 12px; color: var(--text-muted); }
+  .shift-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 0; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+    padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .status-good { background: var(--good-bg); color: var(--good); }
+  .status-warning { background: var(--warning-bg); color: #8a6100; }
+  .status-critical { background: var(--critical-bg); color: var(--critical); }
+  .status-pending { background: var(--surface-2); color: var(--text-muted); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .status-warning { color: #fab219; }
+  }
+  :root[data-theme="dark"] .status-warning { color: #fab219; }
+
+  .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 14px; }
+  .team-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--surface-1); border-top: 3px solid var(--accent); }
+  .team-card .name { font-weight: 700; font-size: 14px; margin-bottom: 1px; }
+  .team-card .members { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+  .team-card .pct { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 8px 0 4px; }
+  .team-card .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; font-size: 12px; margin-top: 10px; }
+  .team-card .stats div span { display: block; color: var(--text-muted); font-size: 11px; }
+  .team-card .stats div b { font-variant-numeric: tabular-nums; }
+  .ture-row { display: flex; gap: 10px; margin-top: 10px; font-size: 11.5px; color: var(--text-secondary); }
+
+  .bonus-layout { display: grid; grid-template-columns: 1.1fr 1.4fr; gap: 20px; }
+  @media (max-width: 700px) { .bonus-layout { grid-template-columns: 1fr; } }
+  .grila-row { display: flex; justify-content: space-between; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--gridline); font-size: 13px; }
+  .grila-row:last-child { border-bottom: none; }
+  .grila-row .niv { font-weight: 600; }
+  .grila-row .amt { color: var(--text-secondary); font-size: 12px; text-align: right; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.total-row td { font-weight: 700; border-top: 2px solid var(--baseline); border-bottom: none; }
+  .table-scroll { overflow-x: auto; }
+  tr.pending td { color: var(--text-muted); }
+
+  .daily-table tr.today-row td { background: color-mix(in srgb, var(--series-1) 12%, transparent); }
+
+  details.card summary { cursor: pointer; font-size: 14px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: .02em; font-size: 12.5px; list-style: none; }
+  details.card summary::-webkit-details-marker { display: none; }
+  details.card summary::before { content: "▸ "; }
+  details.card[open] summary::before { content: "▾ "; }
+  details.card .table-scroll { margin-top: 14px; }
+
+  .chart-legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+  .chart-legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend-line { width: 16px; height: 2px; background: var(--series-1); display: inline-block; }
+  .legend-line.dashed { background: none; border-top: 2px dashed var(--baseline); }
+  svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+  .chart-tooltip { position: absolute; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; display: none; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  .chart-wrap { position: relative; }
+
+  footer.note { text-align: center; font-size: 11.5px; color: var(--text-muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="top">
+    <div class="brand">
+      <h1>🎯 Target Vânzări</h1>
+      <span class="updated" id="updatedLabel"></span>
+    </div>
+    <div class="top-actions">
+      <select id="monthSelect" style="display:none;"></select>
+      <button id="deleteMonthBtn" class="danger" style="display:none;" title="Șterge luna curentă">Șterge luna</button>
+      <label class="btn btn-primary" for="fileInput">⬆ Încarcă Excel</label>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    </div>
+  </header>
+
+  <div id="errorBox"></div>
+  <div id="warnBox"></div>
+
+  <div id="emptyState">
+    <div class="icon">📊</div>
+    <h2>Niciun fișier încărcat încă</h2>
+    <p>Trage aici fișierul Excel cu targetul lunii (foile „Rezumat”, „Target Zilnic”, „Situatie target”, „Bonusare”) sau apasă butonul de mai jos. Totul se procesează local, în browser — nimic nu e trimis pe server.</p>
+    <label class="btn btn-primary" for="fileInput">⬆ Alege fișier Excel</label>
+  </div>
+
+  <main id="dashboard">
+
+    <section class="card" id="heroCard"></section>
+
+    <section class="card" id="todayCard" style="display:none;"></section>
+
+    <section>
+      <h3 style="font-size:14px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.02em;margin:0 0 12px;">Situație pe echipă</h3>
+      <div class="team-grid" id="teamGrid"></div>
+    </section>
+
+    <section class="card" id="bonusCard"></section>
+
+    <section class="card" id="chartCard"></section>
+
+    <section class="card" id="dailyCard"></section>
+
+    <details class="card" id="trackerCard">
+      <summary>Detalii pe tură</summary>
+      <div class="table-scroll" id="trackerTableWrap"></div>
+    </details>
+
+  </main>
+
+  <footer class="note">Fișierul se procesează integral local, în acest browser. Datele rămase salvate în acest browser (localStorage) pentru a reapărea la următoarea vizită.</footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- helpers ----------
+  function norm(s) {
+    return String(s == null ? '' : s)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+  function toNum(v) {
+    if (v == null) return null;
+    if (typeof v === 'number') return v;
+    const s = String(v).replace(/[^\d.,-]/g, '').replace(/,/g, '');
+    if (s === '' || s === '-') return null;
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+  function fmtRON(n) {
+    if (n == null || isNaN(n)) return '—';
+    return Math.round(n).toLocaleString('ro-RO') + ' RON';
+  }
+  function fmtPct(n) {
+    if (n == null || isNaN(n)) return '—';
+    return (n * 100).toFixed(1).replace('.', ',') + '%';
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+  function statusClass(status, pct) {
+    const s = norm(status);
+    if (s) {
+      if (s.includes('peste') || s.includes('ok') || s.includes('atins') || s.includes('🟢')) return 'good';
+      if (s.includes('aproape') || s.includes('🟡')) return 'warning';
+      if (s.includes('sub') || s.includes('🔴')) return 'critical';
+      if (s.includes('⬜') || s === '') { /* fallthrough */ }
+    }
+    if (pct == null) return 'pending';
+    if (pct >= 1) return 'good';
+    if (pct >= 0.9) return 'warning';
+    return 'critical';
+  }
+  function cleanTeamName(name) {
+    return String(name || '').replace(/\s*[—-]\s*/, ' — ').trim();
+  }
+  function teamShortLabel(name) {
+    const m = String(name || '').match(/echipa\s*\d+/i);
+    return m ? m[0] : name;
+  }
+
+  // ---------- parsing ----------
+  function findSheet(wb, keyword) {
+    const name = wb.SheetNames.find(n => norm(n).includes(norm(keyword)));
+    return name ? wb.Sheets[name] : null;
+  }
+  function rowsOf(sheet) {
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+  }
+  function findHeaderRow(rows, pred) {
+    for (let i = 0; i < rows.length; i++) if (pred(rows[i])) return i;
+    return -1;
+  }
+  function colIdx(header, pred) {
+    return header.findIndex(c => pred(norm(c)));
+  }
+
+  function parseRezumat(wb) {
+    const sheet = findSheet(wb, 'rezumat');
+    if (!sheet) return null;
+    const rows = rowsOf(sheet);
+    const out = { title: null, subtitle: null, monthlyTotal: null, dailyTarget: null, shift1Target: null, shift2Target: null };
+    const titles = [];
+    for (const row of rows) {
+      const cells = row.filter(c => c != null);
+      if (cells.length === 1 && typeof cells[0] === 'string' && cells[0].length > 8) { titles.push(cells[0].trim()); continue; }
+      if (cells.length < 2) continue;
+      const label = norm(cells[0]);
+      const value = toNum(cells[cells.length - 1]);
+      if (value == null) continue;
+      if (label.includes('target') && label.includes('total') && label.includes('zile')) out.monthlyTotal = value;
+      else if (label.includes('target zilnic')) out.dailyTarget = value;
+      else if (label.includes('tura 1')) out.shift1Target = value;
+      else if (label.includes('tura 2')) out.shift2Target = value;
+    }
+    out.title = titles[0] || null;
+    out.subtitle = titles[1] || null;
+    return out;
+  }
+
+  function parseSituatieTarget(wb) {
+    const sheet = findSheet(wb, 'situatie');
+    if (!sheet) return null;
+    const rows = rowsOf(sheet);
+    const headerIdx = findHeaderRow(rows, r => r.some(c => norm(c) === 'echipa'));
+    if (headerIdx === -1) return null;
+    const header = rows[headerIdx];
+    const idx = {
+      name: colIdx(header, h => h === 'echipa'),
+      targetLunar: colIdx(header, h => h.includes('target lunar')),
+      targetPana: colIdx(header, h => h.includes('target pana')),
+      realizat: colIdx(header, h => h.includes('realizat')),
+      diferenta: colIdx(header, h => h.includes('diferenta')),
+      procent: colIdx(header, h => h.includes('%')),
+    };
+    const dimIdxs = [], searaIdxs = [];
+    header.forEach((h, i) => { const n = norm(h); if (n === 'dimineata') dimIdxs.push(i); if (n === 'seara') searaIdxs.push(i); });
+    const teams = [];
+    let totals = null;
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r[idx.name] == null) break;
+      if (norm(r[idx.name]).startsWith('total')) {
+        totals = { name: r[idx.name], targetLunar: toNum(r[idx.targetLunar]), targetPana: toNum(r[idx.targetPana]), realizat: toNum(r[idx.realizat]), diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]) };
+        break;
+      }
+      teams.push({
+        name: r[idx.name], targetLunar: toNum(r[idx.targetLunar]), targetPana: toNum(r[idx.targetPana]),
+        realizat: toNum(r[idx.realizat]), diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]),
+        tureRamaseDim: toNum(r[dimIdxs[0]]), tureRamaseSeara: toNum(r[searaIdxs[0]]),
+        tureTotalDim: toNum(r[dimIdxs[1]]), tureTotalSeara: toNum(r[searaIdxs[1]]),
+      });
+    }
+    return { teams, totals };
+  }
+
+  function parseBonusare(wb) {
+    const sheet = findSheet(wb, 'bonus');
+    if (!sheet) return { grila: [], teams: [], total: null };
+    const rows = rowsOf(sheet);
+    const grilaHeaderIdx = findHeaderRow(rows, r => r.some(c => norm(c) === 'nivel'));
+    const grila = [];
+    if (grilaHeaderIdx !== -1) {
+      const header = rows[grilaHeaderIdx];
+      const idx = {
+        nivel: colIdx(header, h => h === 'nivel'),
+        procent: colIdx(header, h => h.includes('% realizare')),
+        bonusPersoana: colIdx(header, h => h.includes('bonus') && h.includes('persoana')),
+        bonusEchipa: colIdx(header, h => h.includes('bonus') && h.includes('echipa')),
+        conditie: colIdx(header, h => h.includes('conditie')),
+      };
+      for (let i = grilaHeaderIdx + 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r[idx.procent] == null || !String(r[idx.procent]).includes('%')) break;
+        grila.push({ nivel: r[idx.nivel], procent: r[idx.procent], bonusPersoana: r[idx.bonusPersoana], bonusEchipa: r[idx.bonusEchipa], conditie: r[idx.conditie] });
+      }
+    }
+    const sumHeaderIdx = findHeaderRow(rows, r => r.some(c => norm(c) === 'echipa') && r.some(c => norm(c).includes('bonus')));
+    const teams = [];
+    let total = null;
+    if (sumHeaderIdx !== -1) {
+      const header = rows[sumHeaderIdx];
+      const idx = {
+        name: colIdx(header, h => h === 'echipa'),
+        targetLunar: colIdx(header, h => h.includes('target')),
+        realizat: colIdx(header, h => h.includes('realiz')),
+        procent: colIdx(header, h => h.includes('%')),
+        bonusOm: colIdx(header, h => h.includes('bonus') && h.includes('om')),
+        bonusEchipa: colIdx(header, h => h.includes('bonus') && h.includes('echipa')),
+      };
+      for (let i = sumHeaderIdx + 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r[idx.name] == null) break;
+        if (norm(r[idx.name]).startsWith('total bonusuri')) { total = toNum(r[idx.bonusEchipa]); break; }
+        teams.push({ name: r[idx.name], targetLunar: toNum(r[idx.targetLunar]), realizat: toNum(r[idx.realizat]), procent: toNum(r[idx.procent]), bonusOm: toNum(r[idx.bonusOm]), bonusEchipa: toNum(r[idx.bonusEchipa]) });
+      }
+    }
+    return { grila, teams, total };
+  }
+
+  function parseTargetZilnic(wb) {
+    const sheet = findSheet(wb, 'zilnic');
+    if (!sheet) return null;
+    const rows = rowsOf(sheet);
+    const headerIdx = findHeaderRow(rows, r => r.some(c => norm(c) === 'zi') && r.some(c => norm(c) === 'data'));
+    if (headerIdx === -1) return null;
+    const header = rows[headerIdx];
+    const idx = {
+      zi: colIdx(header, h => h === 'zi'), data: colIdx(header, h => h === 'data'),
+      ziSapt: colIdx(header, h => h.includes('sapt')),
+      echipa1: colIdx(header, h => h.includes('tura 1')), echipa2: colIdx(header, h => h.includes('tura 2')),
+      targetZi: colIdx(header, h => h.includes('target') && h.includes('zi')),
+      realizat: colIdx(header, h => h.includes('realizat')),
+      diferenta: colIdx(header, h => h.includes('diferenta')),
+      procent: colIdx(header, h => h.includes('%')),
+      status: colIdx(header, h => h === 'status'),
+    };
+    const days = [];
+    let total = null;
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r[idx.zi] == null) break;
+      if (typeof r[idx.zi] !== 'number') { total = { targetZi: toNum(r[idx.targetZi]), realizat: toNum(r[idx.realizat]) }; break; }
+      days.push({
+        zi: r[idx.zi], data: r[idx.data], ziSapt: r[idx.ziSapt], echipaTura1: r[idx.echipa1], echipaTura2: r[idx.echipa2],
+        targetZi: toNum(r[idx.targetZi]), realizat: toNum(r[idx.realizat]), diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]), status: r[idx.status],
+      });
+    }
+    return { days, total };
+  }
+
+  function parseTracker(wb) {
+    const sheet = findSheet(wb, 'echipe');
+    if (!sheet) return null;
+    const rows = rowsOf(sheet);
+    const headerIdx = findHeaderRow(rows, r => r.some(c => norm(c) === 'data') && r.some(c => norm(c) === 'tura'));
+    if (headerIdx === -1) return null;
+    const header = rows[headerIdx];
+    const idx = {
+      data: colIdx(header, h => h === 'data'), tura: colIdx(header, h => h === 'tura'),
+      echipa: colIdx(header, h => h.includes('echipa')), realizat: colIdx(header, h => h === 'realizat'),
+      targetTura: colIdx(header, h => h.includes('target')), diferenta: colIdx(header, h => h.includes('diferenta')),
+      procent: colIdx(header, h => h.includes('%')), status: colIdx(header, h => h === 'status'),
+    };
+    const shifts = [];
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r[idx.data] == null || !String(r[idx.data]).includes('/')) break;
+      shifts.push({
+        data: r[idx.data], tura: r[idx.tura], echipa: r[idx.echipa], realizat: toNum(r[idx.realizat]), targetTura: toNum(r[idx.targetTura]),
+        diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]), status: r[idx.status],
+      });
+    }
+    return { shifts };
+  }
+
+  function deriveDashboard(wb) {
+    const rezumat = parseRezumat(wb);
+    const situatie = parseSituatieTarget(wb);
+    const bonus = parseBonusare(wb);
+    const zilnic = parseTargetZilnic(wb);
+    const tracker = parseTracker(wb);
+    const warnings = [];
+    if (!rezumat) warnings.push('Foaia „Rezumat” nu a fost găsită — lipsesc targetele generale.');
+    if (!situatie) warnings.push('Foaia „Situatie target” nu a fost găsită — lipsește situația per echipă.');
+    if (!zilnic) warnings.push('Foaia „Target Zilnic” nu a fost găsită — lipsește evoluția zi de zi.');
+    if (!bonus || !bonus.teams.length) warnings.push('Foaia „Bonusare” nu a fost găsită sau nu are formatul așteptat.');
+    if (!tracker) warnings.push('Foaia „Target Echipe” nu a fost găsită — lipsesc detaliile pe tură.');
+
+    // cutoff: last recorded date from tracker (status not blank/⬜), else infer from zilnic
+    let cutoffData = null;
+    if (tracker && tracker.shifts.length) {
+      for (const s of tracker.shifts) {
+        if (s.realizat != null) cutoffData = s.data;
+      }
+    }
+    let cutoffZi = null;
+    if (cutoffData && zilnic) {
+      const d = zilnic.days.find(d => d.data === cutoffData);
+      if (d) cutoffZi = d.zi;
+    }
+    if (cutoffZi == null && zilnic) {
+      // fallback: last day with non-zero realizat, contiguous from day 1
+      for (const d of zilnic.days) {
+        if (d.realizat != null && d.realizat > 0) cutoffZi = d.zi; else break;
+      }
+    }
+
+    return { rezumat, situatie, bonus, zilnic, tracker, cutoffZi, warnings, savedAt: Date.now() };
+  }
+
+  // ---------- month key ----------
+  function monthKeyFrom(data, fileName) {
+    const t = (data.rezumat && (data.rezumat.title || data.rezumat.subtitle)) || '';
+    const m = t.match(/(ianuarie|februarie|martie|aprilie|mai|iunie|iulie|august|septembrie|octombrie|noiembrie|decembrie|ian|feb|mar|apr|iun|iul|sep|oct|nov|dec)\w*\s+(\d{4})/i);
+    if (m) return (m[1].slice(0,3) + ' ' + m[2]).toUpperCase();
+    return (fileName || 'FIȘIER').toUpperCase();
+  }
+
+  // ---------- storage ----------
+  const STORE_KEY = 'salesDashboard:months';
+  function loadStore() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { return {}; } }
+  function saveStore(store) { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* storage full/unavailable */ } }
+
+  // ---------- rendering ----------
+  const els = {
+    empty: document.getElementById('emptyState'),
+    dashboard: document.getElementById('dashboard'),
+    errorBox: document.getElementById('errorBox'),
+    warnBox: document.getElementById('warnBox'),
+    updatedLabel: document.getElementById('updatedLabel'),
+    monthSelect: document.getElementById('monthSelect'),
+    deleteMonthBtn: document.getElementById('deleteMonthBtn'),
+    hero: document.getElementById('heroCard'),
+    today: document.getElementById('todayCard'),
+    teamGrid: document.getElementById('teamGrid'),
+    bonus: document.getElementById('bonusCard'),
+    chart: document.getElementById('chartCard'),
+    daily: document.getElementById('dailyCard'),
+    trackerWrap: document.getElementById('trackerTableWrap'),
+    trackerCard: document.getElementById('trackerCard'),
+  };
+
+  function showError(msg) {
+    els.errorBox.textContent = msg;
+    els.errorBox.style.display = msg ? 'block' : 'none';
+  }
+  function showWarnings(list) {
+    if (!list || !list.length) { els.warnBox.style.display = 'none'; return; }
+    els.warnBox.innerHTML = 'Câteva secțiuni nu au putut fi citite din fișier: ' + list.map(escapeHtml).join(' · ');
+    els.warnBox.style.display = 'block';
+  }
+
+  function renderHero(data) {
+    const r = data.rezumat || {};
+    const totals = (data.situatie && data.situatie.totals) || {};
+    const monthlyTotal = r.monthlyTotal ?? totals.targetLunar ?? null;
+    const realizat = totals.realizat ?? (data.zilnic && data.zilnic.total && data.zilnic.total.realizat) ?? null;
+    const targetPana = totals.targetPana ?? null;
+    const pct = totals.procent ?? (monthlyTotal ? (realizat / monthlyTotal) : null);
+    const pctVsPana = targetPana && realizat != null ? realizat / targetPana : null;
+
+    let html = '';
+    html += `<div class="hero-title">${escapeHtml(r.title || 'Target vânzări')}</div>`;
+    if (r.subtitle) html += `<div class="hero-sub">${escapeHtml(r.subtitle)}</div>`;
+    html += '<div class="stat-row">';
+    html += statTile('Target lunar total', fmtRON(monthlyTotal));
+    html += statTile('Realizat până acum', fmtRON(realizat));
+    if (targetPana != null) html += statTile('Target până azi', fmtRON(targetPana));
+    if (totals.diferenta != null) {
+      const cls = totals.diferenta >= 0 ? 'delta-good' : 'delta-bad';
+      html += statTile('Diferență față de target-până-azi', (totals.diferenta >= 0 ? '+' : '') + fmtRON(totals.diferenta), cls);
+    }
+    html += '</div>';
+    html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:6px;">
+      <span>Progres luni curente</span><span>${fmtPct(pct)} din target lunar${pctVsPana != null ? ' · ' + fmtPct(pctVsPana) + ' din target-până-azi' : ''}</span></div>`;
+    const barPct = Math.max(0, Math.min(100, (pct || 0) * 100));
+    const barCls = statusClass(null, pct);
+    html += `<div class="bar"><div class="fill" style="width:${barPct}%;background:var(--${barCls === 'pending' ? 'series-1' : barCls});"></div></div>`;
+    els.hero.innerHTML = html;
+  }
+  function statTile(label, value, cls) {
+    return `<div class="stat-tile"><div class="label">${escapeHtml(label)}</div><div class="value${cls ? ' ' + cls : ''}">${value}</div></div>`;
+  }
+
+  function renderToday(data) {
+    if (!data.zilnic || data.cutoffZi == null) { els.today.style.display = 'none'; return; }
+    const nextZi = data.cutoffZi + 1;
+    const day = data.zilnic.days.find(d => d.zi === nextZi) || data.zilnic.days.find(d => d.zi === data.cutoffZi);
+    if (!day) { els.today.style.display = 'none'; return; }
+    const isPending = day.zi === nextZi;
+    els.today.style.display = 'block';
+    const teamColor = (name) => {
+      if (/echipa\s*1/i.test(name)) return 'var(--series-1)';
+      if (/echipa\s*2/i.test(name)) return 'var(--series-2)';
+      if (/echipa\s*3/i.test(name)) return 'var(--series-3)';
+      return 'var(--text-muted)';
+    };
+    let html = `<h3>${isPending ? 'Următoarea zi de urmărit' : 'Ultima zi înregistrată'}</h3>`;
+    html += '<div class="today-grid">';
+    html += `<div><div class="today-date">${escapeHtml(String(day.data || ''))} <span class="today-sub">${escapeHtml(day.ziSapt || '')}</span></div>
+      <div class="today-sub">Ziua ${day.zi} din lună</div></div>`;
+    html += `<div>
+      <div class="shift-chip"><span class="dot" style="background:${teamColor(day.echipaTura1)}"></span>Tura 1: ${escapeHtml(String(day.echipaTura1 || '').split('\n')[0].replace(/\r/g,''))}</div>
+      <div class="shift-chip"><span class="dot" style="background:${teamColor(day.echipaTura2)}"></span>Tura 2: ${escapeHtml(String(day.echipaTura2 || '').split('\n')[0].replace(/\r/g,''))}</div>
+    </div>`;
+    if (isPending) {
+      html += `<div><div class="today-sub">Target zi</div><div style="font-weight:700;">${fmtRON(day.targetZi)}</div>
+        <div class="today-sub" style="margin-top:6px;">Realizat</div><div style="color:var(--text-muted);">încă neîncărcat</div></div>`;
+    } else {
+      const cls = statusClass(day.status, day.procent);
+      html += `<div><div class="today-sub">Target zi</div><div style="font-weight:700;">${fmtRON(day.targetZi)}</div>
+        <div class="today-sub" style="margin-top:6px;">Realizat</div><div style="font-weight:700;">${fmtRON(day.realizat)}</div></div>
+        <div><span class="status-badge status-${cls}">${fmtPct(day.procent)}</span></div>`;
+    }
+    html += '</div>';
+    els.today.innerHTML = html;
+  }
+
+  function renderTeams(data) {
+    const teams = (data.situatie && data.situatie.teams) || [];
+    if (!teams.length) { els.teamGrid.innerHTML = '<div class="card">Nu există date de echipă în acest fișier.</div>'; return; }
+    const accents = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'];
+    els.teamGrid.innerHTML = teams.map((t, i) => {
+      const cls = statusClass(null, t.procent);
+      const [nameShort, members] = String(t.name || '').split(/\s*[—-]\s*/);
+      const barPct = Math.max(0, Math.min(100, (t.procent || 0) * 100));
+      return `<div class="team-card" style="--accent:${accents[i % 3]}">
+        <div class="name">${escapeHtml(nameShort || t.name)}</div>
+        <div class="members">${escapeHtml(members || '')}</div>
+        <div class="pct" style="color:var(--${cls === 'pending' ? 'text-primary' : cls})">${fmtPct(t.procent)}</div>
+        <div class="bar small"><div class="fill" style="width:${barPct}%;background:var(--${cls === 'pending' ? 'series-1' : cls});"></div></div>
+        <div class="stats">
+          <div><span>Target lunar</span><b>${fmtRON(t.targetLunar)}</b></div>
+          <div><span>Realizat</span><b>${fmtRON(t.realizat)}</b></div>
+          <div><span>Target până azi</span><b>${fmtRON(t.targetPana)}</b></div>
+          <div><span>Diferență</span><b style="color:${(t.diferenta||0) >= 0 ? 'var(--good)' : 'var(--critical)'}">${(t.diferenta >= 0 ? '+' : '')}${fmtRON(t.diferenta)}</b></div>
+        </div>
+        <div class="ture-row">
+          <span>☀️ Ture rămase dim: <b>${t.tureRamaseDim ?? '—'}</b>/${t.tureTotalDim ?? '—'}</span>
+          <span>🌙 Ture rămase seară: <b>${t.tureRamaseSeara ?? '—'}</b>/${t.tureTotalSeara ?? '—'}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderBonus(data) {
+    const b = data.bonus || { grila: [], teams: [], total: null };
+    if (!b.teams.length && !b.grila.length) { els.bonus.style.display = 'none'; return; }
+    els.bonus.style.display = 'block';
+    let html = '<h3>Bonusare</h3><div class="bonus-layout">';
+    html += '<div>';
+    if (b.grila.length) {
+      html += b.grila.map(g => `<div class="grila-row">
+        <div><div class="niv">${escapeHtml(g.nivel)}</div><div class="amt">${escapeHtml(g.procent)} din target</div></div>
+        <div class="amt">${escapeHtml(g.bonusPersoana)} / persoană<br>${escapeHtml(g.bonusEchipa)} / echipă</div>
+      </div>`).join('');
+    } else {
+      html += '<div style="color:var(--text-muted);font-size:13px;">Grila de bonus nu a fost găsită.</div>';
+    }
+    html += '</div>';
+    html += '<div class="table-scroll"><table><thead><tr><th>Echipă</th><th class="num">% realizare</th><th class="num">Bonus/persoană</th><th class="num">Bonus/echipă</th></tr></thead><tbody>';
+    b.teams.forEach(t => {
+      const [nameShort] = String(t.name || '').split(/\s*[—-]\s*/);
+      html += `<tr><td>${escapeHtml(nameShort || t.name)}</td><td class="num">${fmtPct(t.procent)}</td><td class="num">${fmtRON(t.bonusOm)}</td><td class="num">${fmtRON(t.bonusEchipa)}</td></tr>`;
+    });
+    if (b.total != null) html += `<tr class="total-row"><td colspan="3">Total bonusuri de plătit</td><td class="num">${fmtRON(b.total)}</td></tr>`;
+    html += '</tbody></table></div></div>';
+    els.bonus.innerHTML = html;
+  }
+
+  function renderDaily(data) {
+    if (!data.zilnic || !data.zilnic.days.length) { els.daily.style.display = 'none'; return; }
+    els.daily.style.display = 'block';
+    const cutoff = data.cutoffZi;
+    let html = '<h3>Evoluție zilnică</h3><div class="table-scroll"><table class="daily-table"><thead><tr>' +
+      '<th>Zi</th><th>Dată</th><th>Tura 1</th><th>Tura 2</th><th class="num">Target</th><th class="num">Realizat</th><th class="num">Diferență</th><th>Status</th>' +
+      '</tr></thead><tbody>';
+    data.zilnic.days.forEach(d => {
+      const pending = cutoff != null && d.zi > cutoff;
+      const cls = pending ? 'pending' : statusClass(d.status, d.procent);
+      const isToday = cutoff != null && d.zi === cutoff + 1;
+      html += `<tr class="${pending ? 'pending' : ''}${isToday ? ' today-row' : ''}">
+        <td>${d.zi}</td><td>${escapeHtml(String(d.data||''))} <span style="color:var(--text-muted);font-size:11px;">${escapeHtml(String(d.ziSapt||'').slice(0,3))}</span></td>
+        <td>${escapeHtml(String(d.echipaTura1||'').split('\n')[0].replace(/\r/g,''))}</td>
+        <td>${escapeHtml(String(d.echipaTura2||'').split('\n')[0].replace(/\r/g,''))}</td>
+        <td class="num">${fmtRON(d.targetZi)}</td>
+        <td class="num">${pending ? '—' : fmtRON(d.realizat)}</td>
+        <td class="num">${pending ? '—' : ((d.diferenta>=0?'+':'')+fmtRON(d.diferenta))}</td>
+        <td>${pending ? '<span class="status-badge status-pending">în așteptare</span>' : `<span class="status-badge status-${cls}">${fmtPct(d.procent)}</span>`}</td>
+      </tr>`;
+    });
+    if (data.zilnic.total) {
+      html += `<tr class="total-row"><td colspan="4">Total lună</td><td class="num">${fmtRON(data.zilnic.total.targetZi)}</td><td class="num">${fmtRON(data.zilnic.total.realizat)}</td><td colspan="2"></td></tr>`;
+    }
+    html += '</tbody></table></div>';
+    els.daily.innerHTML = html;
+  }
+
+  function renderTracker(data) {
+    if (!data.tracker || !data.tracker.shifts.length) { els.trackerCard.style.display = 'none'; return; }
+    els.trackerCard.style.display = 'block';
+    let html = '<table><thead><tr><th>Dată</th><th>Tură</th><th>Echipă</th><th class="num">Realizat</th><th class="num">Target</th><th>Status</th></tr></thead><tbody>';
+    data.tracker.shifts.forEach(s => {
+      const pending = s.realizat == null;
+      const cls = pending ? 'pending' : statusClass(s.status, s.procent);
+      const [nameShort] = String(s.echipa || '').split(/\s*[—-]\s*/);
+      html += `<tr class="${pending ? 'pending' : ''}">
+        <td>${escapeHtml(String(s.data||''))}</td><td>${escapeHtml(String(s.tura||''))}</td><td>${escapeHtml(nameShort || s.echipa)}</td>
+        <td class="num">${pending ? '—' : fmtRON(s.realizat)}</td><td class="num">${fmtRON(s.targetTura)}</td>
+        <td>${pending ? '<span class="status-badge status-pending">—</span>' : `<span class="status-badge status-${cls}">${fmtPct(s.procent)}</span>`}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    els.trackerWrap.innerHTML = html;
+  }
+
+  function renderChart(data) {
+    if (!data.zilnic || !data.zilnic.days.length) { els.chart.style.display = 'none'; return; }
+    els.chart.style.display = 'block';
+    const days = data.zilnic.days;
+    const cutoff = data.cutoffZi;
+    let cumTarget = 0, cumReal = 0;
+    const pointsTarget = [], pointsReal = [];
+    days.forEach(d => {
+      cumTarget += d.targetZi || 0;
+      pointsTarget.push(cumTarget);
+      if (cutoff == null || d.zi <= cutoff) {
+        cumReal += d.realizat || 0;
+        pointsReal.push(cumReal);
+      }
+    });
+    const maxVal = Math.max(cumTarget, cumReal) * 1.05;
+    const W = 760, H = 260, padL = 56, padR = 16, padT = 16, padB = 28;
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const n = days.length;
+    const x = (i) => padL + (innerW * i) / (n - 1);
+    const y = (v) => padT + innerH - (innerH * v) / maxVal;
+
+    const pathTarget = pointsTarget.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const pathReal = pointsReal.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+
+    // gridlines (y ticks)
+    const ticks = 4;
+    let gridSvg = '';
+    for (let t = 0; t <= ticks; t++) {
+      const v = (maxVal / ticks) * t;
+      const yy = y(v);
+      gridSvg += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" stroke="var(--gridline)" stroke-width="1"/>`;
+      gridSvg += `<text x="${padL - 8}" y="${(yy + 3).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-muted)">${Math.round(v / 1000)}k</text>`;
+    }
+    // x ticks (every ~5 days)
+    let xTickSvg = '';
+    for (let i = 0; i < n; i += Math.ceil(n / 8)) {
+      xTickSvg += `<text x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${days[i].zi}</text>`;
+    }
+    // hover dots (invisible wide targets handled via JS below)
+    let dotsSvg = '';
+    pointsReal.forEach((v, i) => { dotsSvg += `<circle class="hover-dot" data-i="${i}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="8" fill="transparent"/>`; });
+
+    const todayX = cutoff != null ? x(cutoff) : null;
+
+    els.chart.innerHTML = `
+      <h3>Target cumulat vs. realizat cumulat</h3>
+      <div class="chart-legend">
+        <span class="item"><span class="legend-line dashed"></span>Target cumulat</span>
+        <span class="item"><span class="legend-line"></span>Realizat cumulat</span>
+      </div>
+      <div class="chart-wrap">
+        <svg class="chart" viewBox="0 0 ${W} ${H}" id="cumChart">
+          ${gridSvg}
+          ${todayX != null ? `<line x1="${todayX.toFixed(1)}" y1="${padT}" x2="${todayX.toFixed(1)}" y2="${H - padB}" stroke="var(--baseline)" stroke-width="1" stroke-dasharray="3 3"/>` : ''}
+          <path d="${pathTarget}" fill="none" stroke="var(--baseline)" stroke-width="2" stroke-dasharray="5 4"/>
+          <path d="${pathReal}" fill="none" stroke="var(--series-1)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          ${pointsReal.length ? `<circle cx="${x(pointsReal.length-1).toFixed(1)}" cy="${y(pointsReal[pointsReal.length-1]).toFixed(1)}" r="4" fill="var(--series-1)"/>` : ''}
+          ${xTickSvg}
+          ${dotsSvg}
+        </svg>
+        <div class="chart-tooltip" id="chartTooltip"></div>
+      </div>`;
+
+    const tooltip = document.getElementById('chartTooltip');
+    const svg = document.getElementById('cumChart');
+    svg.querySelectorAll('.hover-dot').forEach(dot => {
+      dot.addEventListener('mouseenter', (e) => {
+        const i = +dot.getAttribute('data-i');
+        const day = days[i];
+        tooltip.innerHTML = `<b>${escapeHtml(String(day.data))}</b><br>Target cumul.: ${fmtRON(pointsTarget[i])}<br>Realizat cumul.: ${fmtRON(pointsReal[i])}`;
+        tooltip.style.display = 'block';
+        positionTooltip(e);
+      });
+      dot.addEventListener('mousemove', positionTooltip);
+      dot.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    });
+    function positionTooltip(e) {
+      const rect = svg.getBoundingClientRect();
+      const wrapRect = svg.parentElement.getBoundingClientRect();
+      tooltip.style.left = (e.clientX - wrapRect.left + 12) + 'px';
+      tooltip.style.top = (e.clientY - wrapRect.top - 36) + 'px';
+    }
+  }
+
+  function render(data) {
+    showWarnings(data.warnings);
+    renderHero(data);
+    renderToday(data);
+    renderTeams(data);
+    renderBonus(data);
+    renderChart(data);
+    renderDaily(data);
+    renderTracker(data);
+    els.dashboard.classList.add('visible');
+    els.empty.style.display = 'none';
+    const d = new Date(data.savedAt);
+    els.updatedLabel.textContent = 'actualizat ' + d.toLocaleDateString('ro-RO') + ' ' + d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ---------- month switcher ----------
+  let currentKey = null;
+  function refreshMonthSelect() {
+    const store = loadStore();
+    const keys = Object.keys(store).sort();
+    if (keys.length <= 1) { els.monthSelect.style.display = 'none'; els.deleteMonthBtn.style.display = keys.length ? 'inline-block' : 'none'; return; }
+    els.monthSelect.style.display = 'inline-block';
+    els.deleteMonthBtn.style.display = 'inline-block';
+    els.monthSelect.innerHTML = keys.map(k => `<option value="${escapeHtml(k)}" ${k === currentKey ? 'selected' : ''}>${escapeHtml(k)}</option>`).join('');
+  }
+  els.monthSelect.addEventListener('change', () => {
+    const store = loadStore();
+    const key = els.monthSelect.value;
+    if (store[key]) { currentKey = key; render(store[key]); refreshMonthSelect(); }
+  });
+  els.deleteMonthBtn.addEventListener('click', () => {
+    if (!currentKey) return;
+    if (!confirm('Ștergi datele salvate pentru ' + currentKey + '?')) return;
+    const store = loadStore();
+    delete store[currentKey];
+    saveStore(store);
+    const keys = Object.keys(store).sort();
+    if (keys.length) { currentKey = keys[keys.length - 1]; render(store[currentKey]); refreshMonthSelect(); }
+    else {
+      currentKey = null;
+      els.dashboard.classList.remove('visible');
+      els.empty.style.display = 'block';
+      els.monthSelect.style.display = 'none';
+      els.deleteMonthBtn.style.display = 'none';
+      els.updatedLabel.textContent = '';
+    }
+  });
+
+  // ---------- file handling ----------
+  function handleFile(file) {
+    showError('');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const data = deriveDashboard(wb);
+        if (!data.rezumat && !data.situatie && !data.zilnic) {
+          showError('Nu am putut recunoaște structura fișierului. Verifică dacă e exportat din același șablon (foile Rezumat / Target Zilnic / Situatie target).');
+          return;
+        }
+        const key = monthKeyFrom(data, file.name);
+        const store = loadStore();
+        store[key] = data;
+        saveStore(store);
+        currentKey = key;
+        render(data);
+        refreshMonthSelect();
+      } catch (err) {
+        showError('Eroare la citirea fișierului: ' + (err && err.message ? err.message : String(err)));
+      }
+    };
+    reader.onerror = () => showError('Nu am putut citi fișierul.');
+    reader.readAsArrayBuffer(file);
+  }
+
+  const fileInput = document.getElementById('fileInput');
+  fileInput.addEventListener('change', (e) => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ''; });
+
+  ['dragover', 'dragenter'].forEach(evt => els.empty.addEventListener(evt, (e) => { e.preventDefault(); els.empty.classList.add('dragover'); }));
+  ['dragleave', 'drop'].forEach(evt => els.empty.addEventListener(evt, (e) => { e.preventDefault(); els.empty.classList.remove('dragover'); }));
+  els.empty.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+
+  // ---------- init from storage ----------
+  (function init() {
+    const store = loadStore();
+    const keys = Object.keys(store).sort();
+    if (keys.length) {
+      currentKey = keys[keys.length - 1];
+      render(store[currentKey]);
+      refreshMonthSelect();
+    }
+  })();
+})();
+</script>
+</body>
+</html>
