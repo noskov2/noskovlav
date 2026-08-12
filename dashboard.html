@@ -226,7 +226,7 @@
   <div id="emptyState">
     <div class="icon">📊</div>
     <h2>Niciun fișier încărcat încă</h2>
-    <p>Trage aici fișierul Excel cu targetul lunii (foile „Rezumat”, „Target Zilnic”, „Situatie target”, „Bonusare”) sau apasă butonul de mai jos. Totul se procesează local, în browser — nimic nu e trimis pe server.</p>
+    <p>Începe cu șablonul lunar (foile „Rezumat”, „Target Zilnic”, „Bonusare”) — stabilește targetele și rotația echipelor. După aceea poți încărca oricând un export de vânzări brute (cu coloanele Casier, Creat La, Valoare Totală) ca să actualizezi situația — aplicația recunoaște singură ce fel de fișier e. Totul se procesează local, în browser — nimic nu e trimis pe server.</p>
     <label class="btn btn-primary" for="fileInput">⬆ Alege fișier Excel</label>
   </div>
 
@@ -484,6 +484,203 @@
     return { shifts };
   }
 
+  // ---------- bonus tier computation ----------
+  function parsePctRange(str) {
+    const s = String(str || '');
+    let m = s.match(/>\s*(\d+(?:[.,]\d+)?)\s*%/);
+    if (m) return { min: parseFloat(m[1].replace(',', '.')) / 100, minExclusive: true, max: Infinity };
+    m = s.match(/(\d+(?:[.,]\d+)?)\s*[–\-]\s*(\d+(?:[.,]\d+)?)\s*%/);
+    if (m) return { min: parseFloat(m[1].replace(',', '.')) / 100, minExclusive: false, max: parseFloat(m[2].replace(',', '.')) / 100 };
+    m = s.match(/(\d+(?:[.,]\d+)?)\s*%/);
+    if (m) return { min: parseFloat(m[1].replace(',', '.')) / 100, minExclusive: false, max: Infinity };
+    return null;
+  }
+  function computeBonusTier(pct, grila) {
+    if (pct == null || !grila || !grila.length) return { bonusPersoana: 0, bonusEchipa: 0 };
+    for (const g of grila) {
+      const range = parsePctRange(g.procent);
+      if (!range) continue;
+      const aboveMin = range.minExclusive ? pct > range.min : pct >= range.min;
+      if (aboveMin && pct <= range.max) {
+        return { bonusPersoana: toNum(g.bonusPersoana) || 0, bonusEchipa: toNum(g.bonusEchipa) || 0 };
+      }
+    }
+    return { bonusPersoana: 0, bonusEchipa: 0 };
+  }
+
+  // ---------- raw sales export (per-transaction, e.g. "Articole Vânzare") ----------
+  function detectRawSalesSheet(wb) {
+    for (const name of wb.SheetNames) {
+      const rows = rowsOf(wb.Sheets[name]);
+      if (!rows.length) continue;
+      const header = rows[0];
+      const hasCasier = header.some(c => norm(c).includes('casier'));
+      const hasValoare = header.some(c => norm(c).includes('valoare'));
+      const hasCreat = header.some(c => norm(c).includes('creat'));
+      if (hasCasier && hasValoare && hasCreat) return { name, rows };
+    }
+    return null;
+  }
+  function parseRawSales(wb) {
+    const found = detectRawSalesSheet(wb);
+    if (!found) return null;
+    const rows = found.rows;
+    const header = rows[0];
+    const idx = {
+      zi: colIdx(header, h => h === 'zi'),
+      creat: colIdx(header, h => h.includes('creat')),
+      casier: colIdx(header, h => h.includes('casier')),
+      valoare: colIdx(header, h => h.includes('valoare')),
+    };
+    const byDate = new Map();
+    let skipped = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const ziRaw = r[idx.zi];
+      if (ziRaw == null) continue;
+      const m = String(ziRaw).match(/^(\d{4})\.(\d{2})\.(\d{2})/);
+      if (!m) { skipped++; continue; }
+      const dateKey = `${m[3]}/${m[2]}`;
+      const created = r[idx.creat];
+      const casier = r[idx.casier];
+      const valoare = toNum(r[idx.valoare]) || 0;
+      if (!(created instanceof Date) || !casier) { skipped++; continue; }
+      if (!byDate.has(dateKey)) byDate.set(dateKey, []);
+      byDate.get(dateKey).push({ t: created.getTime(), casier, valoare });
+    }
+    const shiftsByDate = {};
+    const warnings = [];
+    for (const [date, entries] of byDate) {
+      entries.sort((a, b) => a.t - b.t);
+      const segments = [];
+      for (const e of entries) {
+        const last = segments[segments.length - 1];
+        if (last && last.casier === e.casier) { last.sum += e.valoare; last.max = e.t; }
+        else segments.push({ casier: e.casier, sum: e.valoare, min: e.t, max: e.t });
+      }
+      let tura1 = null, tura2 = null;
+      if (segments.length === 1) {
+        const hour = new Date(segments[0].min).getHours();
+        if (hour < 16) tura1 = segments[0].sum; else tura2 = segments[0].sum;
+        warnings.push(`${date}: un singur casier găsit, presupun o singură tură.`);
+      } else if (segments.length === 2) {
+        segments.sort((a, b) => a.min - b.min);
+        tura1 = segments[0].sum; tura2 = segments[1].sum;
+      } else {
+        segments.sort((a, b) => a.min - b.min);
+        let gapIdx = 1, maxGap = -1;
+        for (let i = 1; i < segments.length; i++) {
+          const gap = segments[i].min - segments[i - 1].max;
+          if (gap > maxGap) { maxGap = gap; gapIdx = i; }
+        }
+        tura1 = segments.slice(0, gapIdx).reduce((s, seg) => s + seg.sum, 0);
+        tura2 = segments.slice(gapIdx).reduce((s, seg) => s + seg.sum, 0);
+        warnings.push(`${date}: ${segments.length} casieri detectați, grupați euristic în 2 ture.`);
+      }
+      shiftsByDate[date] = { tura1, tura2 };
+    }
+    return { shiftsByDate, warnings, skipped };
+  }
+
+  // ---------- config / rotation / recompute ----------
+  function buildRotation(zilnicDays) {
+    const rotation = {};
+    (zilnicDays || []).forEach(d => {
+      rotation[d.data] = { tura1: teamShortLabel(String(d.echipaTura1 || '').split('\n')[0]), tura2: teamShortLabel(String(d.echipaTura2 || '').split('\n')[0]) };
+    });
+    return rotation;
+  }
+  function seedRawRealizatFromTracker(tracker) {
+    const raw = {};
+    if (!tracker) return raw;
+    tracker.shifts.forEach(s => {
+      if (s.realizat == null) return;
+      const date = String(s.data || '');
+      if (!raw[date]) raw[date] = { tura1: null, tura2: null };
+      const isT1 = /t\s*1(\D|$)/i.test(String(s.tura || ''));
+      if (isT1) raw[date].tura1 = s.realizat; else raw[date].tura2 = s.realizat;
+    });
+    return raw;
+  }
+  function mergeRawRealizat(existing, incoming) {
+    const merged = Object.assign({}, existing);
+    Object.keys(incoming).forEach(date => {
+      const prev = merged[date] || { tura1: null, tura2: null };
+      merged[date] = {
+        tura1: incoming[date].tura1 != null ? incoming[date].tura1 : prev.tura1,
+        tura2: incoming[date].tura2 != null ? incoming[date].tura2 : prev.tura2,
+      };
+    });
+    return merged;
+  }
+  function recompute(data) {
+    const cfg = data.config;
+    const rotation = data.rotation;
+    const raw = data.rawRealizat;
+    const teamTotals = {};
+    const ensureTeam = (short) => {
+      if (!teamTotals[short]) teamTotals[short] = { short, realizat: 0, targetPana: 0, tureTotalDim: 0, tureTotalSeara: 0, tureWorkedDim: 0, tureWorkedSeara: 0 };
+      return teamTotals[short];
+    };
+    let cutoffZi = null;
+    (data.zilnic.days || []).forEach(d => {
+      const rot = rotation[d.data] || {};
+      const r = raw[d.data] || {};
+      if (rot.tura1) ensureTeam(rot.tura1).tureTotalDim++;
+      if (rot.tura2) ensureTeam(rot.tura2).tureTotalSeara++;
+      const realizatZi = (r.tura1 != null || r.tura2 != null) ? (r.tura1 || 0) + (r.tura2 || 0) : null;
+      d.realizat = realizatZi;
+      d.diferenta = realizatZi != null ? realizatZi - d.targetZi : null;
+      d.procent = realizatZi != null ? realizatZi / d.targetZi : null;
+      d.status = null;
+      if (realizatZi != null && (cutoffZi == null || d.zi > cutoffZi)) cutoffZi = d.zi;
+    });
+    (data.zilnic.days || []).forEach(d => {
+      if (cutoffZi == null || d.zi > cutoffZi) return;
+      const rot = rotation[d.data] || {};
+      const r = raw[d.data] || {};
+      if (rot.tura1) { const t = ensureTeam(rot.tura1); t.tureWorkedDim++; t.targetPana += cfg.shift1Target; t.realizat += (r.tura1 || 0); }
+      if (rot.tura2) { const t = ensureTeam(rot.tura2); t.tureWorkedSeara++; t.targetPana += cfg.shift2Target; t.realizat += (r.tura2 || 0); }
+    });
+    const nameLookup = {};
+    ((data.situatie && data.situatie.teams) || []).forEach(t => { nameLookup[teamShortLabel(t.name)] = t.name; });
+    const shorts = Object.keys(teamTotals).sort();
+    const teams = shorts.map(short => {
+      const t = teamTotals[short];
+      const targetLunar = t.tureTotalDim * cfg.shift1Target + t.tureTotalSeara * cfg.shift2Target;
+      const procent = targetLunar ? t.realizat / targetLunar : null;
+      const bonus = computeBonusTier(procent, cfg.grila);
+      return {
+        name: nameLookup[short] || short,
+        targetLunar, targetPana: t.targetPana, realizat: t.realizat,
+        diferenta: t.realizat - t.targetPana, procent,
+        tureRamaseDim: t.tureTotalDim - t.tureWorkedDim, tureRamaseSeara: t.tureTotalSeara - t.tureWorkedSeara,
+        tureTotalDim: t.tureTotalDim, tureTotalSeara: t.tureTotalSeara,
+        bonusOm: bonus.bonusPersoana, bonusEchipa: bonus.bonusEchipa,
+      };
+    });
+    const totalTargetLunar = teams.reduce((s, t) => s + t.targetLunar, 0);
+    const totalTargetPana = teams.reduce((s, t) => s + t.targetPana, 0);
+    const totalRealizat = teams.reduce((s, t) => s + t.realizat, 0);
+    data.situatie = {
+      teams,
+      totals: {
+        name: 'TOTAL', targetLunar: totalTargetLunar, targetPana: totalTargetPana, realizat: totalRealizat,
+        diferenta: totalRealizat - totalTargetPana, procent: totalTargetLunar ? totalRealizat / totalTargetLunar : null,
+      },
+    };
+    data.bonus = {
+      grila: cfg.grila,
+      teams: teams.map(t => ({ name: t.name, targetLunar: t.targetLunar, realizat: t.realizat, procent: t.procent, bonusOm: t.bonusOm, bonusEchipa: t.bonusEchipa })),
+      total: teams.reduce((s, t) => s + t.bonusEchipa, 0),
+    };
+    data.zilnic.total = {
+      targetZi: (data.zilnic.days || []).reduce((s, d) => s + (d.targetZi || 0), 0),
+      realizat: (data.zilnic.days || []).reduce((s, d) => s + (d.realizat || 0), 0),
+    };
+    data.cutoffZi = cutoffZi;
+  }
+
   function deriveDashboard(wb) {
     const rezumat = parseRezumat(wb);
     const situatie = parseSituatieTarget(wb);
@@ -497,26 +694,20 @@
     if (!bonus || !bonus.teams.length) warnings.push('Foaia „Bonusare” nu a fost găsită sau nu are formatul așteptat.');
     if (!tracker) warnings.push('Foaia „Target Echipe” nu a fost găsită — lipsesc detaliile pe tură.');
 
-    // cutoff: last recorded date from tracker (status not blank/⬜), else infer from zilnic
-    let cutoffData = null;
-    if (tracker && tracker.shifts.length) {
-      for (const s of tracker.shifts) {
-        if (s.realizat != null) cutoffData = s.data;
-      }
-    }
-    let cutoffZi = null;
-    if (cutoffData && zilnic) {
-      const d = zilnic.days.find(d => d.data === cutoffData);
-      if (d) cutoffZi = d.zi;
-    }
-    if (cutoffZi == null && zilnic) {
-      // fallback: last day with non-zero realizat, contiguous from day 1
-      for (const d of zilnic.days) {
-        if (d.realizat != null && d.realizat > 0) cutoffZi = d.zi; else break;
-      }
-    }
+    const config = {
+      shift1Target: rezumat && rezumat.shift1Target,
+      shift2Target: rezumat && rezumat.shift2Target,
+      dailyTarget: rezumat && rezumat.dailyTarget,
+      grila: (bonus && bonus.grila) || [],
+    };
+    const rotation = buildRotation(zilnic && zilnic.days);
+    const rawRealizat = seedRawRealizatFromTracker(tracker);
 
-    return { rezumat, situatie, bonus, zilnic, tracker, cutoffZi, warnings, savedAt: Date.now() };
+    const data = { rezumat, situatie, bonus, zilnic, tracker, config, rotation, rawRealizat, cutoffZi: null, warnings, savedAt: Date.now() };
+    if (config.shift1Target != null && config.shift2Target != null && zilnic && zilnic.days.length) {
+      recompute(data);
+    }
+    return data;
   }
 
   // ---------- month key ----------
@@ -557,7 +748,7 @@
   }
   function showWarnings(list) {
     if (!list || !list.length) { els.warnBox.style.display = 'none'; return; }
-    els.warnBox.innerHTML = 'Câteva secțiuni nu au putut fi citite din fișier: ' + list.map(escapeHtml).join(' · ');
+    els.warnBox.innerHTML = list.map(escapeHtml).join(' · ');
     els.warnBox.style.display = 'block';
   }
 
@@ -859,19 +1050,52 @@
   });
 
   // ---------- file handling ----------
+  function handleRawSalesUpload(wb) {
+    if (!currentKey) { showError('Încarcă mai întâi șablonul lunar (cu targetele) — abia apoi poți încărca vânzările brute peste el.'); return; }
+    const store = loadStore();
+    const data = store[currentKey];
+    if (!data || !data.config || !data.rotation) { showError('Luna curentă nu are configurația necesară (targete/rotație). Reîncarcă șablonul lunar și încearcă din nou.'); return; }
+    const parsed = parseRawSales(wb);
+    if (!parsed) { showError('Nu am recunoscut structura fișierului de vânzări brute.'); return; }
+    const knownDates = new Set(Object.keys(data.rotation));
+    const matched = {}, unmatched = [];
+    Object.keys(parsed.shiftsByDate).forEach(d => {
+      if (knownDates.has(d)) matched[d] = parsed.shiftsByDate[d]; else unmatched.push(d);
+    });
+    data.rawRealizat = mergeRawRealizat(data.rawRealizat, matched);
+    recompute(data);
+    data.savedAt = Date.now();
+    const msgs = [];
+    const matchedDates = Object.keys(matched).sort();
+    if (matchedDates.length) msgs.push('Actualizat din vânzări: ' + matchedDates.join(', ') + '.');
+    else msgs.push('Nicio zi din fișier nu corespunde lunii curente.');
+    if (unmatched.length) msgs.push('Ignorat (dată în afara lunii încărcate): ' + unmatched.join(', ') + '.');
+    msgs.push(...parsed.warnings);
+    data.warnings = msgs;
+    store[currentKey] = data;
+    saveStore(store);
+    render(data);
+  }
+
   function handleFile(file) {
     showError('');
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+        if (detectRawSalesSheet(wb)) { handleRawSalesUpload(wb); return; }
         const data = deriveDashboard(wb);
         if (!data.rezumat && !data.situatie && !data.zilnic) {
-          showError('Nu am putut recunoaște structura fișierului. Verifică dacă e exportat din același șablon (foile Rezumat / Target Zilnic / Situatie target).');
+          showError('Nu am putut recunoaște structura fișierului. Verifică dacă e exportat din același șablon (foile Rezumat / Target Zilnic / Situatie target) sau e un export de vânzări brute (coloanele Casier / Creat La / Valoare Totală).');
           return;
         }
         const key = monthKeyFrom(data, file.name);
         const store = loadStore();
+        const existing = store[key];
+        if (existing && existing.rawRealizat) {
+          data.rawRealizat = mergeRawRealizat(data.rawRealizat, existing.rawRealizat);
+          recompute(data);
+        }
         store[key] = data;
         saveStore(store);
         currentKey = key;
