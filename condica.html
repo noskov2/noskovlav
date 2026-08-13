@@ -150,6 +150,54 @@
 
   footer.note { text-align: center; font-size: 11.5px; color: var(--text-muted); margin-top: 8px; }
 
+  .product-ac { position: relative; flex: 1; min-width: 160px; }
+  .product-ac input[type="text"] { width: 100%; }
+  .product-ac .ac-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    max-height: 260px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  }
+  .product-ac .ac-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--gridline); }
+  .product-ac .ac-item:last-child { border-bottom: none; }
+  .product-ac .ac-item:hover, .product-ac .ac-item.active { background: var(--surface-2); }
+  .product-ac .ac-item.inactive { color: var(--text-muted); font-style: italic; }
+  .product-ac .ac-empty, .product-ac .ac-hint { padding: 8px 12px; font-size: 12px; color: var(--text-muted); }
+  .product-ac .ac-linked-tag { font-size: 10.5px; color: var(--good); margin-left: 6px; }
+
+  .produse-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 5px; }
+  .produs-row { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
+  .produs-row .row-cantitate { width: 130px; }
+  .produs-row .row-motiv { flex: 1; min-width: 120px; }
+  .produs-row .remove-row-btn { padding: 7px 10px; color: var(--critical); flex-shrink: 0; }
+
+  .modal-card.wide { max-width: 720px; }
+  .nom-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .nom-toolbar input { flex: 1; }
+  .nom-list { max-height: 360px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .nom-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--gridline); font-size: 13px; }
+  .nom-row:last-child { border-bottom: none; }
+  .nom-row .nom-name { flex: 1; }
+  .nom-row .nom-name input { width: 100%; border: 1px solid transparent; background: transparent; padding: 3px 6px; }
+  .nom-row .nom-name input:focus { border-color: var(--border); background: var(--surface-2); }
+  .nom-row.inactive .nom-name input { color: var(--text-muted); text-decoration: line-through; }
+  .nom-row label.switch { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
+  .nom-hint { font-size: 11.5px; color: var(--text-muted); margin: 8px 0 0; }
+
+  .unresolved-section { margin-top: 16px; }
+  .unresolved-section h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--text-secondary); margin: 0 0 8px; }
+  .unresolved-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--gridline); flex-wrap: wrap; }
+  .unresolved-row .u-name { flex: 1; min-width: 140px; font-size: 13px; }
+  .unresolved-row .u-count { font-size: 11px; color: var(--text-muted); }
+  .unresolved-row .u-link { display: flex; gap: 6px; align-items: center; }
+  .unresolved-row .u-link button { padding: 4px 9px; font-size: 12px; }
+
+  .product-stats-bar {
+    display: none; margin-top: 10px; padding: 10px 14px; border-radius: 10px;
+    background: var(--good-bg); font-size: 13px; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  .product-stats-bar b { font-size: 14px; }
+  .product-stats-bar .clear-product-btn { margin-left: auto; padding: 3px 9px; font-size: 12px; }
+
   @media print {
     header.top, .btn, button, input, .filters, footer.note { display: none !important; }
     body, .page { background: #fff; color: #000; }
@@ -168,6 +216,7 @@
       <span class="updated" id="updatedLabel"></span>
     </div>
     <div class="top-actions">
+      <button id="nomenclatorBtn" title="Gestionează lista de produse">📦 Nomenclator</button>
       <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
       <button id="backupBtn" title="Descarcă toate PV-urile ca backup">⬇ Backup</button>
       <label class="btn" for="importInput" title="Importă PV-uri noi (fișier .json)">⬆ Importă</label>
@@ -186,10 +235,25 @@
 
   <section class="card">
     <div class="filters">
-      <input type="text" id="searchInput" placeholder="Caută produs, gestionar sau motiv…" />
+      <input type="text" id="searchInput" placeholder="Caută liber (produs, gestionar sau motiv)…" />
       <label>De la <input type="date" id="fromDate" /></label>
       <label>Până la <input type="date" id="toDate" /></label>
       <button id="clearFilters">Șterge filtre</button>
+    </div>
+    <div class="filters" style="margin-top:10px;">
+      <label style="display:flex;align-items:center;gap:6px;">Caută produs din nomenclator
+        <div class="product-ac" id="productFilterWrap">
+          <input type="text" id="productFilterInput" placeholder="ex: Melc" autocomplete="off" />
+          <input type="hidden" id="productFilterId" />
+          <div class="ac-dropdown" id="productFilterDropdown" style="display:none;"></div>
+        </div>
+      </label>
+    </div>
+    <div class="product-stats-bar" id="productStatsBar">
+      <span>Produs: <b id="statProdName"></b></span>
+      <span>PV-uri găsite: <b id="statProdCount"></b></span>
+      <span>Cantitate totală: <b id="statProdQty"></b></span>
+      <button class="clear-product-btn" id="clearProductFilter">✕ Șterge</button>
     </div>
   </section>
 
@@ -217,14 +281,30 @@
     <label>Motiv general
       <input type="text" id="fieldMotiv" placeholder="ex: Produse expirate" />
     </label>
-    <label>Produse
-      <textarea id="fieldProduse" placeholder="Nume produs - Cantitate - Motiv (opțional)&#10;ex: Iaurt Danone 150g - 12 buc - expirat"></textarea>
-    </label>
-    <div class="hint">Un produs pe linie, format: Nume - Cantitate - Motiv (motiv opțional, ia motivul general dacă lipsește)</div>
+    <label style="margin-bottom:6px;">Produse</label>
+    <div class="produse-rows" id="produseRows"></div>
+    <button type="button" id="addProdusRow" class="btn" style="margin-top:8px;">+ Adaugă produs</button>
+    <div class="hint" style="margin-top:10px;">Caută produsul din nomenclator și alege-l din listă. Dacă nu-l găsești, poți scrie liber denumirea — îl poți lega ulterior din „Nomenclator → Produse neidentificate".</div>
     <div class="modal-actions">
       <button id="entryCancel">Anulează</button>
       <button id="entryDelete" class="danger" style="display:none;">Șterge PV</button>
       <button id="entrySave" class="btn-primary">Salvează</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="nomenclatorModal" style="display:none;">
+  <div class="modal-card wide">
+    <h3>Nomenclator produse</h3>
+    <div class="nom-toolbar">
+      <input type="text" id="nomSearch" placeholder="Caută în nomenclator…" />
+      <button id="nomAddBtn" class="btn-primary">+ Produs nou</button>
+    </div>
+    <div class="nom-list" id="nomList"></div>
+    <div class="nom-hint" id="nomCount"></div>
+    <div class="unresolved-section" id="unresolvedSection"></div>
+    <div class="modal-actions">
+      <button id="nomCloseBtn" class="btn-primary">Închide</button>
     </div>
   </div>
 </div>
@@ -255,14 +335,119 @@
     return parseInt(m[3],10) * 10000 + parseInt(m[2],10) * 100 + parseInt(m[1],10);
   }
 
-  function parseProduseText(text) {
-    return String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(line => {
-      const parts = line.split(/\s*-\s*/);
-      return { nume: parts[0] || '', cantitate: parts[1] || '', motiv: parts[2] || '' };
-    });
+  // ---------- nomenclator produse ----------
+  const NOMENCLATOR_SEED = [{"id":"1","nume":"Benzina Optim 95","activ":true},{"id":"2","nume":"Motorina E 5","activ":true},{"id":"3","nume":"Gaz Petrolier Lichefiat","activ":true},{"id":"023942986966","nume":"STICK USB 16GB VERBATIM","activ":true},{"id":"070023","nume":"cookie cioc alba & neagra congelat","activ":false},{"id":"070024","nume":"cookie clasic cioco neagra congelat","activ":false},{"id":"070837","nume":"cookie macadamia & cioc alba congelat","activ":false},{"id":"1000","nume":"BUTELII 11KG","activ":true},{"id":"1002","nume":"ULEI POLYTRON FULLY 5W30 1L","activ":true},{"id":"1003","nume":"ULEI CASTROL MAGNATEC A3/B4 10W-40 4L","activ":true},{"id":"1004","nume":"ULEI CASTROL ATF DEX III 1L","activ":true},{"id":"1005","nume":"ULEI CASTROL TRANS EP 80W-90","activ":true},{"id":"1006","nume":"ULEI ARAL BLUE TRONIC SAE 10W-40 1L","activ":true},{"id":"1007","nume":"ULEI ARAL BLUE TRONIC II 10W-40 4L","activ":true},{"id":"1008","nume":"ULEI ARAL HIGH TRONIC 5W-40 1L","activ":true},{"id":"1009","nume":"ULEI ARAL HIGH TRONIC 5W-40 4L","activ":true},{"id":"1010","nume":"ULEI CASTROL POWER 4T 10W-40","activ":true},{"id":"1011","nume":"ULEI CASTROL A3/B3 15W-40 1L GTX","activ":true},{"id":"1012","nume":"ULEI CASTROL MAGNATEC 5W-40 C3 1L","activ":true},{"id":"1013","nume":"ULEI CASTROL EDGE 5W-30LL 1L","activ":true},{"id":"1014","nume":"ULEI CASTROL EDGE 5W-30 5L","activ":true},{"id":"1015","nume":"ULEI CASTROL EDGE 5W40 TD 1L","activ":true},{"id":"1016","nume":"ULEI CASTROL EDGE 5W-40 TD 5L","activ":true},{"id":"1017","nume":"ULEI CASTROL 10W-40 A/B 1L","activ":true},{"id":"1018","nume":"ULEI CASTROL MAGNATEC 10W-40 A/B  4L","activ":true},{"id":"1019","nume":"ULEI CASTROL 10W-40 A3/B4 1L GTX","activ":true},{"id":"1020","nume":"ULEI CASTROL MAGNATEC 5W-30 A5 1L","activ":true},{"id":"1021","nume":"ULEI CASTROL 5W-40 1L DPF","activ":true},{"id":"1022","nume":"ULEI LIQUI MOLY DIESEL 5W40","activ":true},{"id":"1023","nume":"ULEI LIGUI MOLI DIESEL HIGHTECH 5L","activ":true},{"id":"1024","nume":"ULEI LIQUI MOLY 5W30 1L","activ":true},{"id":"1025","nume":"ULEI MOBIL SUPER 2000 X1 10W-40 1L","activ":true},{"id":"1026","nume":"ULEI SUPER MOBIL 10W-40 4L","activ":true},{"id":"1027","nume":"ULEI M 20W40 1L","activ":true},{"id":"1028","nume":"ULEI M 20W40 3L","activ":true},{"id":"1029","nume":"ULEI M30 1L","activ":true},{"id":"1030","nume":"ULEI M30 3L","activ":true},{"id":"1031","nume":"ULEI M 30S2 10L","activ":true},{"id":"1032","nume":"ULEI M30S2 20L","activ":true},{"id":"1033","nume":"ULEI M40 1L","activ":true},{"id":"1034","nume":"ULEI M40 3L","activ":true},{"id":"1035","nume":"ULEI M40 10L","activ":true},{"id":"1036","nume":"ULEI M40 20L","activ":true},{"id":"1037","nume":"ULEI T90 1L","activ":true},{"id":"1038","nume":"ULEI T90 3L","activ":true},{"id":"1039","nume":"ULEI T90 10L","activ":true},{"id":"1040","nume":"ULEI T90 20L","activ":true},{"id":"1041","nume":"ULEI VALVOLINA 1L N","activ":true},{"id":"1042","nume":"ULEI VALVOLINA 3LITRI","activ":true},{"id":"1043","nume":"ULEI H46A 1L","activ":true},{"id":"1044","nume":"ULEI H46 3L","activ":true},{"id":"1045","nume":"ULEI H46 20L","activ":true},{"id":"1046","nume":"ULEI 2T 500ML","activ":true},{"id":"1047","nume":"ULEI ATF 1L","activ":true},{"id":"1048","nume":"ULEI 4T EST 1L","activ":true},{"id":"1049","nume":"VASELINA LI CA2 TUB 400G","activ":true},{"id":"1050","nume":"LICHID FRANA DOT 4 0.5L","activ":true},{"id":"1051","nume":"SPRAY ANTI RUGINA","activ":true},{"id":"1052","nume":"ADITIV PENTRU MOTORINA 355 ML","activ":true},{"id":"1053","nume":"ADITIV ULEI 0355ML 2+2","activ":true},{"id":"1054","nume":"ALCOOL TEHNIC  2L","activ":true},{"id":"1055","nume":"SIGURANTE PLATE MARI","activ":true},{"id":"1056","nume":"ANTIGEL G12  1KG","activ":true},{"id":"1057","nume":"SACOSA BANANA","activ":true},{"id":"1058","nume":"AD BLUE 10L PET","activ":true},{"id":"1060","nume":"AROMATIZANT AREON  FRESH  SOLID","activ":true},{"id":"1061","nume":"BEC C5W 12V NARVA","activ":true},{"id":"1062","nume":"BEC C5W  24V NARVA","activ":true},{"id":"1063","nume":"BEC R5W 12V  5W NARVA","activ":true},{"id":"1064","nume":"BEC 12V 5W SOCLU STICLA NARVA","activ":true},{"id":"1065","nume":"BEC W5W 12 V NARVA SET","activ":true},{"id":"1066","nume":"BEC R10W 12V N","activ":true},{"id":"1067","nume":"BEC T10 24V NARVA","activ":true},{"id":"1068","nume":"BEC P21W 24V  NARVA","activ":true},{"id":"1069","nume":"BEC P21 5W 12V NARVA","activ":true},{"id":"1070","nume":"BEC P21/5W 24V NARVA","activ":true},{"id":"1071","nume":"BEC H1 12V 55W NARVA","activ":true},{"id":"1072","nume":"BEC H3  12 V NARVA CU FIR","activ":true},{"id":"1073","nume":"BEC H3 CU FIR 24 V NARVA","activ":true},{"id":"1074","nume":"BEC H3 24V 70W NARVA","activ":true},{"id":"1075","nume":"BEC H1 24V","activ":true},{"id":"1076","nume":"BEC H4 12V P 43 NARVA N","activ":true},{"id":"1077","nume":"BEC H4 24V NARVA 70W","activ":true},{"id":"1078","nume":"BEC H7 24 V NARVA","activ":true},{"id":"1079","nume":"BEC H7 12V 55W NARVA","activ":true},{"id":"1080","nume":"BEC PY 21W 12V GALBEN","activ":true},{"id":"1081","nume":"BEC W5W 24 FARA SOCLU","activ":true},{"id":"1082","nume":"GASCHET VICTOR REINZ  70ML","activ":true},{"id":"1083","nume":"DAVIDOFF CLASSIC","activ":true},{"id":"1084","nume":"DAVIDOFF GOLD","activ":true},{"id":"1085","nume":"DAVIDOFF GOLD SLIM","activ":true},{"id":"1086","nume":"SPRAY PORNIRE MANNOL 450 ML R","activ":true},{"id":"1087","nume":"SOBRANIE SUPERSLIMS BLACK","activ":true},{"id":"1088","nume":"SOBRANIE SUPERSLIMS PINK","activ":true},{"id":"1089","nume":"SOBRANIE SUPERSLIMS WHITE","activ":true},{"id":"1090","nume":"CRICOVA SP ALB 0.75L","activ":true},{"id":"1091","nume":"BATERII MAXEL CZ 9V","activ":true},{"id":"1093","nume":"FUJIENERGY R6","activ":true},{"id":"1094","nume":"VUSE  GO RELOAD 1000 GRAPE ICE","activ":true},{"id":"1095","nume":"WINSTON SUPER SLIMS BLUE","activ":true},{"id":"1096","nume":"WINSTON SUPER SLIMS SILVER","activ":true},{"id":"1097","nume":"WINSTON CLASSIC 100","activ":true},{"id":"1098","nume":"WINSTON BLUE 100","activ":true},{"id":"1099","nume":"WINSTON PLUS RED","activ":true},{"id":"1100","nume":"WINSTON NOVA BLUE","activ":true},{"id":"1101","nume":"WINSTON BLUE","activ":true},{"id":"1102","nume":"GLO DUNHILL OB TOBACO","activ":true},{"id":"1103","nume":"GLO BY DUNHILL COPPER TOBACO","activ":true},{"id":"1104","nume":"GLO BY KENT TOBACCO","activ":true},{"id":"1105","nume":"NEO SCARLET","activ":true},{"id":"1106","nume":"NEO PURPLE 1","activ":true},{"id":"1107","nume":"NEO AZURE","activ":true},{"id":"1108","nume":"NEO TERRACOTTA TOBACO","activ":true},{"id":"1109","nume":"VEO SCARLET CLIK","activ":true},{"id":"1110","nume":"VEO PURPLE CLICK","activ":true},{"id":"1111","nume":"VEO SUNSET CLICK CORCHO","activ":true},{"id":"1112","nume":"VEO FRESCO CLICK CORCHO","activ":true},{"id":"1113","nume":"VEO ICE CLICK CORCHO","activ":true},{"id":"1114","nume":"VEO AMBER CLICK","activ":true},{"id":"1115","nume":"CAMEL BRONZ","activ":true},{"id":"1116","nume":"CAMEL GREEN","activ":true},{"id":"1117","nume":"TEREA DORE S50","activ":true},{"id":"1118","nume":"PALL MALL SELECT RED","activ":true},{"id":"1119","nume":"VUSE GO 1000  HAZELNUT","activ":true},{"id":"1120","nume":"VUSE GO 1000 TROPICAL","activ":true},{"id":"1121","nume":"KENT D-LUX BLACK","activ":true},{"id":"1122","nume":"KENT D-LUX BLUE","activ":true},{"id":"1123","nume":"KENT D-LUX GOLD","activ":true},{"id":"1124","nume":"VUSE 1 POD CAPSULE CREAMY TOBACO","activ":true},{"id":"1125","nume":"VUSE 1 POD CAPSULE STRAWBERRY ICE","activ":true},{"id":"1126","nume":"VUSE 1 POD CAPSULE BERRY BLEND","activ":true},{"id":"1127","nume":"VUSE 1 POD CAPSULE BERRY WATERMELON","activ":true},{"id":"1128","nume":"VUSE 1 POD CAPSULE CLASSIC PEACH","activ":true},{"id":"1129","nume":"VUSE 1 POD CAPSULE BANANA ICE","activ":true},{"id":"1130","nume":"VUSE 1 POD CAPSULE MANGO ICE","activ":true},{"id":"1131","nume":"VIN SPUMANT CUVVE EXTRA 0.75 L","activ":true},{"id":"1132","nume":"LEVIA BERRY PEARL","activ":true},{"id":"1133","nume":"LEVIA SUMMER PEARL","activ":true},{"id":"1134","nume":"CHESTERFIELD TUNED BLACK KL","activ":true},{"id":"1135","nume":"VEO BLOSSOM TWIST","activ":true},{"id":"1136","nume":"VUSE 1POD CAP WATERMELON ICE","activ":true},{"id":"1137","nume":"VUSE 1 POD CAP ORIGINAL STRAW2","activ":true},{"id":"1138","nume":"CAMEL SKY LINE BLACK","activ":true},{"id":"1139","nume":"CAMEL SKY LINE BLUE","activ":true},{"id":"1140","nume":"KENT D-LUX RED","activ":true},{"id":"1141","nume":"VUSE PRO 1000  PEPPERMINT","activ":true},{"id":"1142","nume":"VUSE PRO 1000 STRAWBERRY","activ":true},{"id":"1143","nume":"VUSE PRO 1000 BLUEBERRY","activ":true},{"id":"1144","nume":"PALL MALL SELECT S-LINE BLACK","activ":true},{"id":"1145","nume":"PALL MALL SELECT S LINE GOLD","activ":true},{"id":"1146","nume":"MARLBORO CLASSIC","activ":true},{"id":"1147","nume":"PALL MALL (BLUE)","activ":true},{"id":"1148","nume":"ROTHMANS BLUE SUP","activ":true},{"id":"1149","nume":"VIN TH CAI ROSI ROSE 0.75L","activ":true},{"id":"1150","nume":"VIN TH CAI ROSI MUSCAT 0.75L","activ":true},{"id":"1151","nume":"VIN ALAI DEMISEC 0.75L SGR","activ":true},{"id":"1153","nume":"SPUMANT TAMAIOASA 0.75L","activ":true},{"id":"1154","nume":"VIN BUSUIOACA BOH 0.75","activ":true},{"id":"1155","nume":"BERE CIUCAS DZ 0.5L SGR","activ":true},{"id":"1156","nume":"BERE TIMISOREANA 2.5 L SGR","activ":true},{"id":"1157","nume":"BERE TIMISOREANA DZ 0.55L SGR","activ":true},{"id":"1158","nume":"VOTCA STALINSKAIA 0.2L SGR","activ":true},{"id":"1159","nume":"VOTCA STALINSKAYA 0.5L SGR","activ":true},{"id":"1160","nume":"Nu se mai cumpara","activ":true},{"id":"1161","nume":"BAUT. SPIRT. DROBETA 0.2L28% SGR","activ":true},{"id":"1162","nume":"CONIAC BANDERAS 28%0.2L SGR","activ":true},{"id":"1164","nume":"FRANCUSA SELECTIE 2017 0.75L","activ":true},{"id":"1166","nume":"VIN SP SELECTIE ROM DULCE","activ":true},{"id":"1168","nume":"VIN SELECTIE DE BUSUIOACA ROSE","activ":true},{"id":"1169","nume":"FRANCUSA COT ALB 0.75L SGR","activ":true},{"id":"1170","nume":"BERE BECKS 0.5L DZ SGR","activ":true},{"id":"1171","nume":"BERE BERGENBIER 0.5 L DZ SGR","activ":true},{"id":"1172","nume":"BERE STAROPRAMEN 0.5L DZ SGR","activ":true},{"id":"1173","nume":"BERE BERGENBIER 2.5L SGR","activ":true},{"id":"1174","nume":"VIN SPUMANT RECAS ROSE 0.75L","activ":true},{"id":"1175","nume":"VIN TIM ROSU MASA","activ":true},{"id":"1176","nume":"VIN TIMM ROZE MASA","activ":true},{"id":"1177","nume":"JARISTEA BRANDY 40%0.2L","activ":true},{"id":"1178","nume":"JIDVEI GRIG ROSE 0.75L SGR","activ":true},{"id":"1179","nume":"JIDVEI FETEASCA REGALA 0.75L SRG","activ":true},{"id":"1180","nume":"BERE CIUC RADLER ZMEURA 0.5L DZ SGR A","activ":true},{"id":"1181","nume":"BERE CIUC ST 0.66L SGR (A)","activ":true},{"id":"1182","nume":"BERE CIUC DZ 0.5L SGR","activ":true},{"id":"1183","nume":"BERE NEUMARK 1L PET SGR","activ":true},{"id":"1184","nume":"BERE NEUMARK 2.5L SGR (A)","activ":true},{"id":"1185","nume":"BERE NEUMARKT 0.66L SGR","activ":true},{"id":"1186","nume":"BERE GOLDEN BRAU DZ 0.5L SGR (A)","activ":true},{"id":"1187","nume":"BERE HEINEKEN ST 0.33L SGR (A )","activ":true},{"id":"1188","nume":"BERE HEINEKEN ST 0.66L SGR A","activ":true},{"id":"1189","nume":"BERE HEINEKEN 0.5 LDZ SGR","activ":true},{"id":"1190","nume":"BERE DESPERATOS ST 0.40L SGR A","activ":true},{"id":"1191","nume":"BERE CIUC ST NOU 0.33L SGR","activ":true},{"id":"1192","nume":"STRONGBOW ST 0.33L RED BERRIES SGR A","activ":true},{"id":"1193","nume":"BERE AMSTEL STICLA  0.33L SGR (A)","activ":true},{"id":"1194","nume":"BERE NEUMARK 0.5L PET SGR (A)","activ":true},{"id":"1196","nume":"ALEXANDRION 37.5% 0.2L SGR","activ":true},{"id":"1197","nume":"CAVADORO  0.2L 28% SGR","activ":true},{"id":"1198","nume":"ALEXANDER VODKA 0.2L SGR","activ":true},{"id":"1199","nume":"ALEXANDER VODKA LEMON 0.2 L","activ":true},{"id":"1200","nume":"KRESKOVA 28% 0.2L SGR","activ":true},{"id":"1201","nume":"ALCOOL SANITAR 70% 0.5L","activ":true},{"id":"1204","nume":"VORONSKAYA CLASIC 0.2L SGR","activ":true},{"id":"1205","nume":"BS VORONA V17 0.5 L SGR","activ":true},{"id":"1206","nume":"BS VORONA R 17 0.5L SGR","activ":true},{"id":"1207","nume":"VORONA 0.200 ML SGR","activ":true},{"id":"1208","nume":"MARLBORO CLASSIC 100","activ":true},{"id":"1209","nume":"PARLIAMENT AQUA BLUE","activ":true},{"id":"1210","nume":"VEEV ONE MINT 1.8","activ":true},{"id":"1211","nume":"VEEV ONE STRAW 1.8","activ":true},{"id":"1212","nume":"VEEV BLUE RASPBERRY 1.8","activ":true},{"id":"1213","nume":"VEEV ONE BLUEBERRY 1.8","activ":true},{"id":"1214","nume":"VEEV ONE WATERMELON 1.8","activ":true},{"id":"1215","nume":"VEEV ONE MANGO 1.8","activ":true},{"id":"1216","nume":"VEEV ONE PEACH 1.8","activ":true},{"id":"1217","nume":"VEEV ONE VELVET BLACK BLUE RASPBERRY","activ":true},{"id":"1218","nume":"VEEV ONE VELVET BLACK STRAWBERRY","activ":true},{"id":"1220","nume":"VEEV ONE CHERRY 1.8","activ":true},{"id":"1221","nume":"LUCKY STRIKE RED","activ":true},{"id":"1222","nume":"VOGUE LA CIGARETTE BLEUE","activ":true},{"id":"1223","nume":"VOGUE LILAS TRA","activ":true},{"id":"1224","nume":"DUNHILL FINE CUT MASTER BLEND","activ":true},{"id":"1225","nume":"KENT CORE (BLUE)","activ":true},{"id":"1226","nume":"KENT CORE (SILVER)","activ":true},{"id":"1227","nume":"DUNHILL FINE  CUT BLONDE BLEND","activ":true},{"id":"1228","nume":"KENT NANO (SILVER)","activ":true},{"id":"1229","nume":"KENT NANO (WHITE)","activ":true},{"id":"1230","nume":"PARLIAMENT AQUA BLUE SLIMS 1OOS","activ":true},{"id":"1231","nume":"DUNHILL FINE CUT SWISS BLEND","activ":true},{"id":"1232","nume":"MARLBORO FILTER PLUS","activ":true},{"id":"1233","nume":"PALL MALL EXTRA CUT (BLUE)","activ":true},{"id":"1234","nume":"MARLBORO TOUCH 6MG","activ":true},{"id":"1235","nume":"MARLBORO FINE TOUCH 4MG","activ":true},{"id":"1236","nume":"MARLBORO GOLD ORIGINAL 100","activ":true},{"id":"1237","nume":"PARLIAMENT RESERVE PREMIUM SUPER SLIMS 1","activ":true},{"id":"1238","nume":"VICEROY RED 100s","activ":true},{"id":"1239","nume":"L&M RED LABEL KS","activ":true},{"id":"1240","nume":"L&M RED LABEL 100S","activ":true},{"id":"1241","nume":"PALL MALL EXTRA CUT (BLACK)","activ":true},{"id":"1242","nume":"APA DISTILATA 1.5 L","activ":true},{"id":"1243","nume":"APA DISTILATA 1L","activ":true},{"id":"1244","nume":"ANTIGEL EST 1KG","activ":true},{"id":"1245","nume":"CHESTERFIELD BLACK 100","activ":true},{"id":"1246","nume":"CHESTERFIELD  BLUE 100 S","activ":true},{"id":"1247","nume":"MARLBORO FILTER PLUS 100S","activ":true},{"id":"1248","nume":"PALL MALL EXTRA CUT WHITE","activ":true},{"id":"1249","nume":"KENT CORE (BLACK 94'S)","activ":true},{"id":"1250","nume":"KENT CORE (BLUE 94'S)","activ":true},{"id":"1251","nume":"KENT CORE (SILVER 94'S)","activ":true},{"id":"1252","nume":"KENT CORE (WHITE 94'S)","activ":true},{"id":"1254","nume":"SOLUTIE CURATAT CONTACTE ELECTRICE","activ":true},{"id":"1255","nume":"MARLBORO XL  FINE TOUCH","activ":true},{"id":"1256","nume":"MARLBORO XL TOUCH 7MG","activ":true},{"id":"1257","nume":"KENT MODE (BLUE) 6mg","activ":true},{"id":"1258","nume":"KENT MODE (SILVER) 4mg","activ":true},{"id":"1259","nume":"DUNHILL FINE CUT BRIGHT BLEND","activ":true},{"id":"1260","nume":"KENT 100's","activ":true},{"id":"1261","nume":"WINSTON XSPRESS SUP.LINE","activ":true},{"id":"1262","nume":"SOBRANIE REFINE BLACK","activ":true},{"id":"1263","nume":"SOBRANIE REDEF CROME","activ":true},{"id":"1264","nume":"SOBRANIE REDEF BLUE","activ":true},{"id":"1265","nume":"SOBRANIE KS BLACK","activ":true},{"id":"1266","nume":"MARLBORO MICRO FINE TOUCH","activ":true},{"id":"1267","nume":"SOBRANIE COL BLACK","activ":true},{"id":"1268","nume":"SOBRANIE COL GOLD","activ":true},{"id":"1269","nume":"CAMEL COMP BLAK","activ":true},{"id":"1270","nume":"DUNHILL EVOQUE BRONZE","activ":true},{"id":"1271","nume":"DUNHILL EVOQUE ENGLISH GREEN 100S","activ":true},{"id":"1272","nume":"DUNHILL EVOQUE JAPANESE ROSE 100S","activ":true},{"id":"1273","nume":"DUNHILL EVOQUE RIVIERA BEIGE 100S","activ":true},{"id":"1274","nume":"PALL MALL S LINE FLOW PURPLE","activ":true},{"id":"1275","nume":"PALL MALL S LINE FLOW ROSE","activ":true},{"id":"1276","nume":"VOGUE LA CIGARETTE UNIQUE BLEUE","activ":true},{"id":"1277","nume":"VOGUE LA CIGARETTE UNIQUE ROSE","activ":true},{"id":"1278","nume":"DUNHILL SIGNATURE NO. 6 (PURPLE) 8P","activ":true},{"id":"1279","nume":"DUNHILL SIGNATURE NO 4 OLIVE","activ":true},{"id":"1280","nume":"SOBRANIE REDEF RED","activ":true},{"id":"1281","nume":"PALL MALL ASCEND ROSE GOLD","activ":true},{"id":"1282","nume":"PALL MALL ASCEND BLACK","activ":true},{"id":"1283","nume":"WINSTON CASTER S LINE","activ":true},{"id":"1284","nume":"L&M RED KS 23s","activ":true},{"id":"1285","nume":"MARLBORO CIGARILLOS STORM MIST","activ":true},{"id":"1286","nume":"DUNHILL SIGNATURE NO 8 BLEK","activ":true},{"id":"1287","nume":"FIIT MARINE","activ":true},{"id":"1288","nume":"TEREA RUSSET","activ":true},{"id":"1289","nume":"TEREA YELLOW","activ":true},{"id":"1290","nume":"TEREA SIENNA","activ":true},{"id":"1291","nume":"TEREA AMBER","activ":true},{"id":"1292","nume":"TEREA BRONZE","activ":true},{"id":"1293","nume":"TEREA SILVER","activ":true},{"id":"1294","nume":"TEREA TEAK","activ":true},{"id":"1295","nume":"TEREA TURQUOISE","activ":true},{"id":"1296","nume":"WINSTON SEL . NIGHT","activ":true},{"id":"1297","nume":"WINSTON SEL.SUNRISE","activ":true},{"id":"1298","nume":"CAMEL CASTER","activ":true},{"id":"1299","nume":"SOBRANIE COL RED","activ":true},{"id":"1300","nume":"CHESTERFIELD TUNED BLUE XL","activ":true},{"id":"1301","nume":"CHESTERFIELD TUNED SILVER XL","activ":true},{"id":"1302","nume":"PALL MALL S LINE FLOW TOURQUOISE","activ":true},{"id":"1303","nume":"MARLBORO GOLD TOUCH XL","activ":true},{"id":"1304","nume":"CAMEL ORIGINAL","activ":true},{"id":"1305","nume":"CAMEL ORIGINAL BLUE","activ":true},{"id":"1306","nume":"DUNHILL FINE CUT PRIME BLEND","activ":true},{"id":"1307","nume":"CAMEL ORIGINAL BLAK","activ":true},{"id":"1308","nume":"TEREA AMARELO FUSE","activ":true},{"id":"1309","nume":"TEREA WIND FUSE","activ":true},{"id":"1311","nume":"RYO MARLBORO CRAFTED GOLD","activ":true},{"id":"1312","nume":"SOBRANIE COL BLUE","activ":true},{"id":"1313","nume":"RIUNITE LAMBRUSCO ROSE 0.75L SGR","activ":true},{"id":"1314","nume":"KENT MODE LUMINA -25  ED DS","activ":true},{"id":"1315","nume":"KENT MODE LUMINA 25 ED 94S","activ":true},{"id":"1316","nume":"PALL MALL CLASSIC BLACK 100S","activ":true},{"id":"1317","nume":"PALL MALL CLASSIC RED 100S","activ":true},{"id":"1318","nume":"PALL MALL CLASSIC BLUE 100S","activ":true},{"id":"1319","nume":"PALL MALL CLASSIC AZURE 100S","activ":true},{"id":"1320","nume":"PALL MALL SELECT BLACK","activ":true},{"id":"1321","nume":"PALL MALL SELECT BLUE","activ":true},{"id":"1322","nume":"KENT MODE KOMET  NAVY BLUE 94S","activ":true},{"id":"1323","nume":"KENT MODE KOMET BLUE 94S","activ":true},{"id":"1324","nume":"KENT MODE KOMET AZURE 94 S","activ":true},{"id":"1325","nume":"KENT MODE EKLIPSE BURGUNDY SS","activ":true},{"id":"1327","nume":"DELIA CLASSIC RED","activ":true},{"id":"1328","nume":"DELIA CLASSIC SILVER","activ":true},{"id":"1329","nume":"DELIA CLASSIC GOLD","activ":true},{"id":"1330","nume":"DELIA CLASSIC GREEN","activ":true},{"id":"1331","nume":"WINSTON CONCEPT BLACK","activ":true},{"id":"1332","nume":"WINSTON CONCEPT BLUE","activ":true},{"id":"1333","nume":"WINSTON CONCEPT CASTER","activ":true},{"id":"1334","nume":"WINSTON CONCEPT XSPRESSION","activ":true},{"id":"1335","nume":"MARLBORO CRAFT RED","activ":true},{"id":"1336","nume":"MARLBORO CRAFTED GOLD","activ":true},{"id":"1337","nume":"WINSTON S LINE BLACK TT","activ":true},{"id":"1339","nume":"VUSE GO 1000 PEN APPLE SOUR 20 ML","activ":true},{"id":"1340","nume":"VUSE GO 1000 BERRY BLEND","activ":true},{"id":"1341","nume":"VUSE GO 1000 PEN BLUEBERRY FN","activ":true},{"id":"1342","nume":"VUSE GO 1000 BLUEBERRY ICE","activ":true},{"id":"1343","nume":"VUSE GO 1000 PEN CREAMY TOB","activ":true},{"id":"1344","nume":"VUSE GO 1000 PEN GRAPE ICE 20mg/ml","activ":true},{"id":"1345","nume":"VUSE GO 1000 PEN MANGO","activ":true},{"id":"1346","nume":"VUSE GO 1000 PEN PEPPERMINT","activ":true},{"id":"1347","nume":"VUSE GO 1000 PEN WATERMELON FN","activ":true},{"id":"1348","nume":"VUSE GO 1000 PEN WATERMELON ICE","activ":true},{"id":"1349","nume":"VUSE GO 1000 PEN PEPPERMINT ICE","activ":true},{"id":"1350","nume":"VUSE GO RELOAND 1000 BERRY","activ":true},{"id":"1352","nume":"FINLANDIA VODKA 1L","activ":true},{"id":"1354","nume":"LOG SET SIGURANTE C","activ":true},{"id":"1355","nume":"BRICHETE DOOZ ANTIVANT","activ":true},{"id":"1356","nume":"SERVETELE NAZALE AROMA MARI","activ":true},{"id":"1360","nume":"SERVETELE UMEDE AUTO","activ":true},{"id":"1362","nume":"IQOS ILUMA I BREEZE BLUE","activ":true},{"id":"1363","nume":"SPUMANTE CUVEE DOLCE 11%0.75L","activ":true},{"id":"1364","nume":"SPUMANT PROSECCO DE BERNARD 0.75L","activ":true},{"id":"1366","nume":"IGANOFF 1L 40%","activ":true},{"id":"1367","nume":"VIN TARIMA ROSADO 0.75L","activ":true},{"id":"1368","nume":"VIN VOLVER BLANCO 0.75L","activ":true},{"id":"1369","nume":"BLU BAR KIWI","activ":true},{"id":"1370","nume":"FITNESS NUTRITIVE BATON 23.5G","activ":true},{"id":"1372","nume":"ORBIT PROF STRONG MINT","activ":true},{"id":"1374","nume":"ORBIT REFRESHER","activ":true},{"id":"1375","nume":"ORBIT STRAWBERRY LEMON HP","activ":true},{"id":"1376","nume":"ORBIT SPEARMINT REFRESHER","activ":true},{"id":"1378","nume":"ORBIT WATERMELON PELLETS","activ":true},{"id":"1382","nume":"ORBIT STRAWBERRY 14G","activ":true},{"id":"1383","nume":"ORBIT WHITE FRUIT","activ":true},{"id":"1384","nume":"ORBIT WATERMELON","activ":true},{"id":"1385","nume":"ORBIT BLUEBERRY PELLETS","activ":true},{"id":"1387","nume":"ORBIT BUBBLEMINT","activ":true},{"id":"1388","nume":"BANZAI SEMINTE DOV. 40G","activ":true},{"id":"1389","nume":"BANZAI FISTIC 30GR","activ":true},{"id":"1390","nume":"BANZAI ARAHIDE DECOJ 140GR","activ":true},{"id":"1391","nume":"BANZAI ARAHIDE COAJA 140G","activ":true},{"id":"1392","nume":"BANZAI MIEZ 30GR","activ":true},{"id":"1393","nume":"BANZAI PARTY MIX 50G","activ":true},{"id":"1394","nume":"BANZAI MIX AMESTEC CROCANT 60 GR","activ":true},{"id":"1395","nume":"BANZAI SEMINTE 40G","activ":true},{"id":"1396","nume":"BANZAI SEMINTE SARE 40G","activ":true},{"id":"1397","nume":"BANZAI SEMINTE 100G","activ":true},{"id":"1398","nume":"BANZAI SEMINTE SARE 100G","activ":true},{"id":"1399","nume":"BANZAI SEMINTE 200G","activ":true},{"id":"1400","nume":"BANZAI SEMINTE ALBE 80G","activ":true},{"id":"1401","nume":"BANZAI FISTIC 50GR","activ":true},{"id":"1402","nume":"BANZAI PORUMB 110GR","activ":true},{"id":"1403","nume":"BANZAI SEMINTE SARE 200G","activ":true},{"id":"1404","nume":"BANZAI SEMINTE PESTRITE 90G","activ":true},{"id":"1405","nume":"BANZAI SEMINTE SARE 130G","activ":true},{"id":"1406","nume":"BANZAI SEMINTE PESTRITE 50G","activ":true},{"id":"1407","nume":"BANZAI SEMINTE PESTRITE 165G","activ":true},{"id":"1408","nume":"ARAHIDE DECOJITE 135GR","activ":true},{"id":"1409","nume":"SEMINTE BANZAI MIX ALBE SI PESTRITE","activ":true},{"id":"141","nume":"croissant cu unt 23%60gr produs vechi","activ":false},{"id":"1410","nume":"ORBIT PEPPERMIT PASTILE","activ":true},{"id":"1411","nume":"ORBIT SPEARMINT","activ":true},{"id":"1412","nume":"ORBIT WINTERFROST","activ":true},{"id":"1414","nume":"TUC ORIGINAL 100G","activ":true},{"id":"1415","nume":"SNACKS MIX VERDE 90G","activ":true},{"id":"1416","nume":"SNACKS MIX ROSU 90G","activ":true},{"id":"1417","nume":"SNACKS MIX MOV 90G","activ":true},{"id":"1418","nume":"LAYS 60G/28SALT","activ":true},{"id":"1419","nume":"LAYS CASCAVAL 60G","activ":true},{"id":"142","nume":"melc cu vanilie si stafide prod vechi","activ":false},{"id":"1420","nume":"DORITOS SARE 90G","activ":true},{"id":"1421","nume":"DORITOS 90G BBQ","activ":true},{"id":"1422","nume":"SNACKS CASCAVAL CHEESE 80 G","activ":true},{"id":"1423","nume":"STAR POPCORN CHEESE 80G.","activ":true},{"id":"1424","nume":"STAR POPCORN SARE 80G.","activ":true},{"id":"1425","nume":"LAYS CHIPS CASCAVAL 125G.","activ":true},{"id":"1426","nume":"LAYS CHIPS PAPRIKA 125G.","activ":true},{"id":"1427","nume":"LAYS CHIPS BARBEQUE 125G.","activ":true},{"id":"1428","nume":"LAYS CHIPS SARE 125G.","activ":true},{"id":"1430","nume":"KROCO CRAKERS SARE 0.100GR","activ":true},{"id":"1431","nume":"KROCO CRAKCERS BRANZA 100G","activ":true},{"id":"1432","nume":"KROCO CRACKES PIZZA 100GR","activ":true},{"id":"1433","nume":"CROCO STICKS SUSAN 80G","activ":true},{"id":"1434","nume":"UNT SOLOMONESCU 65% 200G","activ":true},{"id":"1435","nume":"LAPTE CONSUM 1.8%E1L","activ":true},{"id":"1436","nume":"LAPTE BATUT E500 G","activ":true},{"id":"1437","nume":"BRANZA GRASA DE VACA E 1KG","activ":true},{"id":"1438","nume":"SMANTANA 30%E 1KG","activ":true},{"id":"1439","nume":"CASCAVAL RUCAR E 400G","activ":true},{"id":"1440","nume":"CASCAVAL DALIA E400 G","activ":true},{"id":"1441","nume":"CASCAVAL RAMNIC E400G","activ":true},{"id":"1442","nume":"IAURT DIN LAPTE DE VACA E500G","activ":true},{"id":"1443","nume":"BURIC E500 G","activ":true},{"id":"1444","nume":"TELEMEA DIN LAPTE DE VACA E400 G","activ":true},{"id":"1445","nume":"TELEMEA DIN LAPTE DE OAIE E400G","activ":true},{"id":"1446","nume":"SANA E 500  GR","activ":true},{"id":"1447","nume":"TELEMEA DIN LAPTE DE CAPRA E400G","activ":true},{"id":"1448","nume":"BRANZA GRASA DE VACA E500 G","activ":true},{"id":"1449","nume":"APA BORSEC 1.5L MIN SGR","activ":true},{"id":"1450","nume":"APA BORSEC MIN.0,5L SGR","activ":true},{"id":"1451","nume":"APA BORSEC 2L PLATA-SGR","activ":true},{"id":"1452","nume":"APA BORSEC PLATA 0.5L SGR","activ":true},{"id":"1453","nume":"APA PERLA HARG 2L DP SGR","activ":true},{"id":"1454","nume":"APA PERLA HARGHITEI MIN 1L SGR","activ":true},{"id":"1455","nume":"APA PERLA HARGHITEI PLATA 1L SGR","activ":true},{"id":"1456","nume":"APA DORNA PLATA 0,5L SGR (A)","activ":true},{"id":"1457","nume":"APA DORNA PLATA 2L SGR (A)","activ":true},{"id":"1458","nume":"APA DORNA MINERALA 0,5L SGR (A)","activ":true},{"id":"1459","nume":"APA DORNA MIN 2L SGR (A)","activ":true},{"id":"1460","nume":"APA POIANA NEGRI APRIGA 2L SGR (A)","activ":true},{"id":"1461","nume":"APA AQUA CARPATICA 1L PLATA SGR","activ":true},{"id":"1462","nume":"APA AQUA CARPATICA 2L PLATA SGR","activ":true},{"id":"1463","nume":"APA AQUA CARPATICA 0.5L MIN SGR","activ":true},{"id":"1464","nume":"APA AQUA CARPATCA 1.5 L MIN SGR","activ":true},{"id":"1465","nume":"APA AQUA CARPATICA PLATA 0.5L SGR","activ":true},{"id":"1466","nume":"APA AQUA CARPATICA SPORT 0.75L PLATA SGR","activ":true},{"id":"1467","nume":"TUC BISCUITI SARATI CU SMANTANA SI CEAPA","activ":true},{"id":"1469","nume":"CAFEA capsule","activ":false},{"id":"1470","nume":"BAKE ROLLS 150G PIZZA","activ":true},{"id":"1471","nume":"BAKE ROLLS SARE 80GR","activ":true},{"id":"1472","nume":"BAKE ROLLS PIZZA 80G","activ":true},{"id":"1473","nume":"BAKE ROLLS USTUROI 80G","activ":true},{"id":"1475","nume":"BAKEROLLS 80G SMAN CEAPA","activ":true},{"id":"1476","nume":"TUC PAPRIKA 100G","activ":true},{"id":"1477","nume":"TUC CHEESE 100G","activ":true},{"id":"1479","nume":"ALOE VERA NATURAL 0,5L SGR","activ":true},{"id":"1480","nume":"ALOE VERA NATURAL 1.5L SGR","activ":true},{"id":"1481","nume":"ENERGIZANT MONSTER 0.500ML SGR (A)","activ":true},{"id":"1482","nume":"ENERGIZANT HELL DZ 0.25L SGR","activ":true},{"id":"1483","nume":"BURN MDRO 0.25 L SGR (A)","activ":true},{"id":"1484","nume":"RED BULL 0.25L SGR","activ":true},{"id":"1485","nume":"MD 0.5L PET SGR","activ":true},{"id":"1486","nume":"PRIGAT PORTOCALE 0,5L SGR","activ":true},{"id":"1487","nume":"PRIGAT 0.5L CAPS-BANANA SGR","activ":true},{"id":"1489","nume":"PEPSI COLA 2L SGR","activ":true},{"id":"1490","nume":"PEPSI 0.25 L SGR","activ":true},{"id":"1491","nume":"PEPSI COLA 2.5L SGR","activ":true},{"id":"1492","nume":"PEPSI COLA 0.33L DZ SGR","activ":true},{"id":"1493","nume":"PEPSI ZERO 2L SGR","activ":true},{"id":"1494","nume":"PEPSI 0.5L  BLACK ZERO SGR","activ":true},{"id":"1495","nume":"PEPSI 0.5L TWIST PET SGR","activ":true},{"id":"1496","nume":"PEPSI TWIST  0.33 L DZ SGR","activ":true},{"id":"1497","nume":"LIPTON LEMON 1.5L SGR","activ":true},{"id":"1498","nume":"MD DOZA 250ML SGR","activ":true},{"id":"1499","nume":"COCA COLA DOZA 0,330ML SGR (A)","activ":true},{"id":"1500","nume":"COCA COLA 2.5L SGR (A)","activ":true},{"id":"1501","nume":"COCA COLA  2L SGR (A)","activ":true},{"id":"1502","nume":"COCA COLA ZERO DZ 0.330ML SGR (A)","activ":true},{"id":"1503","nume":"FANTA PORTOCALE DZ 0.33L SGR (A)","activ":true},{"id":"1504","nume":"FANTA PORTOCALE 2.5L SGR (A)","activ":true},{"id":"1505","nume":"FANTA STRUGURI 2,5 L SGR (A)","activ":true},{"id":"1506","nume":"FANTA STRUGURI DZ 0.330 ML SGR (A)","activ":true},{"id":"1507","nume":"FANTA PORTOCALE 2L SGR (A)","activ":true},{"id":"1508","nume":"SCHWEPPES MANDARIN 1.5 L SGR (A)","activ":true},{"id":"1509","nume":"SCHWEPPES BT LEMON 1.5 L SGR (A)","activ":true},{"id":"1510","nume":"SCHW KINLEY 1.5L SGR (A)","activ":true},{"id":"1511","nume":"FUZE T FOREST FRUIT 1.5L SGR (A)","activ":true},{"id":"1512","nume":"FUZE  TEA BT LEMON 1.5L SGR (A)","activ":true},{"id":"1513","nume":"CAPPY GRAPEFRUIT PULPY 1.5L SGR (A)","activ":true},{"id":"1514","nume":"CAPPY ORANGE PULPA 1.5L SGR (A)","activ":true},{"id":"1515","nume":"COCA COLA 1L SGR (A)","activ":true},{"id":"1517","nume":"FANTA PORTOCALE 1.5 L SGR (A)","activ":true},{"id":"1518","nume":"VITAMINA AQUA MAG 0.6L SGR","activ":true},{"id":"1519","nume":"VITAMINA AQUA B+ZERO WAERMELON 0.6 L SGR","activ":true},{"id":"1520","nume":"VITAMIN AQUA MG ZERO 0,6L SGR","activ":true},{"id":"1521","nume":"LEMONADE NO.2 0,6L SGR","activ":true},{"id":"1522","nume":"LEMONADE NO.3 0,6L SGR","activ":true},{"id":"1523","nume":"LEMONADE NO.4 0,6L SGR","activ":true},{"id":"1524","nume":"COCA COLA  0.5L SGR (A)","activ":true},{"id":"1525","nume":"FANTA PORTOCALE  0.5L SGR (A)","activ":true},{"id":"1526","nume":"COCA COLA  NRG 330 ML SGR (A)","activ":true},{"id":"1527","nume":"SCHWEPPES MANDARIN 0.5L SGR (A)","activ":true},{"id":"1528","nume":"FANTA STRUGURI 0.5L SGR (A)","activ":true},{"id":"1529","nume":"SCHWEPPES BITTER LEMON 0,5L SGR (A)","activ":true},{"id":"1530","nume":"CAPPY PULPY PIERSICI PET 0.33L SGR (A)","activ":true},{"id":"1531","nume":"CAPPY GRAPEFRUIT PULPA 330 ML PET SGR (A","activ":true},{"id":"1532","nume":"CAPPY ORANGE PET 0.33L SGR (A)","activ":true},{"id":"1533","nume":"COCA COLA ZERO 0.5L PET SGR (A)","activ":true},{"id":"1534","nume":"FUZE TEA FORREST FRUIT 0.5 L SGR A","activ":true},{"id":"1535","nume":"FUZE T LAMAIE CITRONELA 0.5L SGR (A)","activ":true},{"id":"1536","nume":"SCHW KN TONIC 0.5L PET SGR (A)","activ":true},{"id":"1537","nume":"FUZE T LAMAIE VERDE MENTA 0.5L SGR (A)","activ":true},{"id":"1538","nume":"NESCAFE BARISTA AMERICANO 0.250ML","activ":true},{"id":"1539","nume":"KIT KAT CHUNKY MILK 40G","activ":true},{"id":"1540","nume":"KIT KAT SINGLE 41.5G","activ":true},{"id":"1541","nume":"NESQUIK MILK CHOCOLATE 26G","activ":true},{"id":"1542","nume":"BOUNTY CIOCO LAPTE 57G","activ":true},{"id":"1543","nume":"SNICKERS 50G","activ":true},{"id":"1544","nume":"TWIX 50G","activ":true},{"id":"1545","nume":"FITNESS STRAW BATON CEREALE 23.5G","activ":true},{"id":"1546","nume":"MARS 51G","activ":true},{"id":"1547","nume":"JOE XXL  CHOCO 46G","activ":true},{"id":"1548","nume":"ROM AUTENTIC 30G","activ":true},{"id":"1549","nume":"BISCUITI KREMBIS CACAO 36G","activ":true},{"id":"1550","nume":"MILKA CHOCO WAFER  ALUNE 30G","activ":true},{"id":"1551","nume":"JOE DREAMS CHOCO 33G","activ":true},{"id":"1552","nume":"JOE  COCOA 160G","activ":true},{"id":"1553","nume":"JOE CIOCO COCOA 160G","activ":true},{"id":"1554","nume":"JOE BIG CACAO 45G","activ":true},{"id":"1555","nume":"LION CHOCOLATE  DUO 60G","activ":true},{"id":"1556","nume":"LION CHOCOLATE 42G","activ":true},{"id":"1557","nume":"MILKA BUBBLY AERATA LAPTE 90G","activ":true},{"id":"1558","nume":"MILKA BUBBLY ALBA 95G","activ":true},{"id":"1559","nume":"MILKA CREMA DE VISINE  100G","activ":true},{"id":"1560","nume":"7D CRS CACAO 60G","activ":true},{"id":"1561","nume":"7D CRS MAX CACAO 80 G","activ":true},{"id":"1562","nume":"7D CRS CACAO/VANILIE 8OG","activ":true},{"id":"1563","nume":"7D CRS SAMPANIE 60G","activ":true},{"id":"1564","nume":"7D CRS DBL MAX  VANILIE-CAPSUNI 80G","activ":true},{"id":"1565","nume":"7D CRS MAX BUCATI CIOCO 70 G","activ":true},{"id":"1566","nume":"7D CRS CACAO COCOS 80G","activ":true},{"id":"1567","nume":"7D CRS MAX 80G HAZELNUT BISC","activ":true},{"id":"1568","nume":"7D CRS MAX 80G PEANUT","activ":true},{"id":"1569","nume":"7D CRS DBL MAX 80G VANILIE VISINE","activ":true},{"id":"1570","nume":"POIANA CHOKOTOFF 221 G","activ":true},{"id":"1571","nume":"POIANA LAPTE 80G","activ":true},{"id":"1572","nume":"MILKA HAPPY COW 90G","activ":true},{"id":"1573","nume":"MILKA EXTRA CACAO  90G","activ":true},{"id":"1574","nume":"MILKA ALUNE INTREGI 95G","activ":true},{"id":"1575","nume":"MILKA ALUNE 90G","activ":true},{"id":"1576","nume":"MILKA ALBA 90G","activ":true},{"id":"1577","nume":"MILKA LAPTE 90G","activ":true},{"id":"1578","nume":"MILKA NOISETTE 90G","activ":true},{"id":"1579","nume":"7D CRS SAMPANIE 80 G","activ":true},{"id":"1580","nume":"7D CRS MAX 80G FR PADURE","activ":true},{"id":"1581","nume":"OREO 154G","activ":true},{"id":"1582","nume":"BISC MILKA CHOCO 40G","activ":true},{"id":"1583","nume":"MILKA 110 GR BOMB. THANK YOU","activ":true},{"id":"1585","nume":"MILKA CR CAPSUNI 110G","activ":true},{"id":"1586","nume":"MILKA OREO 37G","activ":true},{"id":"1587","nume":"MILKA OREO BROWNIE 100G","activ":true},{"id":"1588","nume":"MILKA  OREO 100G","activ":true},{"id":"1589","nume":"MILKA CU GUST DE CAPSUNI 0.100KG","activ":true},{"id":"1590","nume":"MILKA OREO SANDWICH 92G","activ":true},{"id":"1591","nume":"MILKINIS 87.5","activ":true},{"id":"1592","nume":"BISCUITI MILKA CHOCO MINIS 37.5G","activ":true},{"id":"1593","nume":"OREO ORIGINAL 66G","activ":true},{"id":"1594","nume":"MILKA CHOCO WAFER 30G","activ":true},{"id":"1595","nume":"JOE ZI BUNA CACAO POST","activ":true},{"id":"1596","nume":"JOE ZI BUNA LEMON 117G","activ":true},{"id":"1598","nume":"NESQUIK BATON CEREALE 25G","activ":true},{"id":"1599","nume":"CHOCAPIC BATON CEREALE 25G","activ":true},{"id":"1601","nume":"DARE BATON CIOCO NAPOLITANA 50G","activ":true},{"id":"1605","nume":"JACOBS 3/1 ORIGINAL 6G","activ":true},{"id":"1614","nume":"Garantie SGR","activ":false},{"id":"2001","nume":"INCARCATOR AUTO ORIGINAL NO 6","activ":true},{"id":"2002","nume":"STIKER INCEPATOR SET 2BUC","activ":true},{"id":"2003","nume":"KETCHUP TOMATO 10ML","activ":true},{"id":"2073","nume":"tarta felie cu mere congelata","activ":false},{"id":"2101","nume":"INCARCATOR AUTO RAPID 120W TIPC","activ":true},{"id":"2102","nume":"SELFIE STIK BLUET R1","activ":true},{"id":"220","nume":"BOMB KONTI CHERRY","activ":true},{"id":"23090","nume":"gogoasa cu glaz alba si neagra congelata","activ":false},{"id":"2536","nume":"CARBUNE GRATAR WINDSOR","activ":true},{"id":"2537","nume":"Lapte condensat","activ":false},{"id":"2538","nume":"MOGYI PUFULETI STIX BRANZA","activ":true},{"id":"2539","nume":"MOGYI PUF STIX KETCHUP","activ":true},{"id":"2540","nume":"MOGYI PUFULETI ARAHIDE 40G","activ":true},{"id":"2541","nume":"MOGYI MEXICORN CU CASCAVAL","activ":true},{"id":"2542","nume":"MOGYI MEXICORN BBQ","activ":true},{"id":"2543","nume":"MOGYI ARAHIDE PRAJITE CU SARE 50 G","activ":true},{"id":"2544","nume":"Paleta lemn","activ":false},{"id":"2545","nume":"Pahar carton","activ":false},{"id":"2546","nume":"Zahar plic","activ":false},{"id":"2547","nume":"Capsula cafea","activ":false},{"id":"2548","nume":"SPRITE DOZA","activ":true},{"id":"2549","nume":"AREON LIQUID SPORT","activ":true},{"id":"2550","nume":"ARAL SUPER TRONIC 5W-30","activ":true},{"id":"2551","nume":"SKITTLES FRUITS 18 GR","activ":true},{"id":"2552","nume":"BOMB PERGALE","activ":true},{"id":"2553","nume":"BOMB PERGALE BERRIES MILK","activ":true},{"id":"2554","nume":"BOMB PERGALE ALBASTRU DESCHIS","activ":true},{"id":"2555","nume":"BOMB PERGALE DARK CLASSIC","activ":true},{"id":"2557","nume":"BOMB KONTI CLASIC","activ":true},{"id":"2558","nume":"BOMB KONTI CAPSUNI","activ":true},{"id":"2559","nume":"BOMB KONTI MASCARPONE","activ":true},{"id":"2560","nume":"BOMB TRUFALIE","activ":true},{"id":"2561","nume":"BOMB TRUFFLE CAPSUNI","activ":true},{"id":"2562","nume":"BOMB TRUFFLE MILK","activ":true},{"id":"2563","nume":"CARBUNI GRATAR SAC  2.5KG GOLD","activ":true},{"id":"2564","nume":"BANZAI ARAHIDE DECOJ 70G","activ":true},{"id":"2565","nume":"BANZAI ARAHIDE COAJA 70G","activ":true},{"id":"2566","nume":"BANZAI ARAH. IN CRUSTA NACHOS CU BRANZA","activ":true},{"id":"2567","nume":"BANZAI ARAHIDE IN CRUSTA WASABI","activ":true},{"id":"2568","nume":"M&M CU ARAHIDE 45 GR","activ":true},{"id":"2569","nume":"BANZAI SEMINTE ALBE 50G","activ":true},{"id":"2570","nume":"BANZAI SEMINTE 130G","activ":true},{"id":"2571","nume":"TOORTITZI MIX SEMINTE 80G","activ":true},{"id":"2572","nume":"BANZAI SEMINTE DOV. 80G","activ":true},{"id":"2573","nume":"BANZAI MIX AMESTEC CROCANT 110G","activ":true},{"id":"2574","nume":"ALKA COVRIGEI MIX MEDITERANEAN","activ":true},{"id":"2575","nume":"BLU BAR WET BERRY MIX","activ":true},{"id":"2576","nume":"BLU BAR POD BERRY MIX","activ":true},{"id":"2577","nume":"BANZAI PORUMB 60G","activ":true},{"id":"2578","nume":"BLU BAR WET KIT MINT","activ":true},{"id":"2579","nume":"Salata Verde","activ":false},{"id":"2580","nume":"Salam Feliat","activ":false},{"id":"2581","nume":"Rosii Deshidratate","activ":false},{"id":"2590","nume":"Crema de branza","activ":false},{"id":"2592","nume":"Kebab de curcan","activ":false},{"id":"2593","nume":"Ciabatta congelata","activ":false},{"id":"2594","nume":"Croissant cu unt congelat","activ":false},{"id":"2595","nume":"Melc vanilie si stafide congelat","activ":false},{"id":"2596","nume":"Parmigiano reggiano fulgi","activ":false},{"id":"2597","nume":"Prosciutto COTTO feliat","activ":false},{"id":"2598","nume":"Sos pesto","activ":false},{"id":"2599","nume":"Prosciutto CRUDO feliat","activ":false},{"id":"2600","nume":"Punga hartie sandvis 1kg","activ":false},{"id":"2601","nume":"Punga hartie sandvis 0.5kg","activ":false},{"id":"2602","nume":"Colt hartie patiserie","activ":false},{"id":"2603","nume":"Castraveti murati","activ":false},{"id":"2604","nume":"ketchup dulce","activ":false},{"id":"2605","nume":"Maioneza","activ":false},{"id":"2606","nume":"Rosii","activ":false},{"id":"2607","nume":"Cascaval felii sandvis","activ":false},{"id":"2608","nume":"Mozzarella sandvis","activ":false},{"id":"2609","nume":"Ardei gras","activ":false},{"id":"2666","nume":"Paine la tava felii","activ":false},{"id":"2688","nume":"Unt sandvis","activ":false},{"id":"290015","nume":"furculite din lemn","activ":false},{"id":"29003","nume":"Cafea boabe","activ":false},{"id":"29004","nume":"Lapte cafea litru","activ":false},{"id":"29016","nume":"tavita pentru felie tarta","activ":false},{"id":"29017","nume":"mozzarella bile pane congelate","activ":false},{"id":"29018","nume":"ulei de palmier","activ":false},{"id":"29030","nume":"pahare din plastic pt limonada","activ":false},{"id":"29031","nume":"capac bombat pt pahar limonada","activ":false},{"id":"29032","nume":"ciocolata neagra praf","activ":false},{"id":"29033","nume":"ciocolata alba praf","activ":false},{"id":"29034","nume":"ceai instant lamaie","activ":false},{"id":"29035","nume":"ceai instant piersica","activ":false},{"id":"29036","nume":"ceai instant fructe de padure","activ":false},{"id":"29040","nume":"frisca pt ciocolata calda","activ":false},{"id":"31291","nume":"gogoasa berlineza cu cacao congelata","activ":false},{"id":"3164","nume":"tarta felie cu lamaie congelata","activ":false},{"id":"3165","nume":"tarta felie cu ciocolata congelata","activ":false},{"id":"3276425750029","nume":"STERGATOR FM 40","activ":true},{"id":"3276425750036","nume":"STERGATOR  FM 45","activ":true},{"id":"3276425750050","nume":"STERGATOR 50","activ":true},{"id":"3276425750074","nume":"STERGATOR  FM 55","activ":true},{"id":"3276425750081","nume":"STERGATOR FM 60","activ":true},{"id":"3276425750098","nume":"STERGATOR FM 65","activ":true},{"id":"3276425750104","nume":"STERGATOR FM 70","activ":true},{"id":"3322938507350","nume":"LICHID FRANA 0.5L DOT 4 TRW","activ":true},{"id":"3800034952507","nume":"AREON VANILA CHOCO","activ":true},{"id":"3800034954013","nume":"AREON SMILE","activ":true},{"id":"3800034954044","nume":"AREON SMILE VANILA","activ":true},{"id":"3800034957168","nume":"AREON MON LILIAC","activ":true},{"id":"3800034960076","nume":"AREON MON LILIAC 5ML","activ":true},{"id":"3800034960083","nume":"AREON VALLEYY LICHID 5ML","activ":true},{"id":"3800034960106","nume":"AREON MON LICHID 5ML BLEK CRISTAL","activ":true},{"id":"3800034962742","nume":"AREON BLACK CRYSTAL","activ":true},{"id":"3800034963367","nume":"AREON MON LICHID ANTITABACO","activ":true},{"id":"3800034963374","nume":"AREON LICHID NEW CAR 5ML","activ":true},{"id":"3800034963411","nume":"AREON LICHID 5 ML","activ":true},{"id":"3800034965217","nume":"SERVETELE BORD UMEDE","activ":true},{"id":"3800034967426","nume":"AREON LILY VALLEY","activ":true},{"id":"3800034977432","nume":"AREON VENT 7 CRYSTAL","activ":true},{"id":"3800034978064","nume":"AREON DRY LOVE ROMANIA","activ":true},{"id":"3800034982993","nume":"AREON MON LICHID 5ML VANILA BLACK","activ":true},{"id":"4009900488990","nume":"ORBIT WRIGLEI MINI 2.8G","activ":true},{"id":"4009900489966","nume":"ORBIT BUBB 2.8G","activ":true},{"id":"4009900536257","nume":"ORBIT REFRESH SPERMINT 64G","activ":true},{"id":"4009900538206","nume":"ORBIT WATERMELON PEPENE VERDE 64G","activ":true},{"id":"4009900540551","nume":"ORBIT REFRESHERS TROPICAL 67G","activ":true},{"id":"4009900550208","nume":"AIRWAVES EXTREME 64G","activ":true},{"id":"4009900550475","nume":"AIRWAVES CASSIS BOTTLE 64G","activ":true},{"id":"4009900552165","nume":"ORBIT REFRESHERS PEPENE VERDE,ZMEURA 67G","activ":true},{"id":"4014835896208","nume":"SPREY CURATAT INJECTOARE REVANOL 300.ML","activ":true},{"id":"4022364008726","nume":"BRICHETA TOM","activ":true},{"id":"4030600360781","nume":"DAVIDOFF DFX BLUE","activ":true},{"id":"4030600360842","nume":"DAVIDOFF DFX BLUE SLIM","activ":true},{"id":"4100420023156","nume":"LIQUI MOLY TOP TEC 4600 1L","activ":true},{"id":"4100420023163","nume":"LIQUI MOLY TOP TEC 4600 5W30 5L","activ":true},{"id":"4100420083761","nume":"ADITIV INJECTOARE LIQUI MOLY 300ML","activ":true},{"id":"4100420095061","nume":"LIQUI MOLY LONGTIME HT 5W30 1L","activ":true},{"id":"4100420095078","nume":"LIQUI MOLY LONGTIME HT 5W30 5L","activ":true},{"id":"4100420095108","nume":"LIQUI MOLY TOP TEC 4100 5W40 1L","activ":true},{"id":"4100420216237","nume":"ADITIV CURATAT INJECTOARE  300ML","activ":true},{"id":"42069942","nume":"ORBIT FRESHMINT","activ":true},{"id":"42070047","nume":"AIRWAVES CASSIS","activ":true},{"id":"42113164","nume":"ORBIT SUGAR FREE SPEARMINT","activ":true},{"id":"42155270","nume":"WINTERFRESH STRONG MINT","activ":true},{"id":"42189411","nume":"AIRWAVES CASSIS MINIFLOWS 2.8G","activ":true},{"id":"42189459","nume":"WINTERFRESH  FRESH MINT","activ":true},{"id":"42189633","nume":"AIRWAVES EXTREME","activ":true},{"id":"4260057124821","nume":"STICK USB 8GB","activ":true},{"id":"4260283113514","nume":"CARD MICROSD ADAPTOR 8GB MR957","activ":true},{"id":"4337182231349","nume":"Pain au chocolate congelat","activ":false},{"id":"4337182241256","nume":"barcute carton","activ":false},{"id":"4478","nume":"tarta felie cu visine congelata","activ":false},{"id":"4840811000747","nume":"MIEZ 55G","activ":true},{"id":"4840811001799","nume":"SEMINTE ALBE 120GR","activ":true},{"id":"4840811002048","nume":"SEMINTE BANZAI 180GR","activ":true},{"id":"4840811002062","nume":"SEMINTE SARE 180GR","activ":true},{"id":"4840811002413","nume":"SEMINTE 80 GR","activ":true},{"id":"4840811002420","nume":"SEMINTE SARE 80GR","activ":true},{"id":"49814521","nume":"ACADELE SLIM CHUPA 12G","activ":true},{"id":"5000159557184","nume":"TWIX CIOCOLATA ALBA 46G","activ":true},{"id":"5000159604819","nume":"MILKY WAY LAPTE 21.5G","activ":true},{"id":"5000159606103","nume":"TWIX CIOCOLATA ALBA 46 GR","activ":true},{"id":"5000159609333","nume":"TWIX HAZELNUT 46G","activ":true},{"id":"5010232967878","nume":"DUREX ORIGINAL  NORMAL 3","activ":true},{"id":"5020144800590","nume":"CURATATOR INJ DIESEL 200ML","activ":true},{"id":"588008571842","nume":"croissant cu sunca congelat","activ":false},{"id":"5900951310454","nume":"SNICKERS CREAMY 36.5G","activ":true},{"id":"5900951310973","nume":"SNICKERS KINGSIZE 75G","activ":true},{"id":"5900951311215","nume":"MARS 70 G","activ":true},{"id":"5904224128036","nume":"JETXPERT ODORIZANT BLACK CRISTAL","activ":true},{"id":"5904224128043","nume":"JETXPERT ODORIZANT VANILLA","activ":true},{"id":"5904224128050","nume":"JET XPERT ODORIZANT BUBBLEGUM","activ":true},{"id":"5905694001935","nume":"SOLUTIE DEZGHETAT PARBRIZ","activ":true},{"id":"5906747314118","nume":"LU BARNI CIOC 30G","activ":true},{"id":"5906747318345","nume":"LU BARNI LAPTE 30GR","activ":true},{"id":"5908267930144","nume":"CARD MEMORIE MICRO SD 32 GB+ADAPTOR","activ":true},{"id":"5908267930151","nume":"CARD MEMORIE MINCROSD 64GB+ADAPTOR","activ":true},{"id":"59401421","nume":"SUC BIO DE CATINA CU MIERE 250ML","activ":true},{"id":"59401438","nume":"SUC BIO DE CATINA CU MIERE GHIMBIR 250ML","activ":true},{"id":"59401506","nume":"SOBRANIE GREEN STICKS","activ":true},{"id":"59402015","nume":"WINSTON CLASS BLACK","activ":true},{"id":"59402022","nume":"WINSTON CLASS BLUE","activ":true},{"id":"5940541683018","nume":"VIN HARTIE CHARD ALB DD SGR 0.75L","activ":true},{"id":"5940541683025","nume":"VIN HARTIE CAB ROSU DD SGR 0.75L","activ":true},{"id":"5940541683049","nume":"VIN HARTIE SAUV ALB DD 0.75L SGR","activ":true},{"id":"5940541683353","nume":"DIVIN 5 ANI CRICOVA","activ":true},{"id":"5940541683384","nume":"VIN SP TRAMINER ALB","activ":true},{"id":"5940541683407","nume":"VIN LACRIMA DULCE ALB","activ":true},{"id":"5940541683414","nume":"VIN SP LACRIMA DULCE ROSE","activ":true},{"id":"5940568000065","nume":"MONSTER PEPILINE DZ 0.5L (A)","activ":true},{"id":"5940568000096","nume":"MONSTER MANGO DZ 0.5","activ":true},{"id":"5940568000102","nume":"MONSTER ULTRA ZERO  DZ 0.5 L A","activ":true},{"id":"5940568000164","nume":"MONSTER ULTRA PARADISE DZ 0.5 L","activ":true},{"id":"5940597176014","nume":"APA NOY 0.5 MIN","activ":true},{"id":"59406013","nume":"TYMBARK MER VERDE ST 0.25L SGR","activ":true},{"id":"59406174","nume":"VUSE 1 POD CAPSULE BLUEBERRY ICE 20 mg","activ":true},{"id":"5940620000026","nume":"BURN MAR KIWI","activ":true},{"id":"59406204","nume":"VUSE 1 POD BLUEBERRY RASPBERRY","activ":true},{"id":"59406228","nume":"VUSE 1 POD CAPSULE PEPPERMINT ICE 20 mg","activ":true},{"id":"59406235","nume":"VUSE 1 POD CAPSULE GRAPE ICE 20 mg","activ":true},{"id":"5940631000046","nume":"RED BULL PEPENE R DZ 0.25L SGR","activ":true},{"id":"5940631000053","nume":"RED BULL 0.25L AFINE SGR","activ":true},{"id":"5940631000060","nume":"RED BULL DZ 0.25L CAISE SGR","activ":true},{"id":"5940631000503","nume":"RED BULL FR DE PADURE DZ 0.250ML","activ":true},{"id":"5940674068003","nume":"APA PLATA DIOS 0.5","activ":true},{"id":"5940674068027","nume":"APA PLATA SELI 1L","activ":true},{"id":"5940674068034","nume":"APA PLATA SELI 1.5L","activ":true},{"id":"5940674867002","nume":"NECTAR BIO DE CATINA SI MIERE 500 ML","activ":true},{"id":"5940674867019","nume":"NECTAR BIO CATINA CU MIERE GHIMBIR 500ML","activ":true},{"id":"5940674867026","nume":"SUC BIO DE CATINA CU MAR 250 ML","activ":true},{"id":"5940674867033","nume":"NECTAR BIO DE CATINA 500 ML","activ":true},{"id":"59407096","nume":"TIMISOREANA 0.33L ST SGR","activ":true},{"id":"59407140","nume":"VELO TROPICAL MANGO 14 MG","activ":true},{"id":"59407416","nume":"BUCOVINA FRUC LIMONADA 0.5L SGR","activ":true},{"id":"59407515","nume":"VUSE PRO ONE 1000 GRAPE ICE","activ":true},{"id":"59407539","nume":"VIRTO SIGNATURE TOBACCO","activ":true},{"id":"59407546","nume":"VIRTO CLASSIC TOBACCO","activ":true},{"id":"59407553","nume":"VIRTO COPPERE TOBACCO","activ":true},{"id":"59407560","nume":"VIRTO BALANCED TOBACO","activ":true},{"id":"59407584","nume":"VIRTO AZURE TOBACCO","activ":true},{"id":"59407591","nume":"RIVO SCARLET CLIC","activ":true},{"id":"59407607","nume":"RIVO PURPLE CLIK","activ":true},{"id":"59407614","nume":"RIVO SUNSET CLICK","activ":true},{"id":"59407621","nume":"RIVO ICY CLICK","activ":true},{"id":"59407638","nume":"RIVO FRESCO CLIK","activ":true},{"id":"59407959","nume":"SCHWEPPES RASPBERRY-LEMON PET 0.5L SGR","activ":true},{"id":"5940855000006","nume":"CORONA BERE 0.355 L SGR","activ":true},{"id":"59408949","nume":"VUSE PRO ONE 1000 BERRY WATERMELON","activ":true},{"id":"59408994","nume":"VUSE 1POD CAPSULE GREEN AP 20MG","activ":true},{"id":"59409007","nume":"VUSE 1 POD CAPSULE RICH TOBACCO 20 ML","activ":true},{"id":"59409014","nume":"VUSE 1 POD CAPSULE SPEARMINT ICE 20mg/ml","activ":true},{"id":"59409021","nume":"VUSE 1 POD TROPICAL COCONUT","activ":true},{"id":"59409083","nume":"VUSE 1 POD CAPSULE CHERRY CE 20 MG","activ":true},{"id":"59409090","nume":"LYO ARTIC BERR","activ":true},{"id":"59409106","nume":"LYO ARTIC MINT","activ":true},{"id":"59409335","nume":"VIRTO SILVER TOBACCO","activ":true},{"id":"59409403","nume":"Pall Mall Select X-Cut Black","activ":true},{"id":"59409410","nume":"Pall Mall Select X-Cut Blue","activ":true},{"id":"59409489","nume":"LEVIA PEPPERMINT PEARL","activ":true},{"id":"59409496","nume":"LEVIA STRAWBERRY PEARL","activ":true},{"id":"59409502","nume":"59409502","activ":true},{"id":"5941000027411","nume":"LAYS CHIPS SMANTANA 60G","activ":true},{"id":"5941000030664","nume":"DORITOS CASCAVAL","activ":true},{"id":"5941000031982","nume":"LAYS CHIPS SMANTANA 125G","activ":true},{"id":"5941000033030","nume":"SNACKS CHEESE 100G","activ":true},{"id":"5941000033191","nume":"KRAX BACON 60G","activ":true},{"id":"59410065","nume":"MARLBORO TUNE XL","activ":true},{"id":"59410072","nume":"MARLBORO TUNE PLUS XL","activ":true},{"id":"59410089","nume":"COCA COLA DZ 250ML SGR","activ":true},{"id":"5941035009765","nume":"ALFERS NAPOLITANE FR DE PADURE 170G","activ":true},{"id":"5941035010587","nume":"ALFERS NAPOLITANE CACAO 180GR","activ":true},{"id":"5941035011959","nume":"METEORITZI TZATZIKI 75G","activ":true},{"id":"5941035012833","nume":"ALFERS NAP CREMA CACAO","activ":true},{"id":"5941035012994","nume":"PRAJITURA CASEI BROWNIW 50GR","activ":true},{"id":"5941035013038","nume":"NAPOLITANE CREMA DE LAMAIE 70GR","activ":true},{"id":"5941035013045","nume":"NAPOLITANE CACAO SI VAFE 70GR","activ":true},{"id":"59410478","nume":"SOBRANIE COL ROYAL","activ":true},{"id":"5941047813978","nume":"MAGURA LAPTE 35G","activ":true},{"id":"5941047814036","nume":"MAGURA CAPSUNI 35G","activ":true},{"id":"5941047839541","nume":"MAGURA PRAJITURA CIOCO 35G","activ":true},{"id":"5941047841964","nume":"MAGURA NEGRESA 35G","activ":true},{"id":"5941194000139","nume":"CROCO BREZEL SARE 80 GR","activ":true},{"id":"5941194000535","nume":"CROCO BREZEL SUSAN 80GR","activ":true},{"id":"5941194001341","nume":"CROCO STICKS SARE 40G","activ":true},{"id":"5941194001365","nume":"CROCO STICKS SUSAN 40G","activ":true},{"id":"5941194003499","nume":"KROCO CRACKERS TOP SARE 150G","activ":true},{"id":"5941452000697","nume":"CASEROLE ELI FR DE PADURE 100GR","activ":true},{"id":"5941452000710","nume":"CASEROLA ELI VISINE 100GR","activ":true},{"id":"5941452005296","nume":"CORNET SUPER TOPY VANILIE 90G","activ":true},{"id":"5941452005920","nume":"POLARA VANILE 80G","activ":true},{"id":"5941452006002","nume":"SANDWCH VANILIE CACAO 85G","activ":true},{"id":"5941452006286","nume":"AMANDINO PR BAT CACAO 85G","activ":true},{"id":"5941452006354","nume":"CORNET COOL VANILE 70G","activ":true},{"id":"5941452006361","nume":"CORNET COOL CACAO 70G","activ":true},{"id":"5941452006545","nume":"LA VAFA CACAO 50G","activ":true},{"id":"5941452006699","nume":"CROQUE MENTA 85G","activ":true},{"id":"5941452007450","nume":"BAMBINO TRUFFE 145GR","activ":true},{"id":"5941452007467","nume":"BAMBINO VANILIE 145G","activ":true},{"id":"5941452007474","nume":"BAMBINO ARTAR 145G","activ":true},{"id":"5941452007504","nume":"BAT NICE LUX VANILE 70G","activ":true},{"id":"5941452007542","nume":"BAT MURPHY FR DE PADURE 70GR","activ":true},{"id":"5941556000012","nume":"HAI HUI CU MAC SI SARE 100G","activ":true},{"id":"5941556000654","nume":"HAI HUI COVRIGI CU MAC 250G","activ":true},{"id":"5941709000050","nume":"BRANZA DORNA E500","activ":true},{"id":"5941709001880","nume":"CASCAVAL BRADET E280G","activ":true},{"id":"5941709001903","nume":"URDA DULCE E450G","activ":true},{"id":"5941709002634","nume":"CHEFIR 500G","activ":true},{"id":"5941709002832","nume":"SMANTANA 30% E500","activ":true},{"id":"5941709002900","nume":"UNT 80%","activ":true},{"id":"5941709004096","nume":"CASCAVAL DE VACA FELIAT E150G","activ":true},{"id":"5941709005413","nume":"SMANTANA 20% E450G","activ":true},{"id":"5941709005789","nume":"MOZZARELA BILUTE E250G","activ":true},{"id":"5941709005826","nume":"MOZZARELLA E300G","activ":true},{"id":"5941709005871","nume":"CAS VACA MATURAT IN VIN E250G","activ":true},{"id":"5941709005949","nume":"MOZZARELLA RAZUITA E150G","activ":true},{"id":"5941709006021","nume":"BRANZA DE BURDUF E 350G","activ":false},{"id":"5941709006038","nume":"CASCAVAL AFUMAT FELIAT","activ":true},{"id":"5941709006076","nume":"BRANZA DE BURDUF E300G","activ":true},{"id":"5941976203727","nume":"VIN BUDUREASCA 101 102","activ":true},{"id":"5941977801182","nume":"VIN SP SEL FRANCUSA ALB","activ":true},{"id":"5941977802424","nume":"VIN SP ZAZ ROSE DS 0.75L","activ":true},{"id":"5941978102035","nume":"VIN CUVEE REGAL DS 0.75L","activ":true},{"id":"5942006103048","nume":"MIONETTO TREVISO 200ML","activ":true},{"id":"5942016306675","nume":"BERE CIUCAS 2.5L","activ":true},{"id":"5942016307191","nume":"BERE TIMISOREANA DZ 0.5 L","activ":true},{"id":"5942016308976","nume":"BERE URSUS COOLER LEMON FA DZ 0.5 L","activ":true},{"id":"5942039006569","nume":"SANIUTA 0.2L","activ":true},{"id":"5942045112506","nume":"TUBORG NRGB 0.33L SGR","activ":true},{"id":"5942045117501","nume":"TUBORG DZ 0.5L SGR","activ":true},{"id":"5942045321502","nume":"GRANINI PORTOCALE 0.5L SGR","activ":true},{"id":"5942045321540","nume":"GRANINI PERSICA 0.33L SGR","activ":true},{"id":"5942045321588","nume":"GRANINI 0.33L SGR","activ":true},{"id":"5942045321786","nume":"GRANINI LIMONADA 0.33L SGR","activ":true},{"id":"5942045321823","nume":"GRANINI PARA 0.33L SGR","activ":true},{"id":"5942045331204","nume":"GRANINI PET 1L PORTOCALE SGR","activ":true},{"id":"5942045340503","nume":"GRANINI PORTOCALE 1L SGR","activ":true},{"id":"5942046702461","nume":"CASA DE PIATRA ROSE DEMISEC 0,75L","activ":true},{"id":"5942046702843","nume":"COT BUSUIOACA ROSE 0.75L SGR","activ":true},{"id":"5942046702973","nume":"GRASA DE COTNARI 0.75L SGR","activ":true},{"id":"5942070005293","nume":"BERGENBIER FA GRAPE 0.5L DZ SGR","activ":true},{"id":"5942070005385","nume":"BECKS TWIST 0.33L ST SGR","activ":true},{"id":"5942070005439","nume":"BECKS 0.75L STICLA SGR","activ":true},{"id":"5942070005453","nume":"BERGANBIER 0.33L SRG","activ":true},{"id":"5942070005491","nume":"BERGENBIER FA 0.5L DZ SGR","activ":true},{"id":"5942070005538","nume":"BERGENBIER 0.75L ST SGR","activ":true},{"id":"5942070005552","nume":"FRESH NA LEMON PORTOCALE DZ 0.5 L","activ":true},{"id":"5942070005675","nume":"FRESH FA ZMEURA AFINE 0.5L DZ SGR","activ":true},{"id":"5942070005781","nume":"STAROPRAMEN 0.33L ST SGR","activ":true},{"id":"5942070005965","nume":"STELLA ARTOIS 0.5L DZ SGR","activ":true},{"id":"5942070006023","nume":"STELLA ARTOIS 0.66L ST SGR","activ":true},{"id":"5942070006047","nume":"STELLA ARTOIS 0.33L SGR","activ":true},{"id":"5942070006337","nume":"CARAIMAN 0.33L ST SGR","activ":true},{"id":"5942070006344","nume":"CARAIMAN 0.5L DZ SGR","activ":true},{"id":"5942070006405","nume":"FRESH NA RODIE GRAPE 0.5 DZ SGR","activ":true},{"id":"5942070006788","nume":"MADRI 0.33L ST SGR","activ":true},{"id":"5942070006795","nume":"MADRI 0.5L DZ SGR","activ":true},{"id":"5942070006887","nume":"BERGENBIER 1L PET SGR","activ":true},{"id":"5942070006917","nume":"CARAIMAN 2.5L SGR","activ":true},{"id":"5942070006993","nume":"MADRI 0.66L ST SGR","activ":true},{"id":"5942070007013","nume":"FRESH NA CHERRT&LEMON DZ 0.5L","activ":true},{"id":"5942070007051","nume":"CARAIMAN 1L PET SGR","activ":true},{"id":"5942091003032","nume":"VIN JIDVEI BLANC DS 0.75L SGR","activ":true},{"id":"5942094280355","nume":"VIN SIGILLUM BUS BOHOTIN 0.75L","activ":true},{"id":"5942094280454","nume":"VIN SIGILLUM TAMAIOASA ROM 0.75L","activ":true},{"id":"5942094280959","nume":"VIN GALBENA DE ODOBESTI 0.75L","activ":true},{"id":"5942105008800","nume":"CIUC RADLER LAMAIE DZ 05L","activ":true},{"id":"5942105008824","nume":"CIUC RADLER ZERO VISINE DZ 0.5L","activ":true},{"id":"5942105009067","nume":"BERE BUCEGI DZ 0.5 L","activ":true},{"id":"5942105010995","nume":"BERE HEINEKEN ZERO STICLA 0.33","activ":true},{"id":"5942105012043","nume":"BERE AMSTEL DZ 0.33L SGR","activ":true},{"id":"5942137002265","nume":"VORONSKAYA BIO 0.5L +2PAHARE SGR","activ":true},{"id":"5942137002418","nume":"VORONSKAYA BLUE 0.5L SGR","activ":true},{"id":"5942137002449","nume":"VORONSKAYA CLASIC 0.5L +2 PAHARE SGR","activ":true},{"id":"5942137002463","nume":"VORONSKAYA PLATIUM  0.5L 40GR SGR","activ":true},{"id":"5942137002678","nume":"BS0.5L VORONA SGR","activ":true},{"id":"5942137002685","nume":"BS 0.200L 33GR VORONA SGR","activ":true},{"id":"5942137002692","nume":"BS 0.5L 33GR VORONA SGR","activ":true},{"id":"5942137002739","nume":"BS 0.2L 33GR VORONA LEMON SGR","activ":true},{"id":"5942137002746","nume":"BS 0.5L 33GR VORONA LEMON SGR","activ":true},{"id":"5942137002760","nume":"BS 0.2L OVIDIU SGR","activ":true},{"id":"5942137002777","nume":"BS 0.5L OVIDIU SGR","activ":true},{"id":"5942137003477","nume":"VOTCA STEFAN CEL MARE 0.5L","activ":true},{"id":"5942137003484","nume":"VOTCA STEFAN CEL MARE 1L SGR","activ":true},{"id":"5942204004840","nume":"MIRINDA ORANGE 500ML","activ":true},{"id":"5942204004864","nume":"MIRINDA ORANGE CAN 330ML","activ":true},{"id":"5942204004925","nume":"7UP LEMON NS PET 0.500L","activ":true},{"id":"5942204004963","nume":"7UP LEMON DZ 0.330L","activ":true},{"id":"5942204005076","nume":"PRIGAT LEMON ORANGE 0.5L","activ":true},{"id":"5942204005588","nume":"PEPSI COLA 0.5L SGR","activ":true},{"id":"5942204005618","nume":"PEPSI COLA  STICLA 300ML GLASS","activ":true},{"id":"5942204007933","nume":"PEPSI ONE 0.250ML SGR","activ":true},{"id":"5942204008251","nume":"PEPSI ZMEURA 330ML SGR","activ":true},{"id":"5942204008282","nume":"PEPSI CAPSUNI FRISCA SGR DZ 0.33 L","activ":true},{"id":"5942204008299","nume":"PEPSI ZERO VANILIE DZ 0.33ML","activ":true},{"id":"5942204008398","nume":"MD STRUGURI SI LAMAIE 250ML SGR","activ":true},{"id":"5942204008404","nume":"MD STRUGURI LAMAIE PET 0.5L SGR","activ":true},{"id":"5942321000558","nume":"CAPPY PULPY PERSICA  A 1.5L","activ":true},{"id":"5942321002163","nume":"FANTA STRUGURI 1L","activ":true},{"id":"5942321004891","nume":"COCA COLA 1L PET","activ":true},{"id":"5942321004921","nume":"FANTA PORTOCALE  1L PET SGR","activ":true},{"id":"5942325002107","nume":"TYMBARK ZMEURA 0.25L SGR","activ":true},{"id":"5942325003340","nume":"NESTEA PIERSICA","activ":true},{"id":"5942325003388","nume":"NESTEA FR DE PADURE 0.5L","activ":true},{"id":"5942325003753","nume":"APA BUCOVINA PLATA 2 L SGR","activ":true},{"id":"5942325003777","nume":"APA BUCOVINA MIN 1.5L SGR","activ":true},{"id":"5942325003791","nume":"APA BUCOVINA LAMAIE 1.5L","activ":true},{"id":"5942325004613","nume":"TYMBARK AFINE 0.25L SGR","activ":true},{"id":"5942325004699","nume":"TYMBARK MANGO 0.250ML","activ":true},{"id":"5942325005177","nume":"TYMBARK LAMAIE 0.25L SGR","activ":true},{"id":"5942325005191","nume":"TYMBARK MERE LAMAIE 0.25L","activ":true},{"id":"5942325005627","nume":"BUCOVINA LIMONADA 1.5L SGR","activ":true},{"id":"5942326402319","nume":"AQUA CARPATICA MINERALA STICLA 750ml SGR","activ":true},{"id":"5942326402494","nume":"APA AQUA CARPATICA MIN 0.750 L","activ":true},{"id":"5942328201149","nume":"VITAMIN AQUA CA LEMON","activ":true},{"id":"5942328201163","nume":"VITAMIN AQUA ZN FRUIT SGR","activ":true},{"id":"5942328201170","nume":"VITAMINA AQUA B+APPLE RASPB 0.600L SGR","activ":true},{"id":"5942328201194","nume":"VITAMINA AQUA CA ZERO COCONUT 0.6L SGR","activ":true},{"id":"5942328201224","nume":"LEMONADE NO 1 SGR","activ":true},{"id":"5942328201231","nume":"LEMONADE NO 1 LEMON LA 1.2L","activ":true},{"id":"5942328201750","nume":"LEMONADE NO 5 SGR","activ":true},{"id":"5942328202429","nume":"VITAMIN AQUA 10 PEAR PEACH","activ":true},{"id":"5942328203112","nume":"LEMONADE NO 6 LEM GRAPEFRUIT SGR","activ":true},{"id":"5942400014346","nume":"VEEV ONE VELVET BLACK STRAWBERRY X","activ":true},{"id":"5942400014360","nume":"VEEV ONE MANGO X","activ":true},{"id":"5942400014391","nume":"VEEV ONE BLUEBERRY X","activ":true},{"id":"5942400014421","nume":"VEEV ONE STRAWBERRY X","activ":true},{"id":"5942400014452","nume":"VEEV ONE WATERMELON X","activ":true},{"id":"5942401007682","nume":"PLOOM AURA JET BLACK","activ":true},{"id":"59454588","nume":"MARLBORO GOLD","activ":true},{"id":"5946136005753","nume":"JETXPERS LICHID SPALARE VARA 4L","activ":true},{"id":"5946136006439","nume":"SOLUTIE PARBRIZ TURBO POWER 4L","activ":true},{"id":"5946136006484","nume":"JET XPERT VARA CONCENTRAT 400ML","activ":true},{"id":"5946136006767","nume":"JETXPERT -15","activ":true},{"id":"5946136006873","nume":"SERVETELE UMEDE AUTO JET EXPERT","activ":true},{"id":"5946139500224","nume":"ULEI H46A 10L","activ":true},{"id":"5946139500248","nume":"ULEI L150L","activ":true},{"id":"5946139500569","nume":"ANTIGEL ANTIFREEZE 1L","activ":true},{"id":"5946141700360","nume":"ULEI HEXOL 2T","activ":true},{"id":"5946144007312","nume":"ALCOOL TEHNIC 0,9L","activ":true},{"id":"5946615001269","nume":"LAVETA UMEDA PVA 43*32","activ":true},{"id":"59472360","nume":"MARLBORO XL TOUCH PLUS","activ":true},{"id":"59476481","nume":"MALBORO MICRO TOUCH","activ":true},{"id":"59476504","nume":"MARLBORO MICRO TOUCH GREEN","activ":true},{"id":"59478256","nume":"DUNHILL EVOQUE BLUE","activ":true},{"id":"59482574","nume":"MARLBORO CIGARILLOS FOREST MIST","activ":true},{"id":"5948539411049","nume":"TECSA KREMBIS BISCUITI DUO CREM","activ":true},{"id":"5948539411063","nume":"KREMBIS 36G CU CREMA DE LAPTE","activ":true},{"id":"5948539411087","nume":"KREMBIS TECSA EXTRA CACAO 36G","activ":true},{"id":"5948562510894","nume":"STELLA ARTOIS FA 0.33L SGR","activ":true},{"id":"5948792028947","nume":"SALAM DE BISC CU RAHAT 100GR","activ":true},{"id":"5948792048525","nume":"SOLUTIE DE VARA 5L ALBASTRU","activ":true},{"id":"5948792077068","nume":"NUGA CU NUCA 40GR","activ":true},{"id":"5948792078935","nume":"topping","activ":false},{"id":"5948833062060","nume":"BANDA IZOLANT","activ":true},{"id":"59489658","nume":"RYO MARLBORO CRAFTED AZURE","activ":true},{"id":"59490036","nume":"SOBRANIE GOLD STICKS","activ":true},{"id":"59490043","nume":"SOBRANIE BRONZE STICKS","activ":true},{"id":"5949040202409","nume":"TOORTITZI CU SARE 80G","activ":true},{"id":"5949040202447","nume":"TOORTIZI SUSAN ALB NEGRU 80G","activ":true},{"id":"5949040202522","nume":"TOORTITZI ROSII BUSUIOC OREGANO 80G","activ":true},{"id":"5949040202560","nume":"TOORTITZI DULCE ACRISOR 80G","activ":true},{"id":"5949040203178","nume":"METEORITZI SRIRACHA 75G","activ":true},{"id":"5949040203192","nume":"SOOCITZI CU CEAPA 200G","activ":true},{"id":"5949040203239","nume":"SOOCITZI CU SARE SI MIERE","activ":true},{"id":"5949040203246","nume":"SOOCITZI CU ROSII","activ":true},{"id":"5949040203987","nume":"ALKA PRAJ ZMEURA 55G","activ":true},{"id":"5949040204274","nume":"METEORITZI BBQ 75G","activ":true},{"id":"5949040204762","nume":"TOORTITZI CHILI LIME 80G","activ":true},{"id":"5949040205394","nume":"METEORITZI CU GUST PIRI PIRI 75G","activ":true},{"id":"5949042300677","nume":"LAVETA DIN PIELE DE CAPRIOARA","activ":true},{"id":"5949042300929","nume":"CHINGA FIX 25MM*SM","activ":true},{"id":"5949042302435","nume":"COMPRESOR METAL","activ":true},{"id":"5949042306693","nume":"TRUSA MEDICALA AUTO","activ":true},{"id":"5949042306716","nume":"TRIUNGHI REFLECTORIZANT","activ":true},{"id":"5949042307416","nume":"VESTA REFLECTORIZANTA GALBENA","activ":true},{"id":"5949042309137","nume":"CARMAX LAVETA ROLA 25CM","activ":true},{"id":"5949050802286","nume":"SPRAY DERUGINOL IMP","activ":true},{"id":"5949087402268","nume":"EXPERT SERVETELE UMEDE","activ":true},{"id":"5949087403784","nume":"SERVETELE BORD EW","activ":true},{"id":"5949087403791","nume":"SERVETELE UMEDE TAPITERIE  EW","activ":true},{"id":"5949111159533","nume":"SERVETELE UMEDE SPRING LINE 80 BUC","activ":true},{"id":"59491132","nume":"BERE TIMISOREANA 0.33 L","activ":true},{"id":"59491194","nume":"BERE URSUS MINIGOLD 0.33 L","activ":true},{"id":"59492641","nume":"COCA COLA NRGB ZERO 0.33L SGR","activ":true},{"id":"59492856","nume":"VeloTM Bright Spearmint 10 mg","activ":true},{"id":"59492870","nume":"VELO TM FREEZING PEPPERMINT 14 MG","activ":true},{"id":"59492900","nume":"VELO TM PURPLE GRAPE 10 MG","activ":true},{"id":"59493037","nume":"APA BUCOVINA LAMAIE 0.5L","activ":true},{"id":"59493044","nume":"BUCOVINA AROMATIZ MAR 0.5 L SGR","activ":true},{"id":"59493570","nume":"KENT MODE EKLIPSE SAGE GREEN SS","activ":true},{"id":"5949450441931","nume":"AD BLUE EWOS 10L","activ":true},{"id":"5949499042007","nume":"ALKA COVRIGI CLASIC ITALIAN","activ":true},{"id":"5949499042069","nume":"ALKA COVRIGI MASLINE","activ":true},{"id":"5949499042168","nume":"ALKA COVRIGEI USTUROI","activ":true},{"id":"59495147","nume":"SPRITE LAMAIE 0.5 PET","activ":true},{"id":"5949519175517","nume":"ALFA PAHAR GLACIO CAISA 100G","activ":true},{"id":"5949519175524","nume":"ALFA PAHAR GLACIO VANILIE 100G","activ":true},{"id":"59498711","nume":"VUSE GO 1000 BOX GRAPE ICE 20 MG","activ":true},{"id":"59498735","nume":"Vuse GO 1000 BOX Peppermint Ice 20mg/m","activ":true},{"id":"59498742","nume":"VUSE GO 1000 STRAWBERRY","activ":true},{"id":"59498810","nume":"VUSE GO 1000 PEN BERRY WATERMELON","activ":true},{"id":"59498827","nume":"VUSE GO 1000 PEN BLUE RASPBERRY","activ":true},{"id":"59498940","nume":"VUSE GO 1000 PEN STRAWBERRY ICE","activ":true},{"id":"5997074511141","nume":"SPRAY PORNIRE PRENENT 200ML","activ":true},{"id":"5997162708460","nume":"SPRAY CURATAT CLIMA LEMON 500ML","activ":true},{"id":"5997162708477","nume":"SPRAY CURATAT CLIMA 500ML NEUTRA","activ":true},{"id":"5997162708507","nume":"SPRAY CURATAT CLIMA 100ML NEUTRA","activ":true},{"id":"5997347541073","nume":"MOGYI ARAHIDE PRAJITE SI SARATE 300G","activ":true},{"id":"5999071002837","nume":"BRICHETE MATTEO GOLD","activ":true},{"id":"60930","nume":"briosa cu cioco congelata","activ":false},{"id":"61980","nume":"briosa cu caramel congelata","activ":false},{"id":"6421922024563","nume":"BATON COPIL CACAO 100G","activ":true},{"id":"6421922028561","nume":"BATON COPILARIEI VANILIE 45 G","activ":true},{"id":"6422026440273","nume":"SIGURANTE SET N PLATE","activ":true},{"id":"6422069001332","nume":"BRICHETE DOOZ HCL","activ":true},{"id":"6422138022459","nume":"SERVETELE NAZALE EL CAPITAN","activ":true},{"id":"6422623009217","nume":"STINGATUR AUTO P1 1KG","activ":true},{"id":"6423669009865","nume":"MANUSI PROTECTIE NYLON","activ":true},{"id":"6423669011028","nume":"MANUSI SENSOR NEGRU","activ":true},{"id":"6423783000038","nume":"SOLUTIE PARBRIZ -20 GRADE DC 5L","activ":true},{"id":"6423783000069","nume":"SOLUTIE PARBRIZ VARA 5L","activ":true},{"id":"6423783000090","nume":"ANTIGEL  G12 POWER 1 KG","activ":true},{"id":"6424944000140","nume":"COVRIGI CORNELIUS CU MAC SI SARE 200G","activ":true},{"id":"6424944000294","nume":"COVRIGI CORNELIUS CU SUSAN 200 GR","activ":true},{"id":"6424944001024","nume":"COVRIGI CORNELIUS CU SUSAN 80G","activ":true},{"id":"6424944001031","nume":"COVRIGEI CORNELIUS MIX SEMINTE 80G","activ":true},{"id":"6425092000228","nume":"paie drepte limonada","activ":false},{"id":"6426128000144","nume":"SERVETELE UMEDE WISH 120BUC","activ":true},{"id":"6426128000205","nume":"SERVETELE UMEDE BABI WISH","activ":true},{"id":"6426128000373","nume":"SERVETELE UMEDE BABY WISH","activ":true},{"id":"6426390909008","nume":"ELECTROLIT 1L","activ":true},{"id":"6426489002733","nume":"SPRAY CURATAT CONTACTE 400ML","activ":true},{"id":"6427212000019","nume":"STINGATOR TIP P1 1 KG","activ":true},{"id":"6427212000026","nume":"STINGATOR TIP P2  2KG","activ":true},{"id":"6920121120286","nume":"INCARCATOR AUTO ALLISON USB+CABLU","activ":true},{"id":"6920680848195","nume":"INCARCATOR 2.5W MAGNETIC","activ":true},{"id":"6920680873272","nume":"INCARCATOR WIRELESS XO-WX020","activ":true},{"id":"6926327617711","nume":"SPRAY DERUGINOL IMP 400ML","activ":true},{"id":"6931474751485","nume":"SUPORT AUTO HOCO  CA 86","activ":true},{"id":"6935855715004","nume":"DOS FARM AROMA DE CAPSUNA","activ":true},{"id":"6942007611374","nume":"INCARCATOR WIRELESS CW52","activ":true},{"id":"6942007641197","nume":"SUPORT AUTO HOCO H66","activ":true},{"id":"6942007647885","nume":"SUPORT AUTO CU CLEME H78","activ":true},{"id":"6990211002181","nume":"ADAPTOR OTG CU TIP C OT 218","activ":true},{"id":"6990211003911","nume":"SUPORT TELEFON BIROU","activ":true},{"id":"6992211003953","nume":"SUPORT NUMAR TELEFON INTR 395","activ":true},{"id":"739113642522","nume":"LEMNE GRATAR  LA SAC","activ":true},{"id":"7610700003862","nume":"RICOLA CRANBERRY","activ":true},{"id":"7610700022498","nume":"RICOLA RASBERRY MELISSA 40G","activ":true},{"id":"7610700026540","nume":"RICOLA MINT 40G","activ":true},{"id":"7610700923092","nume":"RICOLA LEMON MINT 40G","activ":true},{"id":"7613287354303","nume":"JOE VANILLA 160G","activ":true},{"id":"7613287354341","nume":"JOE NOIR MILK 160GR","activ":true},{"id":"7613287354365","nume":"JOE CACAO 160GR","activ":true},{"id":"7622100502043","nume":"IQOS ILUMA ONE MIDNIGHT","activ":true},{"id":"7622100503668","nume":"IQOS ILUMA DIGITAL VIOLET","activ":true},{"id":"7622100503729","nume":"IQOS ILUMA I MIDNIGHT BLACK","activ":true},{"id":"7622100511632","nume":"IQOS ILUMA ONE ELECTR.PURPLE KIT","activ":true},{"id":"7622201389666","nume":"7D CRS MAX 80G CACAO HAZELNUT","activ":true},{"id":"7622201391652","nume":"7D CRS MAX 80G VANILIA BISC","activ":true},{"id":"7622201639785","nume":"POIANA ALUNE 80GR","activ":true},{"id":"7622202254178","nume":"CRS MILKA CACAO 50 GR","activ":true},{"id":"7622202254222","nume":"CRS MILKA VANILIE 50G","activ":true},{"id":"7622202267468","nume":"7D CRS MAX VANILIE-BISC OREO 70GR","activ":true},{"id":"7622202317057","nume":"TUC BK ROOLS 80G USTUROI","activ":true},{"id":"7622202317088","nume":"TUC BK ROLLS 150G USTUROI","activ":true},{"id":"7622202317255","nume":"TUC BK ROLLS PIZZA 150G","activ":true},{"id":"7622202317682","nume":"7622202317682","activ":true},{"id":"7622202317910","nume":"TUC BK ROOLS 80G PIZZA","activ":true},{"id":"7622202804762","nume":"TUC BK ROLLS 80GR BRANZA USTUROI","activ":true},{"id":"7622210148483","nume":"OREO DOUBLE CREM 157G","activ":true},{"id":"7622210544926","nume":"MILKA OREO WHITE 100G","activ":true},{"id":"8000500023624","nume":"KINDER HAPPY CACAO  20.7G","activ":true},{"id":"8000500023976","nume":"RAFFAELLO CUTIE","activ":true},{"id":"8000500192801","nume":"FERRERO ROCHER","activ":true},{"id":"8000500359358","nume":"NUTELLA BISCUITS","activ":true},{"id":"8000500359556","nume":"RAFFAELLO TABLETS","activ":true},{"id":"8000500390306","nume":"NUTELLA BISCUITI 193G","activ":true},{"id":"80052043","nume":"TIC TAC MINT 18G","activ":true},{"id":"80052333","nume":"TIC TAC ORANGE 18G","activ":true},{"id":"80052586","nume":"KINDER HAPPY ALUNE 20.7GR","activ":true},{"id":"80052760","nume":"KINDER BUENO CACAO","activ":true},{"id":"80177043","nume":"FERRERO ROCHER 50G","activ":true},{"id":"802743023188","nume":"GLO HYPER ARTIC","activ":false},{"id":"8027463022921","nume":"GLO HYPER GRAPHITE","activ":true},{"id":"8051369005344","nume":"OREO SANDWICH 110 ML","activ":true},{"id":"8052194321531","nume":"BOTTARI PROSOP USC","activ":true},{"id":"80761761","nume":"KINDER BUENO WHITE","activ":true},{"id":"80783367","nume":"GUMA BUBBLE FRES 30GR","activ":true},{"id":"80874652","nume":"KINDER CARDS NEGRU","activ":true},{"id":"80880042","nume":"MENTOS CLEAN BREATH PAPERMINT","activ":true},{"id":"80946151","nume":"MENTOS GUMA MENTA 30G","activ":true},{"id":"80999300","nume":"MENTOS CLEAN BREATH LEMON 21G","activ":true},{"id":"8414771851648","nume":"PERINGANS GIN 0.7","activ":true},{"id":"8445290159410","nume":"JOE ZI BUNA CACAO 117G","activ":true},{"id":"8445290619051","nume":"NESCAFE BARISTA LATTE CARAMEL 250ML","activ":true},{"id":"8445290619198","nume":"NESCAFE BARISTA LATTE 250ML","activ":true},{"id":"8600946854006","nume":"SL BISCUITI CHOCO 14G","activ":true},{"id":"8606032044207","nume":"GLO HILO ONYX","activ":true},{"id":"8606032044870","nume":"GLO HILO PLUS ONYX","activ":true},{"id":"8606032045594","nume":"GLO HILO RUBY","activ":true},{"id":"8681166508863","nume":"Baza limonada","activ":false},{"id":"87108019","nume":"MENTOS DRAJEURI MINT 38G","activ":true},{"id":"87108026","nume":"MENTOS DRAJEURI FRUIT 38G","activ":true},{"id":"8719964077851","nume":"BLU BAR WET KIT WATERMELON","activ":true},{"id":"8719964077882","nume":"BLU BAR WET KIT STAWBERRY","activ":true},{"id":"8719964077912","nume":"BLU BAR WET BLUEBERRY","activ":true},{"id":"8719964077974","nume":"BLU BAR POD MINT","activ":true},{"id":"8719964078001","nume":"BLU BAR POD WATERMELON ICE","activ":true},{"id":"8719964078032","nume":"BLU BAR POD STAWEBRRY ICE","activ":true},{"id":"8719964078063","nume":"BLU BAR POD BLUEBERRY ICE","activ":true},{"id":"873367836687","nume":"OREO BROWNIE 154G","activ":true},{"id":"887930425970","nume":"CABLU DATE KODAK TIP C 10W","activ":true},{"id":"941458004385","nume":"foietaj telemea congelat","activ":false},{"id":"fe6035.000.04","nume":"SUPORT NUMERE 04","activ":true},{"id":"fe6035.000.08","nume":"SUPORT  NUMERE 08","activ":true},{"id":"2534","nume":"Cafea","activ":false},{"id":"2610","nume":"SOS SANDVIS CREMA BRANZA","activ":true},{"id":"2611","nume":"SANDWICH CU MOZZARELLA SI SOS PESTO","activ":true},{"id":"2613","nume":"SANDWICH CU PROSCIUTTO CRUDO SI PARMEZAN","activ":true},{"id":"2614","nume":"SANDWICH CU KEBAB DE CURCAN","activ":true},{"id":"2616","nume":"SANDWICH CU PROSCIUTTO COTTO SI CASCAVAL","activ":true},{"id":"2687","nume":"SANDWICH TOAST CU SALAM USCAT SI CASCAV","activ":true},{"id":"2900","nume":"CAPPUCINO","activ":true},{"id":"29001","nume":"CAFEA ESPRESSO","activ":true},{"id":"29002","nume":"CAFEA ESPRESSO LUNG","activ":true},{"id":"29010","nume":"CROISSANT CU UNT 60G","activ":true},{"id":"29014","nume":"MELC CU VANILIE SI STAFIDE 95G","activ":true},{"id":"29019","nume":"BRIOSA CU CIOCOLATA 110G","activ":true},{"id":"29020","nume":"BRIOSA CARAMEL SI NUCI PECAN 110G","activ":true},{"id":"29021","nume":"TARTA CU MERE FELIE 75G","activ":true},{"id":"29022","nume":"TARTA CU LAMAIE FELIE 75G","activ":true},{"id":"29023","nume":"TARTA CU VISINE FELIE 75G","activ":true},{"id":"29024","nume":"TARTA CU CIOCOLATA FELIE 75G","activ":true},{"id":"29025","nume":"COOKIE CLASIC CU CIOCO NEAGRA","activ":true},{"id":"29026","nume":"COOKIE CIOCO NEAGRA & ALBA","activ":true},{"id":"29027","nume":"COOKIE CIOCO ALBA & MACADAMIA","activ":true},{"id":"29028","nume":"GOGOASA BERLINEZA CU CACAO","activ":true},{"id":"29029","nume":"GOGOASA CU GLAZURA ALBA SI NEAGRA","activ":true},{"id":"29050","nume":"BILUTE DE MOZZARELLA PANE","activ":true},{"id":"29051","nume":"CIOCOLATA CALDA NEAGRA","activ":true},{"id":"29052","nume":"CIOCOLATA CALDA ALBA","activ":true},{"id":"337182231349","nume":"PAIN AU CHOCOLATE 75G","activ":true},{"id":"4000","nume":"LIMONADA 300ML","activ":true},{"id":"4001","nume":"CEAI LAMAIE 300ML","activ":true},{"id":"4002","nume":"CEAI PIERSICA 300ML","activ":true},{"id":"4003","nume":"CEAI FR. PADURE 300ML","activ":true},{"id":"5941458004385","nume":"FOIETAJ TELEMEA","activ":true},{"id":"8588008571842","nume":"CROISSANT CU SUNCA 100g","activ":true},{"id":"5948792015886","nume":"SERVETELE ALBE ARO","activ":false}];
+
+  const NOM_STORE_KEY = 'condicaPV:nomenclator';
+  function loadNomenclator() { try { return JSON.parse(localStorage.getItem(NOM_STORE_KEY) || '[]'); } catch (e) { return []; } }
+  function saveNomenclator(list) { try { localStorage.setItem(NOM_STORE_KEY, JSON.stringify(list)); } catch (e) { /* full/unavailable */ } }
+  function genNomId() { return 'nom-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8); }
+
+  function ensureNomenclatorSeeded() {
+    if (!loadNomenclator().length) saveNomenclator(NOMENCLATOR_SEED.slice());
   }
-  function serializeProduse(produse) {
-    return (produse || []).map(p => [p.nume, p.cantitate, p.motiv].filter(Boolean).join(' - ')).join('\n');
+  function findProductById(id) {
+    if (!id) return null;
+    return loadNomenclator().find(p => p.id === id) || null;
+  }
+  function searchProducts(query, opts) {
+    opts = opts || {};
+    const q = norm(query);
+    let results = loadNomenclator().filter(p => opts.includeInactive || p.activ !== false);
+    if (q) results = results.filter(p => norm(p.nume).includes(q));
+    results.sort((a, b) => a.nume.localeCompare(b.nume, 'ro'));
+    return results;
+  }
+  function findExactProductByName(text) {
+    const q = norm(text);
+    if (!q) return null;
+    const matches = loadNomenclator().filter(p => norm(p.nume) === q);
+    return matches.length === 1 ? matches[0] : null;
+  }
+  function autoLinkEntries() {
+    const list = loadEntries();
+    let changed = false;
+    list.forEach(e => {
+      (e.produse || []).forEach(p => {
+        if (!p.produsId && p.nume) {
+          const match = findExactProductByName(p.nume);
+          if (match) { p.produsId = match.id; changed = true; }
+        }
+      });
+    });
+    if (changed) saveEntries(list);
+    return changed;
+  }
+
+  // ---------- cantități ----------
+  const UNIT_MAP = { buc:'buc', bucati:'buc', kg:'kg', g:'g', gr:'g', l:'L', litri:'L', ml:'ml', lei:'lei' };
+  function parseQtyUnit(str) {
+    const m = String(str || '').match(/(-?\d+(?:[.,]\d+)?)\s*([a-zA-ZăâîșțĂÂÎȘȚ]*)/);
+    if (!m) return null;
+    const value = parseFloat(m[1].replace(',', '.'));
+    if (isNaN(value)) return null;
+    let unit = norm(m[2] || '');
+    unit = UNIT_MAP[unit] || (unit || 'buc');
+    return { value, unit };
+  }
+  function sumQuantities(strings) {
+    const totals = new Map();
+    strings.forEach(s => {
+      const parsed = parseQtyUnit(s);
+      if (!parsed) return;
+      totals.set(parsed.unit, (totals.get(parsed.unit) || 0) + parsed.value);
+    });
+    if (!totals.size) return '—';
+    return Array.from(totals.entries()).map(([unit, val]) => {
+      const rounded = Math.round(val * 100) / 100;
+      return `${String(rounded).replace('.', ',')} ${unit}`;
+    }).join(' + ');
+  }
+
+  // ---------- autocomplete generic pentru produse ----------
+  function attachProductAutocomplete(input, dropdown, opts) {
+    opts = opts || {};
+    let activeIndex = -1;
+    function renderList(query) {
+      const items = searchProducts(query, { includeInactive: opts.includeInactive }).slice(0, 40);
+      if (!items.length) {
+        dropdown.innerHTML = `<div class="ac-empty">Niciun produs găsit${query ? ' pentru „' + escapeHtml(query) + '”' : ''}.</div>`;
+      } else {
+        dropdown.innerHTML = items.map(p => `<div class="ac-item${p.activ === false ? ' inactive' : ''}" data-id="${escapeHtml(p.id)}">${escapeHtml(p.nume)}${p.activ === false ? ' (inactiv)' : ''}</div>`).join('');
+      }
+      dropdown.style.display = 'block';
+      activeIndex = -1;
+    }
+    function updateActive() {
+      const els2 = Array.from(dropdown.querySelectorAll('.ac-item'));
+      els2.forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+      if (activeIndex >= 0) els2[activeIndex].scrollIntoView({ block: 'nearest' });
+    }
+    input.addEventListener('focus', () => renderList(input.value));
+    input.addEventListener('input', () => {
+      if (opts.onSelect) opts.onSelect(null, input.value);
+      renderList(input.value);
+    });
+    input.addEventListener('blur', () => { setTimeout(() => { dropdown.style.display = 'none'; }, 150); });
+    input.addEventListener('keydown', (e) => {
+      const els2 = Array.from(dropdown.querySelectorAll('.ac-item'));
+      if (!els2.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(activeIndex + 1, els2.length - 1); updateActive(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(activeIndex - 1, 0); updateActive(); }
+      else if (e.key === 'Enter') { if (activeIndex >= 0) { e.preventDefault(); els2[activeIndex].dispatchEvent(new Event('mousedown', { bubbles: true })); } }
+      else if (e.key === 'Escape') { dropdown.style.display = 'none'; }
+    });
+    dropdown.addEventListener('mousedown', (e) => {
+      const el = e.target.closest('.ac-item');
+      if (!el) return;
+      e.preventDefault();
+      const product = findProductById(el.getAttribute('data-id'));
+      if (product) {
+        input.value = product.nume;
+        if (opts.onSelect) opts.onSelect(product, product.nume);
+      }
+      dropdown.style.display = 'none';
+    });
   }
 
   const STORE_KEY = 'condicaPV:entries';
@@ -280,7 +465,10 @@
     search: document.getElementById('searchInput'),
     fromDate: document.getElementById('fromDate'),
     toDate: document.getElementById('toDate'),
+    productStatsBar: document.getElementById('productStatsBar'),
   };
+
+  let selectedProductId = null;
 
   function render() {
     const all = loadEntries().slice().sort((a, b) => roSortKey(b.data) - roSortKey(a.data));
@@ -290,6 +478,7 @@
       els.statCount.textContent = '0';
       els.statProducts.textContent = '0';
       els.statRange.textContent = '—';
+      els.productStatsBar.style.display = 'none';
       return;
     }
     els.empty.style.display = 'none';
@@ -299,12 +488,25 @@
     const filtered = all.filter(e => {
       if (fromIso && roToIso(e.data) < fromIso) return false;
       if (toIso && roToIso(e.data) > toIso) return false;
+      if (selectedProductId && !(e.produse || []).some(p => p.produsId === selectedProductId)) return false;
       if (q) {
         const hay = norm([e.gestionar, e.motiv, ...(e.produse || []).flatMap(p => [p.nume, p.motiv])].join(' '));
         if (!hay.includes(q)) return false;
       }
       return true;
     });
+
+    if (selectedProductId) {
+      const product = findProductById(selectedProductId);
+      const qtyStrings = [];
+      filtered.forEach(e => (e.produse || []).forEach(p => { if (p.produsId === selectedProductId) qtyStrings.push(p.cantitate); }));
+      document.getElementById('statProdName').textContent = product ? product.nume : '(produs șters din nomenclator)';
+      document.getElementById('statProdCount').textContent = String(filtered.length);
+      document.getElementById('statProdQty').textContent = sumQuantities(qtyStrings);
+      els.productStatsBar.style.display = 'flex';
+    } else {
+      els.productStatsBar.style.display = 'none';
+    }
 
     const totalProducts = all.reduce((s, e) => s + (e.produse || []).length, 0);
     els.statCount.textContent = String(all.length);
@@ -354,9 +556,44 @@
   const fieldData = document.getElementById('fieldData');
   const fieldGestionar = document.getElementById('fieldGestionar');
   const fieldMotiv = document.getElementById('fieldMotiv');
-  const fieldProduse = document.getElementById('fieldProduse');
+  const produseRowsEl = document.getElementById('produseRows');
   const deleteBtn = document.getElementById('entryDelete');
   let editingId = null;
+
+  function createProdusRow(data) {
+    data = data || { nume: '', cantitate: '', motiv: '', produsId: null };
+    const row = document.createElement('div');
+    row.className = 'produs-row';
+    row.innerHTML = `
+      <div class="product-ac">
+        <input type="text" class="row-nume" placeholder="Caută produs…" autocomplete="off" value="${escapeHtml(data.nume || '')}" />
+        <input type="hidden" class="row-produsid" value="${escapeHtml(data.produsId || '')}" />
+        <div class="ac-dropdown" style="display:none;"></div>
+      </div>
+      <input type="text" class="row-cantitate" placeholder="Cantitate (ex: 2 buc)" value="${escapeHtml(data.cantitate || '')}" />
+      <input type="text" class="row-motiv" placeholder="Motiv (opțional)" value="${escapeHtml(data.motiv || '')}" />
+      <button type="button" class="remove-row-btn" title="Șterge rândul">✕</button>
+    `;
+    const nameInput = row.querySelector('.row-nume');
+    const idInput = row.querySelector('.row-produsid');
+    const dropdown = row.querySelector('.ac-dropdown');
+    attachProductAutocomplete(nameInput, dropdown, {
+      onSelect(product) { idInput.value = product ? product.id : ''; },
+    });
+    row.querySelector('.remove-row-btn').addEventListener('click', () => row.remove());
+    return row;
+  }
+  function collectProduseFromRows() {
+    return Array.from(produseRowsEl.querySelectorAll('.produs-row')).map(row => ({
+      nume: row.querySelector('.row-nume').value.trim(),
+      cantitate: row.querySelector('.row-cantitate').value.trim(),
+      motiv: row.querySelector('.row-motiv').value.trim(),
+      produsId: row.querySelector('.row-produsid').value.trim() || null,
+    })).filter(p => p.nume || p.cantitate || p.motiv);
+  }
+  document.getElementById('addProdusRow').addEventListener('click', () => {
+    produseRowsEl.appendChild(createProdusRow());
+  });
 
   function openModal(entry) {
     editingId = entry ? entry.id : null;
@@ -364,7 +601,9 @@
     fieldData.value = entry ? roToIso(entry.data) : '';
     fieldGestionar.value = entry ? (entry.gestionar || '') : '';
     fieldMotiv.value = entry ? (entry.motiv || '') : '';
-    fieldProduse.value = entry ? serializeProduse(entry.produse) : '';
+    produseRowsEl.innerHTML = '';
+    const produse = (entry && entry.produse && entry.produse.length) ? entry.produse : [{ nume: '', cantitate: '', motiv: '', produsId: null }];
+    produse.forEach(p => produseRowsEl.appendChild(createProdusRow(p)));
     deleteBtn.style.display = entry ? 'inline-block' : 'none';
     modal.style.display = 'flex';
   }
@@ -380,7 +619,7 @@
       data: isoToRo(fieldData.value),
       gestionar: fieldGestionar.value.trim(),
       motiv: fieldMotiv.value.trim(),
-      produse: parseProduseText(fieldProduse.value),
+      produse: collectProduseFromRows(),
     };
     const idx = list.findIndex(e => e.id === entry.id);
     if (idx === -1) list.push(entry); else list[idx] = entry;
@@ -407,8 +646,149 @@
   [els.search, els.fromDate, els.toDate].forEach(el => el.addEventListener('input', render));
   document.getElementById('clearFilters').addEventListener('click', () => {
     els.search.value = ''; els.fromDate.value = ''; els.toDate.value = '';
+    selectedProductId = null;
+    productFilterInput.value = ''; productFilterIdEl.value = '';
     render();
   });
+
+  // ---------- căutare produs din nomenclator (filtru principal) ----------
+  const productFilterInput = document.getElementById('productFilterInput');
+  const productFilterIdEl = document.getElementById('productFilterId');
+  const productFilterDropdown = document.getElementById('productFilterDropdown');
+  attachProductAutocomplete(productFilterInput, productFilterDropdown, {
+    includeInactive: true,
+    onSelect(product) {
+      selectedProductId = product ? product.id : null;
+      productFilterIdEl.value = selectedProductId || '';
+      render();
+    },
+  });
+  document.getElementById('clearProductFilter').addEventListener('click', () => {
+    selectedProductId = null;
+    productFilterInput.value = ''; productFilterIdEl.value = '';
+    render();
+  });
+
+  // ---------- nomenclator (back office) ----------
+  const nomModal = document.getElementById('nomenclatorModal');
+  const nomListEl = document.getElementById('nomList');
+  const nomSearchEl = document.getElementById('nomSearch');
+  const nomCountEl = document.getElementById('nomCount');
+  const unresolvedSectionEl = document.getElementById('unresolvedSection');
+
+  function renderNomenclatorList() {
+    const qn = norm(nomSearchEl.value);
+    const all = loadNomenclator().slice().sort((a, b) => a.nume.localeCompare(b.nume, 'ro'));
+    const filtered = qn ? all.filter(p => norm(p.nume).includes(qn)) : all;
+    const shown = filtered.slice(0, 200);
+    nomListEl.innerHTML = shown.map(p => `
+      <div class="nom-row${p.activ === false ? ' inactive' : ''}" data-id="${escapeHtml(p.id)}">
+        <div class="nom-name"><input type="text" class="nom-name-input" value="${escapeHtml(p.nume)}" /></div>
+        <label class="switch"><input type="checkbox" class="nom-active-toggle" ${p.activ !== false ? 'checked' : ''} /> activ</label>
+      </div>
+    `).join('');
+    nomCountEl.textContent = filtered.length > shown.length
+      ? `Arată primele ${shown.length} din ${filtered.length} rezultate — caută pentru mai multe.`
+      : `${filtered.length} produse${qn ? ' găsite' : ' în nomenclator'}.`;
+  }
+
+  function renderUnresolved() {
+    const entries = loadEntries();
+    const groups = new Map();
+    entries.forEach(e => (e.produse || []).forEach(p => {
+      if (p.produsId || !p.nume) return;
+      const key = norm(p.nume);
+      if (!groups.has(key)) groups.set(key, { nume: p.nume, count: 0 });
+      groups.get(key).count++;
+    }));
+    if (!groups.size) { unresolvedSectionEl.innerHTML = ''; return; }
+    const rows = Array.from(groups.values()).sort((a, b) => b.count - a.count);
+    unresolvedSectionEl.innerHTML = `<h4>Produse neidentificate (${rows.length})</h4>` + rows.map(r => `
+      <div class="unresolved-row" data-name="${escapeHtml(r.nume)}">
+        <span class="u-name">${escapeHtml(r.nume)}</span>
+        <span class="u-count">${r.count} apariții</span>
+        <div class="u-link">
+          <div class="product-ac" style="min-width:180px;">
+            <input type="text" class="unresolved-pick" placeholder="Leagă de…" autocomplete="off" />
+            <input type="hidden" class="unresolved-pick-id" />
+            <div class="ac-dropdown" style="display:none;"></div>
+          </div>
+          <button type="button" class="link-btn" disabled>Leagă</button>
+        </div>
+      </div>
+    `).join('');
+    unresolvedSectionEl.querySelectorAll('.unresolved-row').forEach(row => {
+      const input = row.querySelector('.unresolved-pick');
+      const idInput = row.querySelector('.unresolved-pick-id');
+      const dropdown = row.querySelector('.ac-dropdown');
+      const linkBtn = row.querySelector('.link-btn');
+      attachProductAutocomplete(input, dropdown, {
+        includeInactive: true,
+        onSelect(product) {
+          idInput.value = product ? product.id : '';
+          linkBtn.disabled = !product;
+        },
+      });
+      linkBtn.addEventListener('click', () => {
+        const targetId = idInput.value;
+        const name = row.getAttribute('data-name');
+        if (!targetId) return;
+        const list = loadEntries();
+        let changed = 0;
+        list.forEach(e => (e.produse || []).forEach(p => {
+          if (!p.produsId && norm(p.nume) === norm(name)) { p.produsId = targetId; changed++; }
+        }));
+        saveEntries(list);
+        renderUnresolved();
+        render();
+        alert(`Legat ${changed} apariții de „${name}” la produsul selectat.`);
+      });
+    });
+  }
+
+  document.getElementById('nomenclatorBtn').addEventListener('click', () => {
+    nomSearchEl.value = '';
+    renderNomenclatorList();
+    renderUnresolved();
+    nomModal.style.display = 'flex';
+  });
+  function closeNomModal() { nomModal.style.display = 'none'; render(); }
+  document.getElementById('nomCloseBtn').addEventListener('click', closeNomModal);
+  nomModal.addEventListener('click', (e) => { if (e.target === nomModal) closeNomModal(); });
+  nomSearchEl.addEventListener('input', renderNomenclatorList);
+  document.getElementById('nomAddBtn').addEventListener('click', () => {
+    const nume = prompt('Nume produs nou:');
+    if (!nume || !nume.trim()) return;
+    const list = loadNomenclator();
+    list.push({ id: genNomId(), nume: nume.trim(), activ: true });
+    saveNomenclator(list);
+    autoLinkEntries();
+    nomSearchEl.value = nume.trim();
+    renderNomenclatorList();
+    renderUnresolved();
+  });
+  nomListEl.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('nom-active-toggle')) return;
+    const row = e.target.closest('.nom-row');
+    const id = row.getAttribute('data-id');
+    const list = loadNomenclator();
+    const p = list.find(x => x.id === id);
+    if (!p) return;
+    p.activ = e.target.checked;
+    saveNomenclator(list);
+    row.classList.toggle('inactive', !p.activ);
+  });
+  nomListEl.addEventListener('blur', (e) => {
+    if (!e.target.classList.contains('nom-name-input')) return;
+    const row = e.target.closest('.nom-row');
+    const id = row.getAttribute('data-id');
+    const list = loadNomenclator();
+    const p = list.find(x => x.id === id);
+    if (!p) return;
+    const val = e.target.value.trim();
+    if (val && val !== p.nume) { p.nume = val; saveNomenclator(list); autoLinkEntries(); renderUnresolved(); }
+    else { e.target.value = p.nume; }
+  }, true);
 
   // ---------- print ----------
   document.getElementById('printBtn').addEventListener('click', () => window.print());
@@ -445,6 +825,7 @@
           map.set(e.id, e);
         });
         saveEntries(Array.from(map.values()));
+        autoLinkEntries();
         render();
         alert(`Import reușit: ${added} PV-uri noi, ${updated} actualizate.`);
       } catch (err) {
@@ -454,6 +835,8 @@
     reader.readAsText(file);
   });
 
+  ensureNomenclatorSeeded();
+  autoLinkEntries();
   render();
 })();
 </script>
