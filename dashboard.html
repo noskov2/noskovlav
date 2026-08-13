@@ -202,6 +202,40 @@
   .chart-wrap { position: relative; }
 
   footer.note { text-align: center; font-size: 11.5px; color: var(--text-muted); margin-top: 8px; }
+
+  .edit-day-btn {
+    padding: 2px 7px; font-size: 12px; border-radius: 6px; background: transparent; border: 1px solid var(--border); cursor: pointer;
+  }
+  .edit-day-btn:hover { background: var(--surface-2); }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 16px;
+  }
+  .modal-card {
+    background: var(--surface-1); border-radius: 14px; padding: 20px; width: 100%; max-width: 340px;
+    border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(0,0,0,.25);
+  }
+  .modal-card h3 { margin: 0 0 14px; font-size: 15px; }
+  .modal-card label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  .modal-card input {
+    display: block; width: 100%; margin-top: 5px; padding: 8px 10px; font: inherit; font-size: 14px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);
+  }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+  .history-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gridline); font-size: 13px; }
+  .history-row:last-child { border-bottom: none; }
+  .history-row .hmonth { width: 90px; flex: none; font-weight: 600; }
+  .history-row .hbar { flex: 1; }
+  .history-row .hpct { width: 56px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+
+  @media print {
+    header.top, #emptyState, .btn, button, #fileInput, select, .edit-day-btn, footer.note { display: none !important; }
+    body, .page { background: #fff; color: #000; }
+    .card, .team-card { break-inside: avoid; border-color: #ccc; }
+    a[href]::after { content: ''; }
+  }
 </style>
 </head>
 <body>
@@ -214,6 +248,10 @@
     </div>
     <div class="top-actions">
       <select id="monthSelect" style="display:none;"></select>
+      <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
+      <button id="backupBtn" title="Descarcă o copie de siguranță a tuturor lunilor salvate">⬇ Backup</button>
+      <label class="btn" for="restoreInput" title="Încarcă o copie de siguranță salvată anterior">⬆ Restaurează</label>
+      <input type="file" id="restoreInput" accept=".json" style="display:none;" />
       <button id="deleteMonthBtn" class="danger" style="display:none;" title="Șterge luna curentă">Șterge luna</button>
       <label class="btn btn-primary" for="fileInput">⬆ Încarcă Excel</label>
       <input type="file" id="fileInput" accept=".xlsx,.xls" />
@@ -252,10 +290,24 @@
       <div class="table-scroll" id="trackerTableWrap"></div>
     </details>
 
+    <section class="card" id="historyCard" style="display:none;"></section>
+
   </main>
 
   <footer class="note">Fișierul se procesează integral local, în acest browser. Datele rămase salvate în acest browser (localStorage) pentru a reapărea la următoarea vizită.</footer>
 
+</div>
+
+<div class="modal-overlay" id="editDayModal" style="display:none;">
+  <div class="modal-card">
+    <h3 id="editDayTitle">Editare zi</h3>
+    <label>Tura 1 (RON)<input type="number" id="editTura1" step="0.01" inputmode="decimal" /></label>
+    <label>Tura 2 (RON)<input type="number" id="editTura2" step="0.01" inputmode="decimal" /></label>
+    <div class="modal-actions">
+      <button id="editDayCancel">Anulează</button>
+      <button id="editDaySave" class="btn-primary">Salvează</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -521,6 +573,10 @@
     }
     return null;
   }
+  function isExcludedFuel(produsNume) {
+    const n = norm(produsNume);
+    return n.includes('benzina') || n.includes('motorina');
+  }
   function parseRawSales(wb) {
     const found = detectRawSalesSheet(wb);
     if (!found) return null;
@@ -530,10 +586,12 @@
       zi: colIdx(header, h => h === 'zi'),
       creat: colIdx(header, h => h.includes('creat')),
       casier: colIdx(header, h => h.includes('casier')),
+      produs: colIdx(header, h => h.includes('produs')),
       valoare: colIdx(header, h => h.includes('valoare')),
     };
     const byDate = new Map();
     let skipped = 0;
+    let excludedTotal = 0, excludedCount = 0, gplTotal = 0;
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
       const ziRaw = r[idx.zi];
@@ -545,11 +603,15 @@
       const casier = r[idx.casier];
       const valoare = toNum(r[idx.valoare]) || 0;
       if (!(created instanceof Date) || !casier) { skipped++; continue; }
+      const produsNume = idx.produs !== -1 ? r[idx.produs] : null;
+      if (isExcludedFuel(produsNume)) { excludedTotal += valoare; excludedCount++; continue; }
+      if (norm(produsNume).includes('gaz petrolier') || norm(produsNume).includes('gpl')) gplTotal += valoare;
       if (!byDate.has(dateKey)) byDate.set(dateKey, []);
       byDate.get(dateKey).push({ t: created.getTime(), casier, valoare });
     }
     const shiftsByDate = {};
     const warnings = [];
+    if (excludedCount) warnings.push(`Exclus benzină + motorină: ${fmtRON(excludedTotal)} (${excludedCount} linii)${gplTotal ? ' · GPL păstrat: ' + fmtRON(gplTotal) : ''}.`);
     for (const [date, entries] of byDate) {
       entries.sort((a, b) => a.t - b.t);
       const segments = [];
@@ -727,6 +789,20 @@
   const STORE_KEY = 'salesDashboard:months';
   function loadStore() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { return {}; } }
   function saveStore(store) { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* storage full/unavailable */ } }
+  const MONTH_ORDER = { IAN: 0, FEB: 1, MAR: 2, APR: 3, MAI: 4, IUN: 5, IUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+  function monthSortKey(key) {
+    const m = String(key).match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i);
+    if (!m) return null;
+    const idx = MONTH_ORDER[m[1].toUpperCase()];
+    return idx == null ? null : parseInt(m[2], 10) * 100 + idx;
+  }
+  function sortedMonthKeys(store) {
+    return Object.keys(store).sort((a, b) => {
+      const ka = monthSortKey(a), kb = monthSortKey(b);
+      if (ka != null && kb != null) return ka - kb;
+      return String(a).localeCompare(String(b));
+    });
+  }
 
   // ---------- rendering ----------
   const els = {
@@ -745,6 +821,7 @@
     daily: document.getElementById('dailyCard'),
     trackerWrap: document.getElementById('trackerTableWrap'),
     trackerCard: document.getElementById('trackerCard'),
+    history: document.getElementById('historyCard'),
   };
 
   function showError(msg) {
@@ -766,6 +843,10 @@
     const pct = totals.procent ?? (monthlyTotal ? (realizat / monthlyTotal) : null);
     const pctVsPana = targetPana && realizat != null ? realizat / targetPana : null;
 
+    const days = (data.zilnic && data.zilnic.days) || [];
+    const daysWithData = days.filter(d => d.realizat != null).length;
+    const projectedTotal = (daysWithData && days.length) ? (realizat / daysWithData) * days.length : null;
+
     let html = '';
     html += `<div class="hero-title">${escapeHtml(r.title || 'Target vânzări')}</div>`;
     if (r.subtitle) html += `<div class="hero-sub">${escapeHtml(r.subtitle)}</div>`;
@@ -776,6 +857,10 @@
     if (totals.diferenta != null) {
       const cls = totals.diferenta >= 0 ? 'delta-good' : 'delta-bad';
       html += statTile('Diferență față de target-până-azi', (totals.diferenta >= 0 ? '+' : '') + fmtRON(totals.diferenta), cls);
+    }
+    if (projectedTotal != null && monthlyTotal) {
+      const cls = projectedTotal >= monthlyTotal ? 'delta-good' : 'delta-bad';
+      html += statTile('Proiecție sfârșit de lună (la ritmul actual)', fmtRON(projectedTotal), cls);
     }
     html += '</div>';
     html += `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:6px;">
@@ -880,7 +965,7 @@
     els.daily.style.display = 'block';
     const cutoff = data.cutoffZi;
     let html = '<h3>Evoluție zilnică</h3><div class="table-scroll"><table class="daily-table"><thead><tr>' +
-      '<th>Zi</th><th>Dată</th><th>Tura 1</th><th>Tura 2</th><th class="num">Target</th><th class="num">Realizat</th><th class="num">Diferență</th><th>Status</th>' +
+      '<th>Zi</th><th>Dată</th><th>Tura 1</th><th>Tura 2</th><th class="num">Target</th><th class="num">Realizat</th><th class="num">Diferență</th><th>Status</th><th></th>' +
       '</tr></thead><tbody>';
     data.zilnic.days.forEach(d => {
       const pending = cutoff != null && d.zi > cutoff;
@@ -894,10 +979,11 @@
         <td class="num">${pending ? '—' : fmtRON(d.realizat)}</td>
         <td class="num">${pending ? '—' : ((d.diferenta>=0?'+':'')+fmtRON(d.diferenta))}</td>
         <td>${pending ? '<span class="status-badge status-pending">în așteptare</span>' : `<span class="status-badge status-${cls}">${fmtPct(d.procent)}</span>`}</td>
+        <td><button class="edit-day-btn" data-date="${escapeHtml(String(d.data||''))}" title="Editează manual ziua ${escapeHtml(String(d.data||''))}">✎</button></td>
       </tr>`;
     });
     if (data.zilnic.total) {
-      html += `<tr class="total-row"><td colspan="4">Total lună</td><td class="num">${fmtRON(data.zilnic.total.targetZi)}</td><td class="num">${fmtRON(data.zilnic.total.realizat)}</td><td colspan="2"></td></tr>`;
+      html += `<tr class="total-row"><td colspan="4">Total lună</td><td class="num">${fmtRON(data.zilnic.total.targetZi)}</td><td class="num">${fmtRON(data.zilnic.total.realizat)}</td><td colspan="3"></td></tr>`;
     }
     html += '</tbody></table></div>';
     els.daily.innerHTML = html;
@@ -919,6 +1005,26 @@
     });
     html += '</tbody></table>';
     els.trackerWrap.innerHTML = html;
+  }
+
+  function renderHistory() {
+    const store = loadStore();
+    const keys = sortedMonthKeys(store);
+    if (keys.length < 2) { els.history.style.display = 'none'; return; }
+    els.history.style.display = 'block';
+    const rows = keys.map(k => {
+      const d = store[k];
+      const totals = (d.situatie && d.situatie.totals) || {};
+      const pct = totals.procent;
+      const barPct = Math.max(0, Math.min(100, (pct || 0) * 100));
+      const cls = statusClass(null, pct);
+      return `<div class="history-row">
+        <div class="hmonth">${escapeHtml(k)}</div>
+        <div class="hbar"><div class="bar small"><div class="fill" style="width:${barPct}%;background:var(--${cls === 'pending' ? 'series-1' : cls});"></div></div></div>
+        <div class="hpct">${fmtPct(pct)}</div>
+      </div>`;
+    }).join('');
+    els.history.innerHTML = '<h3>Istoric luni</h3>' + rows;
   }
 
   function renderChart(data) {
@@ -1015,6 +1121,7 @@
     renderChart(data);
     renderDaily(data);
     renderTracker(data);
+    renderHistory();
     els.dashboard.classList.add('visible');
     els.empty.style.display = 'none';
     const d = new Date(data.savedAt);
@@ -1025,7 +1132,7 @@
   let currentKey = null;
   function refreshMonthSelect() {
     const store = loadStore();
-    const keys = Object.keys(store).sort();
+    const keys = sortedMonthKeys(store);
     if (keys.length <= 1) { els.monthSelect.style.display = 'none'; els.deleteMonthBtn.style.display = keys.length ? 'inline-block' : 'none'; return; }
     els.monthSelect.style.display = 'inline-block';
     els.deleteMonthBtn.style.display = 'inline-block';
@@ -1042,7 +1149,7 @@
     const store = loadStore();
     delete store[currentKey];
     saveStore(store);
-    const keys = Object.keys(store).sort();
+    const keys = sortedMonthKeys(store);
     if (keys.length) { currentKey = keys[keys.length - 1]; render(store[currentKey]); refreshMonthSelect(); }
     else {
       currentKey = null;
@@ -1124,10 +1231,100 @@
     if (file) handleFile(file);
   });
 
+  // ---------- print ----------
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+  // ---------- backup export / restore ----------
+  document.getElementById('backupBtn').addEventListener('click', () => {
+    const store = loadStore();
+    const blob = new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url; a.download = `backup-target-vanzari-${stamp}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+  const restoreInput = document.getElementById('restoreInput');
+  restoreInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const incoming = JSON.parse(ev.target.result);
+        if (typeof incoming !== 'object' || incoming == null) throw new Error('format invalid');
+        const store = loadStore();
+        Object.assign(store, incoming);
+        Object.keys(store).forEach(k => {
+          const d = store[k];
+          if (d && d.config && d.rotation && d.rawRealizat) recompute(d);
+        });
+        saveStore(store);
+        const keys = sortedMonthKeys(store);
+        if (keys.length) {
+          currentKey = keys[keys.length - 1];
+          render(store[currentKey]);
+          refreshMonthSelect();
+        }
+        showError('');
+      } catch (err) {
+        showError('Fișierul de backup nu a putut fi citit: ' + (err && err.message ? err.message : String(err)));
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // ---------- manual day edit ----------
+  const editModal = document.getElementById('editDayModal');
+  const editTitle = document.getElementById('editDayTitle');
+  const editTura1Input = document.getElementById('editTura1');
+  const editTura2Input = document.getElementById('editTura2');
+  let editingDate = null;
+
+  els.daily.addEventListener('click', (e) => {
+    const btn = e.target.closest('.edit-day-btn');
+    if (!btn || !currentKey) return;
+    const date = btn.getAttribute('data-date');
+    const store = loadStore();
+    const data = store[currentKey];
+    if (!data) return;
+    data.rawRealizat = data.rawRealizat || {};
+    editingDate = date;
+    editTitle.textContent = 'Editare zi ' + date;
+    const existing = data.rawRealizat[date] || {};
+    editTura1Input.value = existing.tura1 != null ? existing.tura1 : '';
+    editTura2Input.value = existing.tura2 != null ? existing.tura2 : '';
+    editModal.style.display = 'flex';
+    editTura1Input.focus();
+  });
+  document.getElementById('editDayCancel').addEventListener('click', () => { editModal.style.display = 'none'; });
+  editModal.addEventListener('click', (e) => { if (e.target === editModal) editModal.style.display = 'none'; });
+  document.getElementById('editDaySave').addEventListener('click', () => {
+    if (!editingDate || !currentKey) { editModal.style.display = 'none'; return; }
+    const store = loadStore();
+    const data = store[currentKey];
+    if (!data) { editModal.style.display = 'none'; return; }
+    data.rawRealizat = data.rawRealizat || {};
+    const v1 = editTura1Input.value.trim();
+    const v2 = editTura2Input.value.trim();
+    data.rawRealizat[editingDate] = {
+      tura1: v1 === '' ? null : parseFloat(v1),
+      tura2: v2 === '' ? null : parseFloat(v2),
+    };
+    recompute(data);
+    data.savedAt = Date.now();
+    store[currentKey] = data;
+    saveStore(store);
+    editModal.style.display = 'none';
+    render(data);
+  });
+
   // ---------- init from storage ----------
   (function init() {
     const store = loadStore();
-    const keys = Object.keys(store).sort();
+    const keys = sortedMonthKeys(store);
     if (keys.length) {
       currentKey = keys[keys.length - 1];
       render(store[currentKey]);
