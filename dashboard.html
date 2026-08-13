@@ -613,6 +613,11 @@
     });
     return merged;
   }
+  const DEFAULT_TEAM_NAMES = {
+    'Echipa 1': 'Echipa 1 — Catalin + Ioana',
+    'Echipa 2': 'Echipa 2 — Razvan + Rodica',
+    'Echipa 3': 'Echipa 3 — Andreea + Denisa',
+  };
   function recompute(data) {
     const cfg = data.config;
     const rotation = data.rotation;
@@ -651,7 +656,7 @@
       const procent = targetLunar ? t.realizat / targetLunar : null;
       const bonus = computeBonusTier(procent, cfg.grila);
       return {
-        name: nameLookup[short] || short,
+        name: nameLookup[short] || DEFAULT_TEAM_NAMES[short] || short,
         targetLunar, targetPana: t.targetPana, realizat: t.realizat,
         diferenta: t.realizat - t.targetPana, procent,
         tureRamaseDim: t.tureTotalDim - t.tureWorkedDim, tureRamaseSeara: t.tureTotalSeara - t.tureWorkedSeara,
