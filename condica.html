@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Condică PV-uri</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:            #f9f9f7;
+    --surface-1:       #fcfcfb;
+    --surface-2:       #f2f1ed;
+    --text-primary:    #0b0b0b;
+    --text-secondary:  #52514e;
+    --text-muted:      #898781;
+    --gridline:        #e1e0d9;
+    --baseline:        #c3c2b7;
+    --border:          rgba(11,11,11,0.10);
+    --series-1:        #2a78d6;
+    --series-2:        #eb6834;
+    --good:            #0ca30c;
+    --warning:         #fab219;
+    --critical:        #d03b3b;
+    --good-bg:         rgba(12,163,12,0.12);
+    --warning-bg:      rgba(250,178,25,0.16);
+    --critical-bg:     rgba(208,59,59,0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page:            #0d0d0d;
+      --surface-1:       #1a1a19;
+      --surface-2:       #232322;
+      --text-primary:    #ffffff;
+      --text-secondary:  #c3c2b7;
+      --text-muted:      #898781;
+      --gridline:        #2c2c2a;
+      --baseline:        #383835;
+      --border:          rgba(255,255,255,0.10);
+      --series-1:        #3987e5;
+      --series-2:        #d95926;
+      --good:            #0ca30c;
+      --warning:         #fab219;
+      --critical:        #e66767;
+      --good-bg:         rgba(12,163,12,0.18);
+      --warning-bg:      rgba(250,178,25,0.14);
+      --critical-bg:     rgba(230,103,103,0.14);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:            #0d0d0d;
+    --surface-1:       #1a1a19;
+    --surface-2:       #232322;
+    --text-primary:    #ffffff;
+    --text-secondary:  #c3c2b7;
+    --text-muted:      #898781;
+    --gridline:        #2c2c2a;
+    --baseline:        #383835;
+    --border:          rgba(255,255,255,0.10);
+    --series-1:        #3987e5;
+    --series-2:        #d95926;
+    --good:            #0ca30c;
+    --warning:         #fab219;
+    --critical:        #e66767;
+    --good-bg:         rgba(12,163,12,0.18);
+    --warning-bg:      rgba(250,178,25,0.14);
+    --critical-bg:     rgba(230,103,103,0.14);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--page); color: var(--text-primary); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .page { max-width: 980px; margin: 0 auto; padding: 16px 16px 64px; }
+
+  header.top {
+    position: sticky; top: 0; z-index: 20; background: var(--page);
+    padding: 14px 16px; margin: -16px -16px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: baseline; gap: 8px; }
+  .brand h1 { font-size: 17px; margin: 0; font-weight: 700; }
+  .brand .updated { font-size: 12px; color: var(--text-muted); }
+  .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  select, button, .btn, input[type="text"], input[type="date"], textarea {
+    font: inherit; font-size: 13px; color: var(--text-primary);
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 12px; cursor: pointer;
+  }
+  input[type="text"], input[type="date"], textarea { cursor: text; }
+  button:hover, .btn:hover { background: var(--surface-2); }
+  .btn-primary { background: var(--series-1); color: #fff; border-color: transparent; }
+  .btn-primary:hover { filter: brightness(1.08); background: var(--series-1); }
+  button.danger { color: var(--critical); }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .card h3 { margin: 0 0 14px; font-size: 14px; color: var(--text-secondary); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 16px; }
+  .stat-tile .label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-tile .value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .filters label { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .filters input { min-width: 0; }
+  #searchInput { flex: 1; min-width: 160px; }
+
+  #emptyState { margin-top: 24px; padding: 48px 24px; text-align: center; border: 1.5px dashed var(--baseline); border-radius: 16px; background: var(--surface-1); }
+  #emptyState .icon { font-size: 40px; margin-bottom: 8px; }
+  #emptyState h2 { font-size: 17px; margin: 4px 0 6px; }
+  #emptyState p { color: var(--text-secondary); font-size: 14px; max-width: 480px; margin: 0 auto 18px; line-height: 1.5; }
+
+  details.date-group { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
+  details.date-group summary {
+    cursor: pointer; list-style: none; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;
+    font-weight: 700; font-size: 15px;
+  }
+  details.date-group summary::-webkit-details-marker { display: none; }
+  details.date-group summary .count { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+  details.date-group summary::before { content: "▸ "; color: var(--text-muted); font-weight: 400; }
+  details.date-group[open] summary::before { content: "▾ "; }
+
+  .pv-entry { border-top: 1px solid var(--gridline); padding: 14px 18px; }
+  .pv-entry-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .pv-entry-meta { font-size: 13px; }
+  .pv-entry-meta b { display: block; font-size: 14px; }
+  .pv-entry-meta .motiv-badge {
+    display: inline-block; margin-top: 4px; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+    background: var(--warning-bg); color: #8a6100;
+  }
+  :root:not([data-theme="light"]) .pv-entry-meta .motiv-badge { color: var(--warning); }
+  :root[data-theme="dark"] .pv-entry-meta .motiv-badge { color: var(--warning); }
+  .pv-entry-actions { display: flex; gap: 6px; }
+  .pv-entry-actions button { padding: 3px 9px; font-size: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--gridline); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-scroll { overflow-x: auto; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .modal-card { background: var(--surface-1); border-radius: 14px; padding: 20px; width: 100%; max-width: 460px; border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(0,0,0,.25); max-height: 90vh; overflow-y: auto; }
+  .modal-card h3 { margin: 0 0 14px; font-size: 15px; }
+  .modal-card label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  .modal-card input, .modal-card textarea { display: block; width: 100%; margin-top: 5px; padding: 8px 10px; background: var(--surface-2); border-radius: 8px; }
+  .modal-card textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, monospace; font-size: 12.5px; }
+  .modal-card .hint { font-size: 11px; color: var(--text-muted); margin-top: -8px; margin-bottom: 12px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+  footer.note { text-align: center; font-size: 11.5px; color: var(--text-muted); margin-top: 8px; }
+
+  @media print {
+    header.top, .btn, button, input, .filters, footer.note { display: none !important; }
+    body, .page { background: #fff; color: #000; }
+    details.date-group { break-inside: avoid; border-color: #ccc; }
+    details.date-group summary::before { content: ""; }
+    .pv-entry-actions { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="top">
+    <div class="brand">
+      <h1>📋 Condică PV-uri</h1>
+      <span class="updated" id="updatedLabel"></span>
+    </div>
+    <div class="top-actions">
+      <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
+      <button id="backupBtn" title="Descarcă toate PV-urile ca backup">⬇ Backup</button>
+      <label class="btn" for="importInput" title="Importă PV-uri noi (fișier .json)">⬆ Importă</label>
+      <input type="file" id="importInput" accept=".json" style="display:none;" />
+      <button id="addBtn" class="btn-primary">+ Adaugă PV</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="stat-row">
+      <div class="stat-tile"><div class="label">Total PV-uri</div><div class="value" id="statCount">0</div></div>
+      <div class="stat-tile"><div class="label">Total produse</div><div class="value" id="statProducts">0</div></div>
+      <div class="stat-tile"><div class="label">Interval acoperit</div><div class="value" id="statRange" style="font-size:16px;">—</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="filters">
+      <input type="text" id="searchInput" placeholder="Caută produs, gestionar sau motiv…" />
+      <label>De la <input type="date" id="fromDate" /></label>
+      <label>Până la <input type="date" id="toDate" /></label>
+      <button id="clearFilters">Șterge filtre</button>
+    </div>
+  </section>
+
+  <div id="emptyState">
+    <div class="icon">📋</div>
+    <h2>Nicio înregistrare încă</h2>
+    <p>Trimite pozele cu PV-urile în conversație — datele extrase (dată, produse, motiv, gestionar) vin ca fișier de import. Apasă „Importă" ca să le adaugi aici, sau „+ Adaugă PV" pentru introducere manuală.</p>
+  </div>
+
+  <div id="entriesList"></div>
+
+  <footer class="note">Datele rămân salvate local, în acest browser (localStorage). Folosește „Backup" periodic ca să nu le pierzi.</footer>
+
+</div>
+
+<div class="modal-overlay" id="entryModal" style="display:none;">
+  <div class="modal-card">
+    <h3 id="entryModalTitle">Adaugă PV</h3>
+    <label>Data de pe PV
+      <input type="date" id="fieldData" />
+    </label>
+    <label>Gestionar / echipă
+      <input type="text" id="fieldGestionar" placeholder="ex: Andreea + Denisa" />
+    </label>
+    <label>Motiv general
+      <input type="text" id="fieldMotiv" placeholder="ex: Produse expirate" />
+    </label>
+    <label>Produse
+      <textarea id="fieldProduse" placeholder="Nume produs - Cantitate - Motiv (opțional)&#10;ex: Iaurt Danone 150g - 12 buc - expirat"></textarea>
+    </label>
+    <div class="hint">Un produs pe linie, format: Nume - Cantitate - Motiv (motiv opțional, ia motivul general dacă lipsește)</div>
+    <div class="modal-actions">
+      <button id="entryCancel">Anulează</button>
+      <button id="entryDelete" class="danger" style="display:none;">Șterge PV</button>
+      <button id="entrySave" class="btn-primary">Salvează</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function norm(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+  function isoToRo(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function roToIso(ro) {
+    const m = String(ro || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return '';
+    return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  function roSortKey(ro) {
+    const m = String(ro || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return 0;
+    return parseInt(m[3],10) * 10000 + parseInt(m[2],10) * 100 + parseInt(m[1],10);
+  }
+
+  function parseProduseText(text) {
+    return String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+      const parts = line.split(/\s*-\s*/);
+      return { nume: parts[0] || '', cantitate: parts[1] || '', motiv: parts[2] || '' };
+    });
+  }
+  function serializeProduse(produse) {
+    return (produse || []).map(p => [p.nume, p.cantitate, p.motiv].filter(Boolean).join(' - ')).join('\n');
+  }
+
+  const STORE_KEY = 'condicaPV:entries';
+  function loadEntries() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch (e) { return []; } }
+  function saveEntries(list) { try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); } catch (e) { /* full/unavailable */ } }
+  function genId() { return 'pv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8); }
+
+  const els = {
+    updatedLabel: document.getElementById('updatedLabel'),
+    empty: document.getElementById('emptyState'),
+    list: document.getElementById('entriesList'),
+    statCount: document.getElementById('statCount'),
+    statProducts: document.getElementById('statProducts'),
+    statRange: document.getElementById('statRange'),
+    search: document.getElementById('searchInput'),
+    fromDate: document.getElementById('fromDate'),
+    toDate: document.getElementById('toDate'),
+  };
+
+  function render() {
+    const all = loadEntries().slice().sort((a, b) => roSortKey(b.data) - roSortKey(a.data));
+    if (!all.length) {
+      els.empty.style.display = 'block';
+      els.list.innerHTML = '';
+      els.statCount.textContent = '0';
+      els.statProducts.textContent = '0';
+      els.statRange.textContent = '—';
+      return;
+    }
+    els.empty.style.display = 'none';
+
+    const q = norm(els.search.value);
+    const fromIso = els.fromDate.value, toIso = els.toDate.value;
+    const filtered = all.filter(e => {
+      if (fromIso && roToIso(e.data) < fromIso) return false;
+      if (toIso && roToIso(e.data) > toIso) return false;
+      if (q) {
+        const hay = norm([e.gestionar, e.motiv, ...(e.produse || []).flatMap(p => [p.nume, p.motiv])].join(' '));
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const totalProducts = all.reduce((s, e) => s + (e.produse || []).length, 0);
+    els.statCount.textContent = String(all.length);
+    els.statProducts.textContent = String(totalProducts);
+    const dates = all.map(e => roSortKey(e.data)).filter(Boolean);
+    if (dates.length) {
+      const min = all.find(e => roSortKey(e.data) === Math.min(...dates));
+      const max = all.find(e => roSortKey(e.data) === Math.max(...dates));
+      els.statRange.textContent = min.data === max.data ? min.data : `${min.data} – ${max.data}`;
+    }
+
+    const byDate = new Map();
+    filtered.forEach(e => { if (!byDate.has(e.data)) byDate.set(e.data, []); byDate.get(e.data).push(e); });
+    const dateKeys = Array.from(byDate.keys()).sort((a, b) => roSortKey(b) - roSortKey(a));
+
+    els.list.innerHTML = dateKeys.map(date => {
+      const entries = byDate.get(date);
+      const totalProd = entries.reduce((s, e) => s + (e.produse || []).length, 0);
+      const body = entries.map(e => {
+        const rows = (e.produse || []).map(p => `<tr><td>${escapeHtml(p.nume)}</td><td class="num">${escapeHtml(p.cantitate)}</td><td>${escapeHtml(p.motiv || e.motiv || '')}</td></tr>`).join('');
+        return `<div class="pv-entry" data-id="${escapeHtml(e.id)}">
+          <div class="pv-entry-head">
+            <div class="pv-entry-meta">
+              <b>${escapeHtml(e.gestionar || 'Gestionar nespecificat')}</b>
+              ${e.motiv ? `<span class="motiv-badge">${escapeHtml(e.motiv)}</span>` : ''}
+            </div>
+            <div class="pv-entry-actions">
+              <button class="edit-entry-btn" data-id="${escapeHtml(e.id)}">✎ Editează</button>
+            </div>
+          </div>
+          ${rows ? `<div class="table-scroll"><table><thead><tr><th>Produs</th><th class="num">Cantitate</th><th>Motiv</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div style="color:var(--text-muted);font-size:12.5px;">Niciun produs listat.</div>'}
+        </div>`;
+      }).join('');
+      return `<details class="date-group" open>
+        <summary><span>${escapeHtml(date)}</span><span class="count">${entries.length} PV · ${totalProd} produse</span></summary>
+        ${body}
+      </details>`;
+    }).join('');
+
+    const d = new Date();
+    els.updatedLabel.textContent = 'actualizat ' + d.toLocaleDateString('ro-RO') + ' ' + d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ---------- modal (add/edit) ----------
+  const modal = document.getElementById('entryModal');
+  const modalTitle = document.getElementById('entryModalTitle');
+  const fieldData = document.getElementById('fieldData');
+  const fieldGestionar = document.getElementById('fieldGestionar');
+  const fieldMotiv = document.getElementById('fieldMotiv');
+  const fieldProduse = document.getElementById('fieldProduse');
+  const deleteBtn = document.getElementById('entryDelete');
+  let editingId = null;
+
+  function openModal(entry) {
+    editingId = entry ? entry.id : null;
+    modalTitle.textContent = entry ? 'Editează PV' : 'Adaugă PV';
+    fieldData.value = entry ? roToIso(entry.data) : '';
+    fieldGestionar.value = entry ? (entry.gestionar || '') : '';
+    fieldMotiv.value = entry ? (entry.motiv || '') : '';
+    fieldProduse.value = entry ? serializeProduse(entry.produse) : '';
+    deleteBtn.style.display = entry ? 'inline-block' : 'none';
+    modal.style.display = 'flex';
+  }
+  document.getElementById('addBtn').addEventListener('click', () => openModal(null));
+  document.getElementById('entryCancel').addEventListener('click', () => { modal.style.display = 'none'; });
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+  document.getElementById('entrySave').addEventListener('click', () => {
+    if (!fieldData.value) { fieldData.focus(); return; }
+    const list = loadEntries();
+    const entry = {
+      id: editingId || genId(),
+      data: isoToRo(fieldData.value),
+      gestionar: fieldGestionar.value.trim(),
+      motiv: fieldMotiv.value.trim(),
+      produse: parseProduseText(fieldProduse.value),
+    };
+    const idx = list.findIndex(e => e.id === entry.id);
+    if (idx === -1) list.push(entry); else list[idx] = entry;
+    saveEntries(list);
+    modal.style.display = 'none';
+    render();
+  });
+  deleteBtn.addEventListener('click', () => {
+    if (!editingId) return;
+    if (!confirm('Ștergi acest PV?')) return;
+    saveEntries(loadEntries().filter(e => e.id !== editingId));
+    modal.style.display = 'none';
+    render();
+  });
+  els.list.addEventListener('click', (e) => {
+    const btn = e.target.closest('.edit-entry-btn');
+    if (!btn) return;
+    const id = btn.getAttribute('data-id');
+    const entry = loadEntries().find(x => x.id === id);
+    if (entry) openModal(entry);
+  });
+
+  // ---------- filters ----------
+  [els.search, els.fromDate, els.toDate].forEach(el => el.addEventListener('input', render));
+  document.getElementById('clearFilters').addEventListener('click', () => {
+    els.search.value = ''; els.fromDate.value = ''; els.toDate.value = '';
+    render();
+  });
+
+  // ---------- print ----------
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+  // ---------- backup ----------
+  document.getElementById('backupBtn').addEventListener('click', () => {
+    const list = loadEntries();
+    const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url; a.download = `condica-pv-backup-${stamp}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ---------- import ----------
+  document.getElementById('importInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const incoming = JSON.parse(ev.target.result);
+        if (!Array.isArray(incoming)) throw new Error('fișierul trebuie să fie o listă de PV-uri');
+        const existing = loadEntries();
+        const map = new Map(existing.map(x => [x.id, x]));
+        let added = 0, updated = 0;
+        incoming.forEach(e => {
+          if (!e.id) e.id = genId();
+          if (!e.produse) e.produse = [];
+          if (map.has(e.id)) updated++; else added++;
+          map.set(e.id, e);
+        });
+        saveEntries(Array.from(map.values()));
+        render();
+        alert(`Import reușit: ${added} PV-uri noi, ${updated} actualizate.`);
+      } catch (err) {
+        alert('Fișierul nu a putut fi citit: ' + (err && err.message ? err.message : String(err)));
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
