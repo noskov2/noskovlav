@@ -913,6 +913,7 @@ function computeSeries(produs){
     var recSum = 0;
     var recs = recListByDate[d] || [];
     var v15sum = 0;
+    var missing15 = false;
     for(var i=0;i<recs.length;i++){
       var r = recs[i];
       var qty = Number(r.cantitate) || 0;
@@ -923,7 +924,11 @@ function computeSeries(produs){
       } else if(r.temperatura !== null && r.temperatura !== undefined && r.temperatura !== ""){
         v15 = qty / (1 + alpha * (Number(r.temperatura) - refTemp));
       } else {
-        v15 = qty;
+        // fără cantitate la 15°C și fără temperatură de recepție, nu putem estima o valoare
+        // normalizată — recepția NU intră în stocul scriptic (care se bazează strict pe 15°C),
+        // dar rămâne inclusă în stocul teoretic prin recSum (cantitatea brută, la temperatura de afară).
+        v15 = 0;
+        missing15 = true;
       }
       v15sum += v15;
     }
@@ -957,7 +962,8 @@ function computeSeries(produs){
       stocTeoretic: stocTeoretic,
       stocSonda: stocSonda,
       sondaAge: sondaAge,
-      diferenta: diferenta
+      diferenta: diferenta,
+      missing15: missing15
     });
 
     scripticOpen = scripticClose;
@@ -1318,7 +1324,7 @@ function renderTable(){
     return '<tr>' +
       '<td class="date-cell">' + fmtDMY(d.data) + '</td>' +
       '<td>' + num(d.stocInitial) + '</td>' +
-      '<td>' + (d.receptii ? "+" + num(d.receptii) : "–") + '</td>' +
+      '<td>' + (d.receptii ? "+" + num(d.receptii) : "–") + (d.missing15 ? '<span class="temp-flag" title="Fără cantitate la 15°C și fără temperatură de recepție — nu a intrat în stocul scriptic, doar în cel teoretic">!</span>' : '') + '</td>' +
       '<td>' + (d.vanzari ? "−" + num(d.vanzari) : "–") + '</td>' +
       '<td>' + tempCell + '</td>' +
       '<td>' + num(d.stocScriptic) + '</td>' +
@@ -1629,7 +1635,7 @@ function renderSettings(){
       '<button class="btn btn-ghost btn-sm" id="resetAllBtn" style="margin-left:auto; color:var(--critical);">Resetează toate datele</button>' +
     '</div>' +
     '<div class="methodology">' +
-      '<p><strong>Cum se calculează.</strong> Stocul <code>scriptic</code> folosește cantitatea recepționată la 15°C (câmpul „Cant. la 15°C” dacă e completat; altfel se calculează din cantitatea recepționată și temperatura de la recepție cu coeficientul α; fără nicio temperatură, se ia cantitatea ca atare): stoc anterior + recepții (la 15°C) − vânzări.</p>' +
+      '<p><strong>Cum se calculează.</strong> Stocul <code>scriptic</code> folosește cantitatea recepționată la 15°C (câmpul „Cant. la 15°C” dacă e completat; altfel se calculează din cantitatea recepționată și temperatura de la recepție cu coeficientul α). Dacă o recepție nu are nici „Cant. la 15°C”, nici temperatură, ea <strong>nu</strong> intră în stocul scriptic (apare cu „!” în tabel) — dar rămâne inclusă în stocul teoretic, ca mai jos: stoc anterior + recepții (la 15°C) − vânzări.</p>' +
       '<p>Stocul <code>teoretic</code> pornește de la cantitatea recepționată la temperatura de afară (câmpul „Cantitate recepționată”, așa cum a intrat fizic în rezervor): stoc anterior + recepții (brute) − vânzări, apoi convertește acest stoc la temperatura reală curentă din rezervor, cu formula <code>V(T) = V × (1 + α×(T−15))</code>.</p>' +
       '<p>Temperatura folosită într-o zi este <strong>ultima citire reală cunoscută</strong> (de la măsurători sau de la recepții), ținută constantă până apare o citire nouă — nu se inventează valori. Când nu există nicio citire, se presupune 15°C și se marchează cu „≈" în tabel.</p>' +
       '<p>Coeficienții impliciți (0,00083/°C motorină, 0,00105/°C benzină) sunt valori orientative uzuale; ajustează-i dacă ai valori mai precise pentru produsul tău.</p>' +
