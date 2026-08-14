@@ -900,8 +900,11 @@ function computeSeries(produs){
   var recListByDate = groupList(state.receptions.filter(function(r){ return r.produs === produs; }), "data");
 
   var days = [];
+  // Stoc scriptic e alimentat de cantitatea recepționată la 15°C (valoarea fiscală/oficială).
+  // Stoc teoretic pornește de la cantitatea recepționată la temperatura de afară (fizic, așa cum a intrat în rezervor),
+  // apoi e adusă la temperatura reală curentă din rezervor cu coeficientul de dilatare.
   var scripticOpen = init;
-  var netEqOpen = init;
+  var rawOpen = init;
   var d = startDate;
   var guard = 0;
 
@@ -926,15 +929,15 @@ function computeSeries(produs){
     }
     var saleSum = salesByDate[d] || 0;
 
-    var scripticClose = scripticOpen + recSum - saleSum;
-    var netEqClose = netEqOpen + v15sum - saleSum;
+    var scripticClose = scripticOpen + v15sum - saleSum;
+    var rawClose = rawOpen + recSum - saleSum;
 
     var tempInfo = lastValueUpTo(tempReadings, d);
     var tempKnown = tempInfo.val !== null;
     var currentTemp = tempKnown ? tempInfo.val : refTemp;
     var tempAge = tempInfo.at ? daysBetween(tempInfo.at, d) : null;
 
-    var stocTeoretic = netEqClose * (1 + alpha * (currentTemp - refTemp));
+    var stocTeoretic = rawClose * (1 + alpha * (currentTemp - refTemp));
 
     var sondaInfo = lastValueUpTo(stockReadings, d);
     var stocSonda = sondaInfo.val;
@@ -958,7 +961,7 @@ function computeSeries(produs){
     });
 
     scripticOpen = scripticClose;
-    netEqOpen = netEqClose;
+    rawOpen = rawClose;
     d = addDays(d, 1);
   }
 
@@ -1626,8 +1629,8 @@ function renderSettings(){
       '<button class="btn btn-ghost btn-sm" id="resetAllBtn" style="margin-left:auto; color:var(--critical);">Resetează toate datele</button>' +
     '</div>' +
     '<div class="methodology">' +
-      '<p><strong>Cum se calculează.</strong> Stocul <code>scriptic</code> e evidența brută: stoc anterior + recepții − vânzări, în litri așa cum au fost introduși.</p>' +
-      '<p>Stocul <code>teoretic</code> normalizează fiecare recepție la 15°C (folosind cantitatea la 15°C dacă există, altfel temperatura de recepție și coeficientul α; fără temperatură, cantitatea e luată ca atare), apoi convertește stocul net înapoi la temperatura reală curentă din rezervor, cu formula <code>V(T) = V₁₅ × (1 + α×(T−15))</code>.</p>' +
+      '<p><strong>Cum se calculează.</strong> Stocul <code>scriptic</code> folosește cantitatea recepționată la 15°C (câmpul „Cant. la 15°C” dacă e completat; altfel se calculează din cantitatea recepționată și temperatura de la recepție cu coeficientul α; fără nicio temperatură, se ia cantitatea ca atare): stoc anterior + recepții (la 15°C) − vânzări.</p>' +
+      '<p>Stocul <code>teoretic</code> pornește de la cantitatea recepționată la temperatura de afară (câmpul „Cantitate recepționată”, așa cum a intrat fizic în rezervor): stoc anterior + recepții (brute) − vânzări, apoi convertește acest stoc la temperatura reală curentă din rezervor, cu formula <code>V(T) = V × (1 + α×(T−15))</code>.</p>' +
       '<p>Temperatura folosită într-o zi este <strong>ultima citire reală cunoscută</strong> (de la măsurători sau de la recepții), ținută constantă până apare o citire nouă — nu se inventează valori. Când nu există nicio citire, se presupune 15°C și se marchează cu „≈" în tabel.</p>' +
       '<p>Coeficienții impliciți (0,00083/°C motorină, 0,00105/°C benzină) sunt valori orientative uzuale; ajustează-i dacă ai valori mai precise pentru produsul tău.</p>' +
     '</div>';
