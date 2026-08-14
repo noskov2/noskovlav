@@ -658,8 +658,8 @@ details.acc .acc-body{ padding:0 18px 18px; border-top:1px solid var(--hairline)
           <table class="data" id="dailyTable">
             <thead>
               <tr>
-                <th>Data</th><th>Stoc inițial</th><th>Recepții</th><th>Vânzări</th><th>Temp.</th>
-                <th>Stoc scriptic</th><th>Stoc teoretic</th><th>Stoc sondă</th><th>Diferență</th>
+                <th>Data</th><th>Stoc inițial</th><th title="Brut = intrat fizic în rezervor (folosit pt. stoc teoretic) · 15°C = valoarea folosită pt. stoc scriptic">Recepții</th><th>Vânzări</th><th>Temp.</th>
+                <th title="Stoc anterior + recepții la 15°C − vânzări">Stoc scriptic</th><th title="Stoc anterior + recepții brute − vânzări, ajustat la temperatura reală curentă">Stoc teoretic</th><th>Stoc sondă</th><th>Diferență</th>
               </tr>
             </thead>
             <tbody id="dailyTableBody"></tbody>
@@ -954,6 +954,7 @@ function computeSeries(produs){
       data: d,
       stocInitial: scripticOpen,
       receptii: recSum,
+      receptii15: v15sum,
       vanzari: saleSum,
       temperatura: tempKnown ? currentTemp : null,
       tempEstimata: !tempKnown,
@@ -1321,10 +1322,16 @@ function renderTable(){
     var pillClass = d.diferenta === null ? "neutral" : status;
     var tempCell = d.temperatura === null ? "–" :
       num(d.temperatura, 1) + "°C" + (d.tempEstimata ? '<span class="temp-flag" title="Estimată (fără citire în acea zi)">≈</span>' : (d.tempAge > 10 ? '<span class="temp-flag" title="Ultima citire acum ' + d.tempAge + ' zile">' + d.tempAge + 'z</span>' : ''));
+    var recCell = "–";
+    if(d.receptii){
+      recCell = "+" + num(d.receptii) +
+        '<div style="font-size:10.3px; font-weight:600; color:var(--text-muted); margin-top:2px;" title="Cantitatea la 15°C folosită în stocul scriptic">15°C: ' + num(d.receptii15, 0) + '</div>' +
+        (d.missing15 ? '<span class="temp-flag" title="O recepție fără cantitate la 15°C și fără temperatură — nu a intrat în stocul scriptic, doar în cel teoretic">!</span>' : '');
+    }
     return '<tr>' +
       '<td class="date-cell">' + fmtDMY(d.data) + '</td>' +
       '<td>' + num(d.stocInitial) + '</td>' +
-      '<td>' + (d.receptii ? "+" + num(d.receptii) : "–") + (d.missing15 ? '<span class="temp-flag" title="Fără cantitate la 15°C și fără temperatură de recepție — nu a intrat în stocul scriptic, doar în cel teoretic">!</span>' : '') + '</td>' +
+      '<td>' + recCell + '</td>' +
       '<td>' + (d.vanzari ? "−" + num(d.vanzari) : "–") + '</td>' +
       '<td>' + tempCell + '</td>' +
       '<td>' + num(d.stocScriptic) + '</td>' +
