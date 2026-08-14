@@ -182,6 +182,8 @@
   .nom-row.inactive .nom-name input { color: var(--text-muted); text-decoration: line-through; }
   .nom-row label.switch { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer; white-space: nowrap; }
   .nom-hint { font-size: 11.5px; color: var(--text-muted); margin: 8px 0 0; }
+  #rankingList { max-height: 460px; overflow-y: auto; }
+  #rankingList td:first-child, #rankingList th:first-child { width: 34px; color: var(--text-muted); }
 
   .unresolved-section { margin-top: 16px; }
   .unresolved-section h4 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--text-secondary); margin: 0 0 8px; }
@@ -217,6 +219,7 @@
     </div>
     <div class="top-actions">
       <button id="nomenclatorBtn" title="Gestionează lista de produse">📦 Nomenclator</button>
+      <button id="rankingBtn" title="Toate produsele, sortate după cantitate">📊 Clasament produse</button>
       <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
       <button id="backupBtn" title="Descarcă toate PV-urile ca backup">⬇ Backup</button>
       <label class="btn" for="importInput" title="Importă PV-uri noi (fișier .json)">⬆ Importă</label>
@@ -309,6 +312,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="rankingModal" style="display:none;">
+  <div class="modal-card wide">
+    <h3>Clasament produse (după cantitate)</h3>
+    <div class="nom-hint" style="margin:0 0 10px;">Toate produsele apărute în PV-uri, însumate pe toată perioada, sortate de la cel mai mare la cel mai mic.</div>
+    <div id="rankingList"></div>
+    <div class="modal-actions">
+      <button id="rankingCloseBtn" class="btn-primary">Închide</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   'use strict';
@@ -390,13 +404,23 @@
     unit = UNIT_MAP[unit] || (unit || 'buc');
     return { value, unit };
   }
-  function sumQuantities(strings) {
+  function normalizeUnit(parsed) {
+    if (parsed.unit === 'g') return { value: parsed.value / 1000, unit: 'kg' };
+    if (parsed.unit === 'ml') return { value: parsed.value / 1000, unit: 'L' };
+    return parsed;
+  }
+  function accumulateQuantities(strings) {
     const totals = new Map();
     strings.forEach(s => {
       const parsed = parseQtyUnit(s);
       if (!parsed) return;
-      totals.set(parsed.unit, (totals.get(parsed.unit) || 0) + parsed.value);
+      const n = normalizeUnit(parsed);
+      totals.set(n.unit, (totals.get(n.unit) || 0) + n.value);
     });
+    return totals;
+  }
+  function sumQuantities(strings) {
+    const totals = accumulateQuantities(strings);
     if (!totals.size) return '—';
     return Array.from(totals.entries()).map(([unit, val]) => {
       const rounded = Math.round(val * 100) / 100;
@@ -789,6 +813,52 @@
     if (val && val !== p.nume) { p.nume = val; saveNomenclator(list); autoLinkEntries(); renderUnresolved(); }
     else { e.target.value = p.nume; }
   }, true);
+
+  // ---------- clasament produse ----------
+  const rankingModal = document.getElementById('rankingModal');
+  function computeProductRanking() {
+    const groups = new Map();
+    loadEntries().forEach(e => {
+      (e.produse || []).forEach(p => {
+        if (!p.nume && !p.produsId) return;
+        const key = p.produsId ? ('id:' + p.produsId) : ('txt:' + norm(p.nume));
+        if (!groups.has(key)) {
+          const linked = p.produsId ? findProductById(p.produsId) : null;
+          groups.set(key, { nume: linked ? linked.nume : p.nume, produsId: p.produsId || null, pvIds: new Set(), qtyStrings: [] });
+        }
+        const g = groups.get(key);
+        g.pvIds.add(e.id);
+        if (p.cantitate) g.qtyStrings.push(p.cantitate);
+      });
+    });
+    const rows = Array.from(groups.values()).map(g => {
+      const totals = accumulateQuantities(g.qtyStrings);
+      const sortValue = totals.size ? Math.max(...totals.values()) : 0;
+      const qtyLabel = totals.size
+        ? Array.from(totals.entries()).map(([u, v]) => `${String(Math.round(v * 100) / 100).replace('.', ',')} ${u}`).join(' + ')
+        : '—';
+      return { nume: g.nume, produsId: g.produsId, pvCount: g.pvIds.size, qtyLabel, sortValue };
+    });
+    rows.sort((a, b) => b.sortValue - a.sortValue || b.pvCount - a.pvCount);
+    return rows;
+  }
+  function renderRanking() {
+    const rows = computeProductRanking();
+    const listEl = document.getElementById('rankingList');
+    if (!rows.length) {
+      listEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;">Niciun produs înregistrat încă.</div>';
+      return;
+    }
+    listEl.innerHTML = `<div class="table-scroll"><table><thead><tr><th>#</th><th>Produs</th><th class="num">PV-uri</th><th class="num">Cantitate totală</th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${escapeHtml(r.nume)}${r.produsId ? '' : ' <span style="color:var(--text-muted);font-size:11px;">(nelegat de nomenclator)</span>'}</td><td class="num">${r.pvCount}</td><td class="num">${escapeHtml(r.qtyLabel)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  }
+  document.getElementById('rankingBtn').addEventListener('click', () => {
+    renderRanking();
+    rankingModal.style.display = 'flex';
+  });
+  document.getElementById('rankingCloseBtn').addEventListener('click', () => { rankingModal.style.display = 'none'; });
+  rankingModal.addEventListener('click', (e) => { if (e.target === rankingModal) rankingModal.style.display = 'none'; });
 
   // ---------- print ----------
   document.getElementById('printBtn').addEventListener('click', () => window.print());
