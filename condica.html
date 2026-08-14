@@ -398,10 +398,10 @@
   function parseQtyUnit(str) {
     const m = String(str || '').match(/(-?\d+(?:[.,]\d+)?)\s*([a-zA-ZăâîșțĂÂÎȘȚ]*)/);
     if (!m) return null;
-    const value = parseFloat(m[1].replace(',', '.'));
+    const value = Math.abs(parseFloat(m[1].replace(',', '.')));
     if (isNaN(value)) return null;
-    let unit = norm(m[2] || '');
-    unit = UNIT_MAP[unit] || (unit || 'buc');
+    const unitRaw = norm(m[2] || '');
+    const unit = UNIT_MAP[unitRaw] || (unitRaw ? unitRaw : (Number.isInteger(value) ? 'buc' : 'kg'));
     return { value, unit };
   }
   function normalizeUnit(parsed) {
