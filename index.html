@@ -1,45 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <title>Doggo Catch - Endless Runner</title>
-  <style>
-    html, body { margin:0; padding:0; overflow:hidden; background:#111; touch-action: none; }
-    #ui {
-      position: fixed; top: 0; left: 0; right: 0; display:flex; justify-content:space-between;
-      padding: 10px 14px; font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      color: #fff; z-index: 10; pointer-events: none;
-    }
-    #score { font-weight: 700; font-size: 20px; }
-    #status { font-size: 14px; opacity: .8; }
-    #centerMsg {
-      position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; 
-      color:#fff; font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      z-index: 11; pointer-events:none; text-align:center;
-    }
-    #centerMsg .box {
-      background: rgba(0,0,0,.55); padding: 14px 18px; border-radius: 12px; backdrop-filter: blur(6px);
-    }
-    #hint { position: fixed; bottom: 14px; left: 0; right: 0; text-align:center; color:#eee; font-size: 14px; opacity:.85; }
-    canvas { display:block; }
-  </style>
-</head>
-<body>
-  <div id="ui">
-    <div id="score">0</div>
-    <div id="status">Tap to jump · Catch red balls · Avoid crates</div>
-  </div>
-  <div id="centerMsg"><div class="box">
-    <div style="font-size:18px; font-weight:700; margin-bottom:6px;">Doggo Catch</div>
-    <div style="font-size:14px; opacity:.9;">Tap to jump. Catch <b>red balls</b>, avoid <b>crates</b>.<br/>Add to Home Screen for full-screen.</div>
-  </div></div>
-  <div id="hint">⌁</div>
-
-  <!-- Three.js via CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="game.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PECO Dashboard</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
