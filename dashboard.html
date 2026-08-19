@@ -746,6 +746,20 @@
       realizat: (data.zilnic.days || []).reduce((s, d) => s + (d.realizat || 0), 0),
     };
     data.cutoffZi = cutoffZi;
+
+    if (data.tracker && data.tracker.shifts) {
+      data.tracker.shifts.forEach(s => {
+        const r = raw[String(s.data || '')] || {};
+        const isT1 = /t\s*1(\D|$)/i.test(String(s.tura || ''));
+        const val = isT1 ? r.tura1 : r.tura2;
+        const target = isT1 ? cfg.shift1Target : cfg.shift2Target;
+        s.targetTura = target;
+        s.realizat = val != null ? val : null;
+        s.diferenta = val != null ? val - target : null;
+        s.procent = val != null && target ? val / target : null;
+        s.status = null;
+      });
+    }
   }
 
   function deriveDashboard(wb) {
