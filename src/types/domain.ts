@@ -177,4 +177,5 @@ export interface AppSettings {
   purchaseMapping: PurchaseColumnMapping | null
   stockMapping: StockColumnMapping | null
   categoryGroupRules: CategoryGroupRules
+  reportsAcknowledged: string[] // "YYYY-MM" months whose report banner was dismissed/downloaded
 }

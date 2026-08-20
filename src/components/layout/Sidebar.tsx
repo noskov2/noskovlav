@@ -16,11 +16,12 @@ const items: NavItem[] = [
   { to: '/profitabilitate', label: 'Profitabilitate', icon: '💰' },
   { to: '/cross-sell', label: 'Cross-sell & Casieri', icon: '🤝' },
   { to: '/furnizori', label: 'Furnizori & Prețuri', icon: '🚚' },
+  { to: '/rapoarte', label: 'Rapoarte', icon: '🧾' },
   { to: '/nomenclator', label: 'Nomenclator', icon: '🗂️' },
   { to: '/setari', label: 'Setări', icon: '⚙️' },
 ]
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function Sidebar({ onNavigate, pendingReports = 0 }: { onNavigate?: () => void; pendingReports?: number }) {
   return (
     <div className="flex h-full w-64 flex-col border-r border-slate-200 bg-white">
       <div className="flex items-center gap-2 px-5 py-5">
@@ -47,7 +48,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             }
           >
             <span className="text-base">{item.icon}</span>
-            {item.label}
+            <span className="flex-1">{item.label}</span>
+            {item.to === '/rapoarte' && pendingReports > 0 && (
+              <span className="rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-bold text-white">
+                {pendingReports}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

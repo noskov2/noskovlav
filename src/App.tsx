@@ -7,6 +7,7 @@ import { DailyPerformancePage } from '@/pages/DailyPerformancePage'
 import { ProfitabilityPage } from '@/pages/ProfitabilityPage'
 import { CrossSellPage } from '@/pages/CrossSellPage'
 import { SuppliersPage } from '@/pages/SuppliersPage'
+import { ReportsPage } from '@/pages/ReportsPage'
 import { NomenclaturePage } from '@/pages/NomenclaturePage'
 import { SettingsPage } from '@/pages/SettingsPage'
 
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/profitabilitate" element={<ProfitabilityPage />} />
           <Route path="/cross-sell" element={<CrossSellPage />} />
           <Route path="/furnizori" element={<SuppliersPage />} />
+          <Route path="/rapoarte" element={<ReportsPage />} />
           <Route path="/nomenclator" element={<NomenclaturePage />} />
           <Route path="/setari" element={<SettingsPage />} />
         </Route>

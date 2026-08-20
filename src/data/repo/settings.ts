@@ -10,6 +10,7 @@ const defaultSettings: AppSettings = {
   purchaseMapping: null,
   stockMapping: null,
   categoryGroupRules: emptyCategoryGroupRules(),
+  reportsAcknowledged: [],
 }
 
 export async function getSettings(): Promise<AppSettings> {
