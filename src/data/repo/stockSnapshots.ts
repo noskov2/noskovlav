@@ -9,6 +9,10 @@ export async function listAllStockSnapshots(): Promise<StockSnapshotLine[]> {
   return db.stockSnapshots.toArray()
 }
 
+export async function listStockSnapshotsByImportBatch(importBatchId: string): Promise<StockSnapshotLine[]> {
+  return db.stockSnapshots.where('importBatchId').equals(importBatchId).toArray()
+}
+
 export async function deleteImportBatchStockSnapshots(importBatchId: string): Promise<void> {
   await db.stockSnapshots.where('importBatchId').equals(importBatchId).delete()
 }

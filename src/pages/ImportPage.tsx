@@ -12,6 +12,7 @@ import {
 import { importSalesSheet } from '@/import/importTransactions'
 import { importPurchaseSheet } from '@/import/importPurchases'
 import { importStockSheet } from '@/import/importStock'
+import { deleteImportBatchData } from '@/import/deleteImport'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { useDataStore } from '@/store/dataStore'
 import { formatDateRo, formatNumber } from '@/lib/format'
@@ -83,7 +84,20 @@ export function ImportPage() {
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleDelete(batch: (typeof importBatches)[number]) {
+    setDeletingId(batch.id)
+    try {
+      await deleteImportBatchData(batch)
+      await refresh()
+    } finally {
+      setDeletingId(null)
+      setPendingDeleteId(null)
+    }
+  }
 
   async function handleFile(f: File) {
     setError(null)
@@ -322,7 +336,12 @@ export function ImportPage() {
 
       {importBatches.length > 0 && (
         <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Istoric importuri</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Istoric importuri</h3>
+          <p className="mb-3 mt-0.5 text-xs text-slate-400">
+            Ștergerea unui import elimină doar rândurile aduse de el (bonuri, recepții sau instantaneul de stoc). Pentru
+            un import de stoc, produsele afectate revin la ultimul instantaneu rămas — sau la „necunoscut” dacă nu mai
+            rămâne niciunul.
+          </p>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead>
@@ -332,6 +351,7 @@ export function ImportPage() {
                   <th className="px-2 py-1.5">Importat la</th>
                   <th className="px-2 py-1.5 text-right">Rânduri</th>
                   <th className="px-2 py-1.5">Interval / Valabil la</th>
+                  <th className="px-2 py-1.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -349,6 +369,35 @@ export function ImportPage() {
                           ? formatDateRo(b.dateMin)
                           : `${formatDateRo(b.dateMin)} – ${formatDateRo(b.dateMax)}`
                         : '—'}
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      {pendingDeleteId === b.id ? (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          <span className="text-xs text-slate-500">Sigur?</span>
+                          <button
+                            onClick={() => handleDelete(b)}
+                            disabled={deletingId === b.id}
+                            className="rounded bg-bad px-2 py-0.5 text-xs font-medium text-white disabled:opacity-50"
+                          >
+                            {deletingId === b.id ? 'Se șterge...' : 'Da, șterge'}
+                          </button>
+                          <button
+                            onClick={() => setPendingDeleteId(null)}
+                            disabled={deletingId === b.id}
+                            className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600"
+                          >
+                            Anulează
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setPendingDeleteId(b.id)}
+                          className="rounded px-2 py-0.5 text-xs text-bad hover:bg-bad/10"
+                          title="Șterge toate datele aduse de acest import"
+                        >
+                          Șterge
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
