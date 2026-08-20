@@ -33,7 +33,7 @@ export async function deleteImportBatchData(batch: ImportBatch): Promise<void> {
       await upsertProduct({
         ...product,
         currentStock: latest?.quantity ?? null,
-        salePrice: latest?.salePrice ?? null,
+        salePrice: latest?.salePrice ?? product.salePrice,
       })
     }
   }

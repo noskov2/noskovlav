@@ -3,11 +3,12 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Tabs } from '@/components/ui/Tabs'
 import { useDataStore } from '@/store/dataStore'
-import { upsertProduct } from '@/data/repo/products'
+import { setGroupForCategory, upsertProduct } from '@/data/repo/products'
 import { mergeCashiers, upsertCashier } from '@/data/repo/cashiers'
 import { deleteTeam, upsertTeam } from '@/data/repo/teams'
+import { updateSettings } from '@/data/repo/settings'
 import { slugify, uid } from '@/lib/id'
-import type { Cashier, Product, ProductGroups, Team } from '@/types/domain'
+import type { Cashier, CategoryGroupRules, Product, ProductGroups, Team } from '@/types/domain'
 
 const GROUP_LABELS: Record<keyof ProductGroups, string> = {
   cafea: 'Cafea',
@@ -19,8 +20,8 @@ const GROUP_LABELS: Record<keyof ProductGroups, string> = {
 }
 
 export function NomenclaturePage() {
-  const [tab, setTab] = useState<'produse' | 'casieri'>('produse')
-  const { products, cashiers, teams, transactions, refresh } = useDataStore()
+  const [tab, setTab] = useState<'produse' | 'grupuri' | 'casieri'>('produse')
+  const { products, cashiers, teams, transactions, settings, refresh } = useDataStore()
 
   if (transactions.length === 0 && products.length === 0 && cashiers.length === 0) {
     return (
@@ -41,15 +42,33 @@ export function NomenclaturePage() {
         <Tabs
           tabs={[
             { key: 'produse', label: `Produse (${products.length})` },
+            { key: 'grupuri', label: 'Grupuri pe categorie' },
             { key: 'casieri', label: `Casieri (${cashiers.length})` },
           ]}
           active={tab}
-          onChange={(k) => setTab(k as 'produse' | 'casieri')}
+          onChange={(k) => setTab(k as 'produse' | 'grupuri' | 'casieri')}
         />
         <div className="mt-4">
-          {tab === 'produse' ? (
+          {tab === 'produse' && (
             <ProductsTab products={products} onSave={async (p) => { await upsertProduct(p); await refresh() }} />
-          ) : (
+          )}
+          {tab === 'grupuri' && (
+            <GroupsByCategoryTab
+              products={products}
+              rules={settings?.categoryGroupRules ?? null}
+              onToggle={async (category, group, enabled) => {
+                await setGroupForCategory(category, group, enabled)
+                const current = settings?.categoryGroupRules ?? {
+                  cafea: [], dulciuriVitrina: [], sandwich: [], limonadaCeai: [], carburant: [], gpl: [],
+                }
+                const list = current[group]
+                const nextList = enabled ? Array.from(new Set([...list, category])) : list.filter((c) => c !== category)
+                await updateSettings({ categoryGroupRules: { ...current, [group]: nextList } })
+                await refresh()
+              }}
+            />
+          )}
+          {tab === 'casieri' && (
             <CashiersTab
               cashiers={cashiers}
               teams={teams}
@@ -238,6 +257,84 @@ function ProductsTab({ products, onSave }: { products: Product[]; onSave: (p: Pr
       {filtered.length > 300 && (
         <p className="mt-2 text-xs text-slate-400">Se afișează primele 300 din {filtered.length} produse — rafinează căutarea.</p>
       )}
+    </div>
+  )
+}
+
+function GroupsByCategoryTab({
+  products,
+  rules,
+  onToggle,
+}: {
+  products: Product[]
+  rules: CategoryGroupRules | null
+  onToggle: (category: string, group: keyof ProductGroups, enabled: boolean) => Promise<void>
+}) {
+  const [pending, setPending] = useState<string | null>(null)
+
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of products) {
+      const cat = p.category || 'Necategorizat'
+      counts.set(cat, (counts.get(cat) ?? 0) + 1)
+    }
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [products])
+
+  if (categories.length === 0) {
+    return <p className="text-sm text-slate-400">Niciun produs importat încă — categoriile apar aici după primul import.</p>
+  }
+
+  return (
+    <div>
+      <p className="mb-4 text-sm text-slate-500">
+        Bifează ce categorii din nomenclatorul tău aparțin fiecărui grup special. Aplicarea e imediată — se
+        actualizează toate produsele din categoria respectivă, inclusiv cele deja importate — și rămâne activă
+        pentru orice produs nou din acea categorie la viitoarele importuri.
+      </p>
+      <div className="overflow-x-auto rounded-lg border border-slate-100 scrollbar-thin">
+        <table className="min-w-full divide-y divide-slate-100 text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Categorie (nr. produse)
+              </th>
+              {(Object.keys(GROUP_LABELS) as (keyof ProductGroups)[]).map((g) => (
+                <th key={g} className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {GROUP_LABELS[g]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {categories.map(([category, count]) => (
+              <tr key={category}>
+                <td className="px-3 py-1.5 font-medium text-slate-800">
+                  {category} <span className="font-normal text-slate-400">({count})</span>
+                </td>
+                {(Object.keys(GROUP_LABELS) as (keyof ProductGroups)[]).map((g) => {
+                  const checked = rules?.[g]?.includes(category) ?? false
+                  const cellKey = `${category}:${g}`
+                  return (
+                    <td key={g} className="px-3 py-1.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={pending === cellKey}
+                        onChange={async (e) => {
+                          setPending(cellKey)
+                          await onToggle(category, g, e.target.checked)
+                          setPending(null)
+                        }}
+                      />
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

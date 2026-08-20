@@ -23,6 +23,21 @@ export const emptyGroups = (): ProductGroups => ({
   gpl: false,
 })
 
+// Which raw Categorie values (as they appear in Product.category) belong to
+// each special group. Lets a station whose POS export already has a clean
+// category column ("DULCIURI VITRINA", "CAFELE", ...) assign a whole
+// category to a group in one action, instead of ticking every product.
+export type CategoryGroupRules = Record<keyof ProductGroups, string[]>
+
+export const emptyCategoryGroupRules = (): CategoryGroupRules => ({
+  cafea: [],
+  dulciuriVitrina: [],
+  sandwich: [],
+  limonadaCeai: [],
+  carburant: [],
+  gpl: [],
+})
+
 export interface Product {
   id: string // stable slug derived from name, or uuid
   name: string
@@ -161,4 +176,5 @@ export interface AppSettings {
   salesMapping: SalesColumnMapping | null
   purchaseMapping: PurchaseColumnMapping | null
   stockMapping: StockColumnMapping | null
+  categoryGroupRules: CategoryGroupRules
 }

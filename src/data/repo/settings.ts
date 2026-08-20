@@ -1,5 +1,5 @@
 import { db } from '@/data/db'
-import { defaultShiftConfig, type AppSettings } from '@/types/domain'
+import { defaultShiftConfig, emptyCategoryGroupRules, type AppSettings } from '@/types/domain'
 
 const SETTINGS_ID = 'app-settings' as const
 
@@ -9,6 +9,7 @@ const defaultSettings: AppSettings = {
   salesMapping: null,
   purchaseMapping: null,
   stockMapping: null,
+  categoryGroupRules: emptyCategoryGroupRules(),
 }
 
 export async function getSettings(): Promise<AppSettings> {

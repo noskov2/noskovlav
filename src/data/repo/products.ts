@@ -1,7 +1,8 @@
 import { db } from '@/data/db'
 import { slugify } from '@/lib/id'
-import { emptyGroups, type Product } from '@/types/domain'
+import { emptyGroups, type Product, type ProductGroups } from '@/types/domain'
 import { guessGroupsFromName } from '@/processing/groupHeuristics'
+import { getSettings } from '@/data/repo/settings'
 
 export async function listProducts(): Promise<Product[]> {
   return db.products.toArray()
@@ -52,17 +53,24 @@ export async function resolveOrCreateProduct(
   }
 
   const now = Date.now()
+  const settings = await getSettings()
+  const category = categoryRaw || 'Necategorizat'
+  const groups = { ...emptyGroups(), ...guessGroupsFromName(trimmed, categoryRaw) }
+  for (const key of Object.keys(settings.categoryGroupRules) as (keyof ProductGroups)[]) {
+    if (settings.categoryGroupRules[key].includes(category)) groups[key] = true
+  }
+
   const product: Product = {
     id,
     name: trimmed,
-    category: categoryRaw || 'Necategorizat',
+    category,
     subcategory: '',
     purchasePrice: purchasePriceUnit,
     salePrice: null,
     currentStock: null,
     supplier: '',
     active: true,
-    groups: { ...emptyGroups(), ...guessGroupsFromName(trimmed, categoryRaw) },
+    groups,
     aliases: [trimmed],
     autoCreated: true,
     createdAt: now,
@@ -74,4 +82,24 @@ export async function resolveOrCreateProduct(
 
 export async function bulkSetProducts(products: Product[]): Promise<void> {
   await db.products.bulkPut(products)
+}
+
+/**
+ * Bulk-applies (or removes) one special group flag to every product
+ * currently in `category`, so ticking a category once in the Nomenclator
+ * fixes every existing product in it — not just future imports.
+ */
+export async function setGroupForCategory(
+  category: string,
+  group: keyof ProductGroups,
+  enabled: boolean,
+): Promise<number> {
+  const matches = await db.products.where('category').equals(category).toArray()
+  const updated = matches.map((p) => ({
+    ...p,
+    groups: { ...p.groups, [group]: enabled },
+    updatedAt: Date.now(),
+  }))
+  await db.products.bulkPut(updated)
+  return updated.length
 }
