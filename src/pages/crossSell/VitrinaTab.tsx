@@ -6,11 +6,11 @@ import { productIdsInGroup } from '@/kpi/productGroups'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 import { linesForCashier, type CrossSellTabProps } from '@/pages/crossSell/shared'
 
-export function VitrinaTab({ transactions, products, report }: CrossSellTabProps) {
+export function VitrinaTab({ transactions, products, report, cashiersById }: CrossSellTabProps) {
   const vitrinaIds = useMemo(() => productIdsInGroup(products, 'dulciuriVitrina'), [products])
 
   function drillFor(cashierId: string) {
-    return linesForCashier(transactions, cashierId).filter((t) => vitrinaIds.has(t.productId))
+    return linesForCashier(transactions, cashierId, cashiersById).filter((t) => vitrinaIds.has(t.productId))
   }
 
   const stationLines = drillFor('__station__')

@@ -20,13 +20,13 @@ import { productIdsInGroup } from '@/kpi/productGroups'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 
 export function DashboardPage() {
-  const { transactions, products, cashiers, supplierReceipts, productsById } = useDataStore()
+  const { transactions, products, cashiers, supplierReceipts, productsById, cashiersById } = useDataStore()
   const { filter } = useFilterStore()
   const range = effectiveRange(filter)
 
   const dimFiltered = useMemo(
-    () => filterByDimensions(transactions, filter, productsById),
-    [transactions, filter, productsById],
+    () => filterByDimensions(transactions, filter, productsById, cashiersById),
+    [transactions, filter, productsById, cashiersById],
   )
   const periodTx = useMemo(() => filterByRange(dimFiltered, range.start, range.end), [dimFiltered, range])
   const summary = useMemo(() => computePeriodSummary(periodTx, products), [periodTx, products])

@@ -3,7 +3,13 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { recomputeAllShifts } from '@/data/repo/transactions'
 import { useDataStore } from '@/store/dataStore'
-import { defaultShiftConfig, type PurchaseColumnMapping, type SalesColumnMapping, type ShiftConfig } from '@/types/domain'
+import {
+  defaultShiftConfig,
+  type PurchaseColumnMapping,
+  type SalesColumnMapping,
+  type ShiftConfig,
+  type StockColumnMapping,
+} from '@/types/domain'
 import { formatNumber } from '@/lib/format'
 
 export function SettingsPage() {
@@ -14,12 +20,14 @@ export function SettingsPage() {
   const [recomputeMsg, setRecomputeMsg] = useState<string | null>(null)
   const [salesMapping, setSalesMapping] = useState<SalesColumnMapping | null>(null)
   const [purchaseMapping, setPurchaseMapping] = useState<PurchaseColumnMapping | null>(null)
+  const [stockMapping, setStockMapping] = useState<StockColumnMapping | null>(null)
 
   useEffect(() => {
     getSettings().then((s) => {
       setShiftConfig(s.shiftConfig)
       setSalesMapping(s.salesMapping)
       setPurchaseMapping(s.purchaseMapping)
+      setStockMapping(s.stockMapping)
     })
   }, [])
 
@@ -76,9 +84,10 @@ export function SettingsPage() {
 
       <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-slate-700">Mapare coloane salvată</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <MappingSummary title="Vânzări / tranzacții" mapping={salesMapping} />
           <MappingSummary title="Achiziții / Furnizori" mapping={purchaseMapping} />
+          <MappingSummary title="Stoc curent" mapping={stockMapping} />
         </div>
         <p className="mt-3 text-xs text-slate-400">
           Maparea se actualizează automat data viitoare când imporți un fișier și confirmi coloanele. Pentru a o
@@ -102,6 +111,15 @@ export function SettingsPage() {
             className="rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
           >
             Resetează maparea achizițiilor
+          </button>
+          <button
+            onClick={async () => {
+              await updateSettings({ stockMapping: null })
+              setStockMapping(null)
+            }}
+            className="rounded border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            Resetează maparea stocului
           </button>
         </div>
       </div>
@@ -148,7 +166,7 @@ function MappingSummary({
   mapping,
 }: {
   title: string
-  mapping: SalesColumnMapping | PurchaseColumnMapping | null
+  mapping: SalesColumnMapping | PurchaseColumnMapping | StockColumnMapping | null
 }) {
   return (
     <div>

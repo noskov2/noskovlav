@@ -5,7 +5,7 @@ import { resolveSandwichVariants, idsOf, SANDWICH_VARIANT_LABELS } from '@/kpi/n
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 import { linesForCashier, type CrossSellTabProps } from '@/pages/crossSell/shared'
 
-export function SandwichTab({ transactions, products, report }: CrossSellTabProps) {
+export function SandwichTab({ transactions, products, report, cashiersById }: CrossSellTabProps) {
   const variants = resolveSandwichVariants(products)
   const sets = {
     prosciuttoCotto: idsOf(variants.prosciuttoCotto),
@@ -16,7 +16,7 @@ export function SandwichTab({ transactions, products, report }: CrossSellTabProp
   }
 
   function drillFor(cashierId: string, ids: Set<string>) {
-    return linesForCashier(transactions, cashierId).filter((t) => ids.has(t.productId))
+    return linesForCashier(transactions, cashierId, cashiersById).filter((t) => ids.has(t.productId))
   }
 
   const columns: DataTableColumn<CashierCrossSellRow>[] = [

@@ -7,6 +7,10 @@ export async function listCashiers(): Promise<Cashier[]> {
   return db.cashiers.toArray()
 }
 
+export async function getCashier(id: string): Promise<Cashier | undefined> {
+  return db.cashiers.get(id)
+}
+
 export async function upsertCashier(cashier: Cashier): Promise<void> {
   await db.cashiers.put(cashier)
 }
@@ -42,6 +46,7 @@ export async function resolveOrCreateCashier(rawName: string): Promise<Cashier> 
     name: trimmed,
     aliases: [trimmed],
     active: true,
+    teamId: null,
     createdAt: Date.now(),
   }
   await db.cashiers.put(cashier)

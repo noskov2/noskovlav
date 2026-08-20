@@ -4,6 +4,7 @@ import { resolvePreset } from '@/kpi/dateRanges'
 export interface FilterState {
   preset: PeriodPreset
   customRange: DateRange | null
+  teamId: string | 'all'
   cashierId: string | 'all'
   shift: 1 | 2 | 'all'
   category: string | 'all'
@@ -13,6 +14,7 @@ export interface FilterState {
 export const defaultFilterState: FilterState = {
   preset: 'last30',
   customRange: null,
+  teamId: 'all',
   cashierId: 'all',
   shift: 'all',
   category: 'all',

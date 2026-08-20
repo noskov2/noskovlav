@@ -3,8 +3,10 @@ import type {
   TransactionLine,
   Product,
   Cashier,
+  Team,
   ImportBatch,
   SupplierReceiptLine,
+  StockSnapshotLine,
   AppSettings,
 } from '@/types/domain'
 
@@ -16,8 +18,10 @@ class PecoDatabase extends Dexie {
   transactions!: EntityTable<TransactionLine, 'id'>
   products!: EntityTable<Product, 'id'>
   cashiers!: EntityTable<Cashier, 'id'>
+  teams!: EntityTable<Team, 'id'>
   importBatches!: EntityTable<ImportBatch, 'id'>
   supplierReceipts!: EntityTable<SupplierReceiptLine, 'id'>
+  stockSnapshots!: EntityTable<StockSnapshotLine, 'id'>
   settings!: EntityTable<AppSettings, 'id'>
 
   constructor() {
@@ -29,6 +33,17 @@ class PecoDatabase extends Dexie {
       cashiers: 'id, name, active',
       importBatches: 'id, importedAt, kind',
       supplierReceipts: 'id, importBatchId, productId, supplier, date',
+      settings: 'id',
+    })
+    this.version(2).stores({
+      transactions:
+        'id, importBatchId, date, timestamp, cashierId, productId, receiptNo, shift',
+      products: 'id, name, category, active',
+      cashiers: 'id, name, active, teamId',
+      teams: 'id, name',
+      importBatches: 'id, importedAt, kind',
+      supplierReceipts: 'id, importBatchId, productId, supplier, date',
+      stockSnapshots: 'id, importBatchId, productId, asOf',
       settings: 'id',
     })
   }

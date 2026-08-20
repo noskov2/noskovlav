@@ -28,10 +28,13 @@ const RANKING_TABS: { key: RankingKey; label: string }[] = [
 ]
 
 export function ProfitabilityPage() {
-  const { transactions, products, productsById } = useDataStore()
+  const { transactions, products, productsById, cashiersById } = useDataStore()
   const { filter } = useFilterStore()
   const range = effectiveRange(filter)
-  const filtered = useMemo(() => filterTransactions(transactions, filter, productsById), [transactions, filter, productsById])
+  const filtered = useMemo(
+    () => filterTransactions(transactions, filter, productsById, cashiersById),
+    [transactions, filter, productsById, cashiersById],
+  )
 
   const productRows = useMemo(() => computeProductProfitability(filtered, products), [filtered, products])
   const categoryRows = useMemo(() => computeCategoryProfitability(productRows), [productRows])

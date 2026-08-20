@@ -5,14 +5,14 @@ import { resolveCoffeeVariants, idsOf } from '@/kpi/namedVariants'
 import { formatNumber, formatPct } from '@/lib/format'
 import { linesForCashier, type CrossSellTabProps } from '@/pages/crossSell/shared'
 
-export function CoffeeTab({ transactions, products, report }: CrossSellTabProps) {
+export function CoffeeTab({ transactions, products, report, cashiersById }: CrossSellTabProps) {
   const variants = resolveCoffeeVariants(products)
   const espressoIds = idsOf(variants.espresso)
   const espressoLungIds = idsOf(variants.espressoLung)
   const cappuccinoIds = idsOf(variants.cappuccinoLung)
 
   function drillFor(cashierId: string, ids: Set<string>) {
-    return linesForCashier(transactions, cashierId).filter((t) => ids.has(t.productId))
+    return linesForCashier(transactions, cashierId, cashiersById).filter((t) => ids.has(t.productId))
   }
 
   const columns: DataTableColumn<CashierCrossSellRow>[] = [

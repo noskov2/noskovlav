@@ -1,4 +1,4 @@
-import type { PurchaseColumnMapping, SalesColumnMapping } from '@/types/domain'
+import type { PurchaseColumnMapping, SalesColumnMapping, StockColumnMapping } from '@/types/domain'
 
 // Keyword hints used only to pre-select a likely column in the mapping
 // wizard. The user always confirms (or corrects) the mapping — nothing is
@@ -17,6 +17,8 @@ const HINTS: Record<string, string[]> = {
   purchasePrice: ['pret achizitie', 'cost achizitie', 'pret intrare', 'cost unitar', 'pret cumparare'],
   supplier: ['furnizor', 'supplier'],
   price: ['pret', 'price', 'cost'],
+  stockQty: ['stoc', 'stock'],
+  salePrice: ['pret vanzare', 'pret de vanzare', 'sale price'],
 }
 
 function norm(s: string): string {
@@ -61,6 +63,18 @@ export function guessPurchaseMapping(headers: string[]): PurchaseColumnMapping {
     quantity: guessColumn(headers, 'quantity') ?? '',
     price: guessColumn(headers, 'price') ?? '',
   }
+}
+
+export function guessStockMapping(headers: string[]): StockColumnMapping {
+  return {
+    product: guessColumn(headers, 'product') ?? '',
+    quantity: guessColumn(headers, 'stockQty') ?? guessColumn(headers, 'quantity') ?? '',
+    salePrice: guessColumn(headers, 'salePrice'),
+  }
+}
+
+export function isStockMappingComplete(m: StockColumnMapping): boolean {
+  return !!m.product && !!m.quantity
 }
 
 export function isSalesMappingComplete(m: SalesColumnMapping): boolean {

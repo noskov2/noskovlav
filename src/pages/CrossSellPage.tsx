@@ -7,6 +7,7 @@ import { useDataStore } from '@/store/dataStore'
 import { useFilterStore } from '@/store/filterStore'
 import { filterTransactions } from '@/kpi/applyFilters'
 import { computeCrossSellReport } from '@/kpi/crossSell'
+import { computeTeamRollup } from '@/kpi/teamRollup'
 import { FuelTab } from '@/pages/crossSell/FuelTab'
 import { CoffeeTab } from '@/pages/crossSell/CoffeeTab'
 import { VitrinaTab } from '@/pages/crossSell/VitrinaTab'
@@ -23,13 +24,20 @@ const TABS = [
   { key: 'score', label: 'Score Casieri' },
 ]
 
+type GroupBy = 'casier' | 'echipa'
+
 export function CrossSellPage() {
-  const { transactions, products, cashiers, productsById } = useDataStore()
+  const { transactions, products, cashiers, teams, productsById, cashiersById } = useDataStore()
   const { filter } = useFilterStore()
   const [tab, setTab] = useState('fuel')
+  const [groupBy, setGroupBy] = useState<GroupBy>('casier')
 
-  const filtered = useMemo(() => filterTransactions(transactions, filter, productsById), [transactions, filter, productsById])
+  const filtered = useMemo(
+    () => filterTransactions(transactions, filter, productsById, cashiersById),
+    [transactions, filter, productsById, cashiersById],
+  )
   const report = useMemo(() => computeCrossSellReport(filtered, products, cashiers), [filtered, products, cashiers])
+  const teamRows = useMemo(() => computeTeamRollup(report.cashiers, teams), [report, teams])
 
   if (transactions.length === 0) {
     return (
@@ -40,7 +48,8 @@ export function CrossSellPage() {
     )
   }
 
-  const tabProps = { transactions: filtered, products, report }
+  const displayReport = groupBy === 'echipa' ? { stationTotal: report.stationTotal, cashiers: teamRows } : report
+  const tabProps = { transactions: filtered, products, report: displayReport, cashiersById }
 
   return (
     <div>
@@ -52,7 +61,27 @@ export function CrossSellPage() {
         <FilterBar hideCategory hideProduct />
       </div>
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <Tabs tabs={TABS} active={tab} onChange={setTab} />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <Tabs tabs={TABS} active={tab} onChange={setTab} />
+          <div className="flex gap-1 rounded-full bg-slate-100 p-0.5">
+            <button
+              onClick={() => setGroupBy('casier')}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                groupBy === 'casier' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              Pe casier
+            </button>
+            <button
+              onClick={() => setGroupBy('echipa')}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                groupBy === 'echipa' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              Pe echipă
+            </button>
+          </div>
+        </div>
         <div className="mt-4">
           {tab === 'fuel' && <FuelTab {...tabProps} />}
           {tab === 'coffee' && <CoffeeTab {...tabProps} />}

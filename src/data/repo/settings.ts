@@ -8,11 +8,12 @@ const defaultSettings: AppSettings = {
   shiftConfig: defaultShiftConfig,
   salesMapping: null,
   purchaseMapping: null,
+  stockMapping: null,
 }
 
 export async function getSettings(): Promise<AppSettings> {
   const existing = await db.settings.get(SETTINGS_ID)
-  return existing ?? defaultSettings
+  return existing ? { ...defaultSettings, ...existing } : defaultSettings
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {

@@ -2,15 +2,20 @@ import { create } from 'zustand'
 import { listAllTransactions } from '@/data/repo/transactions'
 import { listProducts } from '@/data/repo/products'
 import { listCashiers } from '@/data/repo/cashiers'
+import { listTeams } from '@/data/repo/teams'
 import { listAllSupplierReceipts } from '@/data/repo/suppliers'
+import { listAllStockSnapshots } from '@/data/repo/stockSnapshots'
 import { listImportBatches } from '@/data/repo/importBatches'
 import { getSettings } from '@/data/repo/settings'
+import { ensureDefaultTeamsSeeded } from '@/data/seedTeams'
 import type {
   AppSettings,
   Cashier,
   ImportBatch,
   Product,
+  StockSnapshotLine,
   SupplierReceiptLine,
+  Team,
   TransactionLine,
 } from '@/types/domain'
 
@@ -20,11 +25,14 @@ interface DataState {
   transactions: TransactionLine[]
   products: Product[]
   cashiers: Cashier[]
+  teams: Team[]
   supplierReceipts: SupplierReceiptLine[]
+  stockSnapshots: StockSnapshotLine[]
   importBatches: ImportBatch[]
   settings: AppSettings | null
   productsById: Map<string, Product>
   cashiersById: Map<string, Cashier>
+  teamsById: Map<string, Team>
   refresh: () => Promise<void>
 }
 
@@ -34,19 +42,25 @@ export const useDataStore = create<DataState>((set) => ({
   transactions: [],
   products: [],
   cashiers: [],
+  teams: [],
   supplierReceipts: [],
+  stockSnapshots: [],
   importBatches: [],
   settings: null,
   productsById: new Map(),
   cashiersById: new Map(),
+  teamsById: new Map(),
   refresh: async () => {
     set({ loading: true })
-    const [transactions, products, cashiers, supplierReceipts, importBatches, settings] =
+    await ensureDefaultTeamsSeeded()
+    const [transactions, products, cashiers, teams, supplierReceipts, stockSnapshots, importBatches, settings] =
       await Promise.all([
         listAllTransactions(),
         listProducts(),
         listCashiers(),
+        listTeams(),
         listAllSupplierReceipts(),
+        listAllStockSnapshots(),
         listImportBatches(),
         getSettings(),
       ])
@@ -54,11 +68,14 @@ export const useDataStore = create<DataState>((set) => ({
       transactions,
       products,
       cashiers,
+      teams,
       supplierReceipts,
+      stockSnapshots,
       importBatches,
       settings,
       productsById: new Map(products.map((p) => [p.id, p])),
       cashiersById: new Map(cashiers.map((c) => [c.id, c])),
+      teamsById: new Map(teams.map((t) => [t.id, t])),
       loaded: true,
       loading: false,
     })

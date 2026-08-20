@@ -5,7 +5,7 @@ import type { CashierCrossSellRow } from '@/kpi/crossSell'
 import { formatNumber, formatPct } from '@/lib/format'
 import { fuelReceiptLines, type CrossSellTabProps } from '@/pages/crossSell/shared'
 
-export function FuelTab({ transactions, products, report }: CrossSellTabProps) {
+export function FuelTab({ transactions, products, report, cashiersById }: CrossSellTabProps) {
   const columns: DataTableColumn<CashierCrossSellRow>[] = [
     { key: 'name', header: 'Casier', render: (r) => r.cashier.name, sortValue: (r) => r.cashier.name },
     {
@@ -15,7 +15,7 @@ export function FuelTab({ transactions, products, report }: CrossSellTabProps) {
       render: (r) => (
         <DrillValue
           title={`${r.cashier.name} — bonuri cu carburant`}
-          lines={fuelReceiptLines(transactions, products, r.cashier.id, false)}
+          lines={fuelReceiptLines(transactions, products, r.cashier.id, false, cashiersById)}
         >
           {formatNumber(r.fuelReceipts)}
         </DrillValue>
@@ -29,7 +29,7 @@ export function FuelTab({ transactions, products, report }: CrossSellTabProps) {
       render: (r) => (
         <DrillValue
           title={`${r.cashier.name} — bonuri carburant + marfă`}
-          lines={fuelReceiptLines(transactions, products, r.cashier.id, true)}
+          lines={fuelReceiptLines(transactions, products, r.cashier.id, true, cashiersById)}
         >
           {formatNumber(r.fuelPlusGoodsReceipts)}
         </DrillValue>
@@ -50,7 +50,7 @@ export function FuelTab({ transactions, products, report }: CrossSellTabProps) {
       <div className="mb-4 rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-800">
         <strong>Formula:</strong> bonuri cu carburant + marfă / total bonuri cu carburant × 100
       </div>
-      <StationSummary report={report} transactions={transactions} products={products} />
+      <StationSummary report={report} transactions={transactions} products={products} cashiersById={cashiersById} />
       <div className="mt-4">
         <DataTable
           columns={columns}
@@ -63,14 +63,17 @@ export function FuelTab({ transactions, products, report }: CrossSellTabProps) {
   )
 }
 
-function StationSummary({ report, transactions, products }: CrossSellTabProps) {
+function StationSummary({ report, transactions, products, cashiersById }: CrossSellTabProps) {
   const s = report.stationTotal
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       <Stat
         label="Bonuri carburant (stație)"
         value={
-          <DrillValue title="Bonuri carburant — total stație" lines={fuelReceiptLines(transactions, products, '__station__', false)}>
+          <DrillValue
+            title="Bonuri carburant — total stație"
+            lines={fuelReceiptLines(transactions, products, '__station__', false, cashiersById)}
+          >
             {formatNumber(s.fuelReceipts)}
           </DrillValue>
         }
@@ -78,7 +81,10 @@ function StationSummary({ report, transactions, products }: CrossSellTabProps) {
       <Stat
         label="Bonuri carburant + marfă"
         value={
-          <DrillValue title="Bonuri carburant + marfă — total stație" lines={fuelReceiptLines(transactions, products, '__station__', true)}>
+          <DrillValue
+            title="Bonuri carburant + marfă — total stație"
+            lines={fuelReceiptLines(transactions, products, '__station__', true, cashiersById)}
+          >
             {formatNumber(s.fuelPlusGoodsReceipts)}
           </DrillValue>
         }

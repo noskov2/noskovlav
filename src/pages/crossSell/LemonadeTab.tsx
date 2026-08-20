@@ -7,11 +7,11 @@ import { productIdsInGroup } from '@/kpi/productGroups'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 import { linesForCashier, type CrossSellTabProps } from '@/pages/crossSell/shared'
 
-export function LemonadeTab({ transactions, products, report }: CrossSellTabProps) {
+export function LemonadeTab({ transactions, products, report, cashiersById }: CrossSellTabProps) {
   const ids = useMemo(() => productIdsInGroup(products, 'limonadaCeai'), [products])
 
   function drillFor(cashierId: string) {
-    return linesForCashier(transactions, cashierId).filter((t) => ids.has(t.productId))
+    return linesForCashier(transactions, cashierId, cashiersById).filter((t) => ids.has(t.productId))
   }
 
   const stationLines = drillFor('__station__')

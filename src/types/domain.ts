@@ -45,6 +45,13 @@ export interface Cashier {
   name: string
   aliases: string[]
   active: boolean
+  teamId: string | null
+  createdAt: number
+}
+
+export interface Team {
+  id: string
+  name: string
   createdAt: number
 }
 
@@ -82,7 +89,7 @@ export interface TransactionLine {
   shift: ShiftNumber | null
 }
 
-export type ImportKind = 'sales' | 'purchases'
+export type ImportKind = 'sales' | 'purchases' | 'stock'
 
 export interface ImportBatch {
   id: string
@@ -128,9 +135,30 @@ export interface SupplierReceiptLine {
   price: number // unit purchase price
 }
 
+export interface StockColumnMapping {
+  product: string
+  quantity: string
+  salePrice: string | null
+}
+
+// A snapshot row: "this product had this much stock, at this sale price,
+// as of this exact date/time" — the date/time is chosen by the user at
+// import time (not read from the file), so several snapshots over time
+// never get mixed up in calculations.
+export interface StockSnapshotLine {
+  id: string
+  importBatchId: string
+  asOf: number // epoch ms, user-selected "valid as of" moment for the whole import
+  productId: string
+  productRaw: string
+  quantity: number
+  salePrice: number | null
+}
+
 export interface AppSettings {
   id: 'app-settings' // singleton row
   shiftConfig: ShiftConfig
   salesMapping: SalesColumnMapping | null
   purchaseMapping: PurchaseColumnMapping | null
+  stockMapping: StockColumnMapping | null
 }

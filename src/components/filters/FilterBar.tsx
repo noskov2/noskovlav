@@ -25,7 +25,7 @@ interface FilterBarProps {
 
 export function FilterBar({ hideCategory, hideProduct, hideShift, hideCashier }: FilterBarProps) {
   const { filter, setFilter } = useFilterStore()
-  const { cashiers, products } = useDataStore()
+  const { cashiers, products, teams } = useDataStore()
   const [showCustom, setShowCustom] = useState(filter.preset === 'custom')
 
   const categories = useMemo(() => {
@@ -82,6 +82,20 @@ export function FilterBar({ hideCategory, hideProduct, hideShift, hideCashier }:
       </span>
 
       <div className="ml-auto flex flex-wrap gap-2">
+        {!hideCashier && teams.length > 0 && (
+          <select
+            value={filter.teamId}
+            onChange={(e) => setFilter({ teamId: e.target.value })}
+            className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700"
+          >
+            <option value="all">Toate echipele</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
         {!hideCashier && (
           <select
             value={filter.cashierId}

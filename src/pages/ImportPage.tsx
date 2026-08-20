@@ -4,17 +4,18 @@ import { parseExcelFile, type ParsedSheet } from '@/import/excelParser'
 import {
   guessPurchaseMapping,
   guessSalesMapping,
+  guessStockMapping,
   isPurchaseMappingComplete,
   isSalesMappingComplete,
+  isStockMappingComplete,
 } from '@/import/columnMapping'
 import { importSalesSheet } from '@/import/importTransactions'
 import { importPurchaseSheet } from '@/import/importPurchases'
+import { importStockSheet } from '@/import/importStock'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { useDataStore } from '@/store/dataStore'
 import { formatDateRo, formatNumber } from '@/lib/format'
-import type { PurchaseColumnMapping, SalesColumnMapping } from '@/types/domain'
-
-type ImportKind = 'sales' | 'purchases'
+import type { ImportKind, PurchaseColumnMapping, SalesColumnMapping, StockColumnMapping } from '@/types/domain'
 
 const SALES_FIELDS: { key: keyof SalesColumnMapping; label: string; required: boolean }[] = [
   { key: 'cashier', label: 'Casier', required: true },
@@ -38,6 +39,37 @@ const PURCHASE_FIELDS: { key: keyof PurchaseColumnMapping; label: string; requir
   { key: 'price', label: 'Preț achiziție', required: true },
 ]
 
+const STOCK_FIELDS: { key: keyof StockColumnMapping; label: string; required: boolean }[] = [
+  { key: 'product', label: 'Produs', required: true },
+  { key: 'quantity', label: 'Stoc curent', required: true },
+  { key: 'salePrice', label: 'Preț vânzare', required: false },
+]
+
+const KIND_LABELS: Record<ImportKind, string> = {
+  sales: 'Vânzări',
+  purchases: 'Achiziții',
+  stock: 'Stoc',
+}
+
+function sameHeaders(mapping: object, headers: string[]): boolean {
+  const values = Object.values(mapping).filter((v): v is string => typeof v === 'string' && !!v)
+  return values.every((v) => headers.includes(v))
+}
+
+function pad(n: number): string {
+  return n.toString().padStart(2, '0')
+}
+
+function nowDate(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function nowTime(): string {
+  const d = new Date()
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function ImportPage() {
   const { refresh, importBatches } = useDataStore()
   const [kind, setKind] = useState<ImportKind>('sales')
@@ -45,6 +77,9 @@ export function ImportPage() {
   const [sheet, setSheet] = useState<ParsedSheet | null>(null)
   const [salesMapping, setSalesMapping] = useState<SalesColumnMapping | null>(null)
   const [purchaseMapping, setPurchaseMapping] = useState<PurchaseColumnMapping | null>(null)
+  const [stockMapping, setStockMapping] = useState<StockColumnMapping | null>(null)
+  const [asOfDate, setAsOfDate] = useState(nowDate())
+  const [asOfTime, setAsOfTime] = useState(nowTime())
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -63,27 +98,29 @@ export function ImportPage() {
       setSheet(parsed)
       const settings = await getSettings()
       if (kind === 'sales') {
-        setSalesMapping(settings.salesMapping && sameHeaders(settings.salesMapping, parsed.headers)
-          ? settings.salesMapping
-          : guessSalesMapping(parsed.headers))
-      } else {
+        setSalesMapping(
+          settings.salesMapping && sameHeaders(settings.salesMapping, parsed.headers)
+            ? settings.salesMapping
+            : guessSalesMapping(parsed.headers),
+        )
+      } else if (kind === 'purchases') {
         setPurchaseMapping(
-          settings.purchaseMapping && sameHeadersPurchase(settings.purchaseMapping, parsed.headers)
+          settings.purchaseMapping && sameHeaders(settings.purchaseMapping, parsed.headers)
             ? settings.purchaseMapping
             : guessPurchaseMapping(parsed.headers),
         )
+      } else {
+        setStockMapping(
+          settings.stockMapping && sameHeaders(settings.stockMapping, parsed.headers)
+            ? settings.stockMapping
+            : guessStockMapping(parsed.headers),
+        )
+        setAsOfDate(nowDate())
+        setAsOfTime(nowTime())
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Eroare la citirea fișierului.')
     }
-  }
-
-  function sameHeaders(mapping: SalesColumnMapping, headers: string[]): boolean {
-    const values = Object.values(mapping).filter((v): v is string => !!v)
-    return values.every((v) => headers.includes(v))
-  }
-  function sameHeadersPurchase(mapping: PurchaseColumnMapping, headers: string[]): boolean {
-    return Object.values(mapping).every((v) => headers.includes(v))
   }
 
   async function runImport() {
@@ -105,7 +142,7 @@ export function ImportPage() {
             (result.skippedRows > 0 ? `, ${formatNumber(result.skippedRows)} rânduri ignorate (fără produs/dată).` : '.') +
             (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
         )
-      } else {
+      } else if (kind === 'purchases') {
         if (!purchaseMapping || !isPurchaseMappingComplete(purchaseMapping)) {
           setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
           setBusy(false)
@@ -115,6 +152,24 @@ export function ImportPage() {
         const result = await importPurchaseSheet(file.name, sheet, purchaseMapping)
         setStatus(
           `Import finalizat: ${formatNumber(result.rowCount)} linii de achiziție importate` +
+            (result.skippedRows > 0 ? `, ${formatNumber(result.skippedRows)} rânduri ignorate.` : '.'),
+        )
+      } else {
+        if (!stockMapping || !isStockMappingComplete(stockMapping)) {
+          setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
+          setBusy(false)
+          return
+        }
+        if (!asOfDate) {
+          setError('Alege data la care este valabil acest stoc.')
+          setBusy(false)
+          return
+        }
+        await updateSettings({ stockMapping })
+        const asOf = new Date(`${asOfDate}T${asOfTime || '00:00'}:00`).getTime()
+        const result = await importStockSheet(file.name, sheet, stockMapping, asOf)
+        setStatus(
+          `Import finalizat: ${formatNumber(result.rowCount)} produse cu stoc valabil la ${formatDateRo(asOfDate)} ${asOfTime}` +
             (result.skippedRows > 0 ? `, ${formatNumber(result.skippedRows)} rânduri ignorate.` : '.'),
         )
       }
@@ -130,7 +185,11 @@ export function ImportPage() {
   }
 
   const mappingComplete =
-    kind === 'sales' ? !!salesMapping && isSalesMappingComplete(salesMapping) : !!purchaseMapping && isPurchaseMappingComplete(purchaseMapping)
+    kind === 'sales'
+      ? !!salesMapping && isSalesMappingComplete(salesMapping)
+      : kind === 'purchases'
+        ? !!purchaseMapping && isPurchaseMappingComplete(purchaseMapping)
+        : !!stockMapping && isStockMappingComplete(stockMapping) && !!asOfDate
 
   return (
     <div>
@@ -139,30 +198,33 @@ export function ImportPage() {
         description="Încarcă periodic exporturile Excel din softul stației. Configurația de mapare coloane se salvează automat."
       />
 
-      <div className="mb-5 flex gap-2">
-        <button
-          onClick={() => {
-            setKind('sales')
-            setSheet(null)
-            setFile(null)
-          }}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium ${kind === 'sales' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-600'}`}
-        >
-          Vânzări / tranzacții
-        </button>
-        <button
-          onClick={() => {
-            setKind('purchases')
-            setSheet(null)
-            setFile(null)
-          }}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium ${kind === 'purchases' ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-600'}`}
-        >
-          Achiziții / Furnizori
-        </button>
+      <div className="mb-5 flex flex-wrap gap-2">
+        {(['sales', 'purchases', 'stock'] as ImportKind[]).map((k) => (
+          <button
+            key={k}
+            onClick={() => {
+              setKind(k)
+              setSheet(null)
+              setFile(null)
+              setError(null)
+              setStatus(null)
+            }}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium ${kind === k ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-600'}`}
+          >
+            {k === 'sales' ? 'Vânzări / tranzacții' : k === 'purchases' ? 'Achiziții / Furnizori' : 'Stoc curent'}
+          </button>
+        ))}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        {kind === 'stock' && (
+          <p className="mb-4 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800">
+            Încarcă un Excel cu stocul curent al produselor (și, dacă vrei, prețul de vânzare). Fiecare încărcare
+            este o „poză” a stocului — spune-i aplicației exact la ce dată și oră este valabilă, ca să nu se
+            amestece cu alte încărcări în calcule.
+          </p>
+        )}
+
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-200 px-6 py-10 text-center hover:border-brand-300 hover:bg-brand-50/40">
           <span className="text-3xl">📄</span>
           <span className="mt-2 text-sm font-medium text-slate-700">
@@ -186,37 +248,65 @@ export function ImportPage() {
 
         {sheet && (
           <div className="mt-5">
+            {kind === 'stock' && (
+              <div className="mb-5 rounded-lg border border-slate-200 p-3">
+                <p className="mb-2 text-xs font-semibold text-slate-700">Acest stoc este valabil la:</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={asOfDate}
+                    onChange={(e) => setAsOfDate(e.target.value)}
+                    className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  />
+                  <input
+                    type="time"
+                    value={asOfTime}
+                    onChange={(e) => setAsOfTime(e.target.value)}
+                    className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
             <h3 className="mb-1 text-sm font-semibold text-slate-800">Mapare coloane</h3>
             <p className="mb-3 text-xs text-slate-500">
               Fișierul are {formatNumber(sheet.rows.length)} rânduri. Spune aplicației ce reprezintă fiecare coloană —
               maparea se ține minte pentru importurile viitoare cu aceleași denumiri de coloane.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              {kind === 'sales'
-                ? SALES_FIELDS.map((f) => (
-                    <MappingField
-                      key={f.key}
-                      label={f.label}
-                      required={f.required}
-                      headers={sheet.headers}
-                      value={salesMapping?.[f.key] ?? ''}
-                      onChange={(v) =>
-                        setSalesMapping((m) => (m ? { ...m, [f.key]: v || null } : m))
-                      }
-                    />
-                  ))
-                : PURCHASE_FIELDS.map((f) => (
-                    <MappingField
-                      key={f.key}
-                      label={f.label}
-                      required={f.required}
-                      headers={sheet.headers}
-                      value={purchaseMapping?.[f.key] ?? ''}
-                      onChange={(v) =>
-                        setPurchaseMapping((m) => (m ? { ...m, [f.key]: v } : m))
-                      }
-                    />
-                  ))}
+              {kind === 'sales' &&
+                SALES_FIELDS.map((f) => (
+                  <MappingField
+                    key={f.key}
+                    label={f.label}
+                    required={f.required}
+                    headers={sheet.headers}
+                    value={salesMapping?.[f.key] ?? ''}
+                    onChange={(v) => setSalesMapping((m) => (m ? { ...m, [f.key]: v || null } : m))}
+                  />
+                ))}
+              {kind === 'purchases' &&
+                PURCHASE_FIELDS.map((f) => (
+                  <MappingField
+                    key={f.key}
+                    label={f.label}
+                    required={f.required}
+                    headers={sheet.headers}
+                    value={purchaseMapping?.[f.key] ?? ''}
+                    onChange={(v) => setPurchaseMapping((m) => (m ? { ...m, [f.key]: v } : m))}
+                  />
+                ))}
+              {kind === 'stock' &&
+                STOCK_FIELDS.map((f) => (
+                  <MappingField
+                    key={f.key}
+                    label={f.label}
+                    required={f.required}
+                    headers={sheet.headers}
+                    value={stockMapping?.[f.key] ?? ''}
+                    onChange={(v) => setStockMapping((m) => (m ? { ...m, [f.key]: v || null } : m))}
+                  />
+                ))}
             </div>
 
             <button
@@ -241,20 +331,24 @@ export function ImportPage() {
                   <th className="px-2 py-1.5">Tip</th>
                   <th className="px-2 py-1.5">Importat la</th>
                   <th className="px-2 py-1.5 text-right">Rânduri</th>
-                  <th className="px-2 py-1.5">Interval</th>
+                  <th className="px-2 py-1.5">Interval / Valabil la</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {importBatches.map((b) => (
                   <tr key={b.id}>
                     <td className="px-2 py-1.5">{b.filename}</td>
-                    <td className="px-2 py-1.5">{b.kind === 'sales' ? 'Vânzări' : 'Achiziții'}</td>
+                    <td className="px-2 py-1.5">{KIND_LABELS[b.kind]}</td>
                     <td className="px-2 py-1.5 text-slate-500">
                       {new Date(b.importedAt).toLocaleString('ro-RO')}
                     </td>
                     <td className="px-2 py-1.5 text-right">{formatNumber(b.rowCount)}</td>
                     <td className="px-2 py-1.5 text-slate-500">
-                      {b.dateMin && b.dateMax ? `${formatDateRo(b.dateMin)} – ${formatDateRo(b.dateMax)}` : '—'}
+                      {b.dateMin && b.dateMax
+                        ? b.kind === 'stock'
+                          ? formatDateRo(b.dateMin)
+                          : `${formatDateRo(b.dateMin)} – ${formatDateRo(b.dateMax)}`
+                        : '—'}
                     </td>
                   </tr>
                 ))}

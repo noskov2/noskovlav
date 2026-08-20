@@ -5,7 +5,9 @@ import { Tabs } from '@/components/ui/Tabs'
 import { useDataStore } from '@/store/dataStore'
 import { upsertProduct } from '@/data/repo/products'
 import { mergeCashiers, upsertCashier } from '@/data/repo/cashiers'
-import type { Product, ProductGroups } from '@/types/domain'
+import { deleteTeam, upsertTeam } from '@/data/repo/teams'
+import { slugify, uid } from '@/lib/id'
+import type { Cashier, Product, ProductGroups, Team } from '@/types/domain'
 
 const GROUP_LABELS: Record<keyof ProductGroups, string> = {
   cafea: 'Cafea',
@@ -18,9 +20,9 @@ const GROUP_LABELS: Record<keyof ProductGroups, string> = {
 
 export function NomenclaturePage() {
   const [tab, setTab] = useState<'produse' | 'casieri'>('produse')
-  const { products, cashiers, transactions, refresh } = useDataStore()
+  const { products, cashiers, teams, transactions, refresh } = useDataStore()
 
-  if (transactions.length === 0 && products.length === 0) {
+  if (transactions.length === 0 && products.length === 0 && cashiers.length === 0) {
     return (
       <div>
         <PageHeader title="Nomenclator" />
@@ -50,8 +52,16 @@ export function NomenclaturePage() {
           ) : (
             <CashiersTab
               cashiers={cashiers}
+              teams={teams}
               onSave={async (c) => { await upsertCashier(c); await refresh() }}
               onMerge={async (source, target) => { await mergeCashiers(source, target); await refresh() }}
+              onAddTeam={async (name) => {
+                const id = slugify(name) || uid('team')
+                await upsertTeam({ id, name, createdAt: Date.now() })
+                await refresh()
+              }}
+              onRenameTeam={async (team) => { await upsertTeam(team); await refresh() }}
+              onDeleteTeam={async (id) => { await deleteTeam(id); await refresh() }}
             />
           )}
         </div>
@@ -234,18 +244,85 @@ function ProductsTab({ products, onSave }: { products: Product[]; onSave: (p: Pr
 
 function CashiersTab({
   cashiers,
+  teams,
   onSave,
   onMerge,
+  onAddTeam,
+  onRenameTeam,
+  onDeleteTeam,
 }: {
-  cashiers: { id: string; name: string; aliases: string[]; active: boolean; createdAt: number }[]
-  onSave: (c: { id: string; name: string; aliases: string[]; active: boolean; createdAt: number }) => Promise<void>
+  cashiers: Cashier[]
+  teams: Team[]
+  onSave: (c: Cashier) => Promise<void>
   onMerge: (source: string, target: string) => Promise<void>
+  onAddTeam: (name: string) => Promise<void>
+  onRenameTeam: (team: Team) => Promise<void>
+  onDeleteTeam: (id: string) => Promise<void>
 }) {
   const [mergeSource, setMergeSource] = useState('')
   const [mergeTarget, setMergeTarget] = useState('')
+  const [newTeamName, setNewTeamName] = useState('')
+
+  const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams])
+  const memberCount = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of cashiers) {
+      if (!c.teamId) continue
+      m.set(c.teamId, (m.get(c.teamId) ?? 0) + 1)
+    }
+    return m
+  }, [cashiers])
 
   return (
     <div>
+      <div className="mb-4 rounded-lg bg-slate-50 p-3">
+        <p className="mb-2 text-xs font-medium text-slate-600">Echipe</p>
+        <div className="mb-2 flex flex-wrap gap-2">
+          {teams.length === 0 && <span className="text-xs text-slate-400">Nicio echipă definită încă.</span>}
+          {teams.map((t) => (
+            <span
+              key={t.id}
+              className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 py-1 pl-3 pr-1.5 text-xs font-medium text-brand-700"
+            >
+              <input
+                defaultValue={t.name}
+                onBlur={(e) => {
+                  if (e.target.value && e.target.value !== t.name) onRenameTeam({ ...t, name: e.target.value })
+                }}
+                className="w-auto min-w-0 max-w-[10rem] border-none bg-transparent p-0 text-xs font-medium text-brand-700 focus:outline-none focus:ring-0"
+                style={{ width: `${Math.max(t.name.length, 4)}ch` }}
+              />
+              <span className="text-brand-400">· {memberCount.get(t.id) ?? 0}</span>
+              <button
+                onClick={() => onDeleteTeam(t.id)}
+                title="Șterge echipa"
+                className="ml-0.5 rounded-full px-1 text-brand-400 hover:bg-brand-100 hover:text-brand-700"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            value={newTeamName}
+            onChange={(e) => setNewTeamName(e.target.value)}
+            placeholder="Nume echipă nouă (ex: Echipa 4)"
+            className="rounded border border-slate-200 px-2 py-1 text-xs"
+          />
+          <button
+            disabled={!newTeamName.trim()}
+            onClick={async () => {
+              await onAddTeam(newTeamName.trim())
+              setNewTeamName('')
+            }}
+            className="rounded bg-brand-500 px-3 py-1 text-xs font-medium text-white disabled:opacity-40"
+          >
+            Adaugă echipă
+          </button>
+        </div>
+      </div>
+
       <div className="mb-4 rounded-lg bg-slate-50 p-3">
         <p className="mb-2 text-xs font-medium text-slate-600">
           Unește doi casieri (dacă apar sub denumiri diferite în exporturi) — toate tranzacțiile sursei vor fi mutate la destinație.
@@ -287,27 +364,48 @@ function CashiersTab({
           <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
             <th className="px-2 py-1.5">Nume canonic</th>
             <th className="px-2 py-1.5">Denumiri văzute în import</th>
+            <th className="px-2 py-1.5">Echipă</th>
             <th className="px-2 py-1.5 text-center">Activ</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
-          {cashiers.map((c) => (
-            <tr key={c.id}>
-              <td className="px-2 py-1.5">
-                <input
-                  defaultValue={c.name}
-                  onBlur={(e) => {
-                    if (e.target.value !== c.name) onSave({ ...c, name: e.target.value })
-                  }}
-                  className="rounded border border-slate-200 px-2 py-0.5"
-                />
-              </td>
-              <td className="px-2 py-1.5 text-slate-500">{c.aliases.join(', ')}</td>
-              <td className="px-2 py-1.5 text-center">
-                <input type="checkbox" checked={c.active} onChange={(e) => onSave({ ...c, active: e.target.checked })} />
-              </td>
-            </tr>
-          ))}
+          {cashiers
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((c) => (
+              <tr key={c.id}>
+                <td className="px-2 py-1.5">
+                  <input
+                    defaultValue={c.name}
+                    onBlur={(e) => {
+                      if (e.target.value !== c.name) onSave({ ...c, name: e.target.value })
+                    }}
+                    className="rounded border border-slate-200 px-2 py-0.5"
+                  />
+                </td>
+                <td className="px-2 py-1.5 text-slate-500">{c.aliases.join(', ')}</td>
+                <td className="px-2 py-1.5">
+                  <select
+                    value={c.teamId ?? ''}
+                    onChange={(e) => onSave({ ...c, teamId: e.target.value || null })}
+                    className="rounded border border-slate-200 px-2 py-0.5"
+                  >
+                    <option value="">Fără echipă</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  {c.teamId && !teamsById.has(c.teamId) && (
+                    <span className="ml-1 text-[10px] text-warn">echipă ștearsă</span>
+                  )}
+                </td>
+                <td className="px-2 py-1.5 text-center">
+                  <input type="checkbox" checked={c.active} onChange={(e) => onSave({ ...c, active: e.target.checked })} />
+                </td>
+              </tr>
+            ))}
         </tbody>
       </table>
     </div>

@@ -19,7 +19,7 @@ const CLASS_TONE: Record<MovementClass, 'good' | 'warn' | 'bad' | 'neutral'> = {
 }
 
 export function SlowMoversPage() {
-  const { transactions, products } = useDataStore()
+  const { transactions, products, stockSnapshots } = useDataStore()
   const [windowPreset, setWindowPreset] = useState<WindowPreset>(30)
   const [customRange, setCustomRange] = useState<DateRange>({ start: addDays(todayStr(), -30), end: todayStr() })
   const [category, setCategory] = useState('all')
@@ -60,6 +60,11 @@ export function SlowMoversPage() {
   const blockedValueTotal = useMemo(
     () => rows.reduce((s, r) => s + (r.blockedStockValue ?? 0), 0),
     [rows],
+  )
+
+  const latestStockAsOf = useMemo(
+    () => (stockSnapshots.length > 0 ? Math.max(...stockSnapshots.map((s) => s.asOf)) : null),
+    [stockSnapshots],
   )
 
   if (transactions.length === 0) {
@@ -218,7 +223,16 @@ export function SlowMoversPage() {
         <StatBox label="Produse analizate" value={formatNumber(rows.length)} />
         <StatBox label="Fără vânzare" value={formatNumber(rows.filter((r) => r.classification === 'fara-vanzare').length)} tone="bad" />
         <StatBox label="Foarte lente" value={formatNumber(rows.filter((r) => r.classification === 'foarte-lent').length)} tone="warn" />
-        <StatBox label="Bani blocați (estimat)" value={formatLei(blockedValueTotal)} tone={blockedValueTotal > 0 ? 'warn' : 'default'} />
+        <StatBox
+          label="Bani blocați (estimat)"
+          value={formatLei(blockedValueTotal)}
+          tone={blockedValueTotal > 0 ? 'warn' : 'default'}
+          hint={
+            latestStockAsOf
+              ? `stoc valabil la ${new Date(latestStockAsOf).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+              : 'niciun stoc importat încă'
+          }
+        />
       </div>
 
       {worst.length > 0 && (
@@ -252,12 +266,23 @@ export function SlowMoversPage() {
   )
 }
 
-function StatBox({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'warn' | 'bad' }) {
+function StatBox({
+  label,
+  value,
+  hint,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  hint?: string
+  tone?: 'default' | 'warn' | 'bad'
+}) {
   const color = tone === 'bad' ? 'text-bad' : tone === 'warn' ? 'text-warn' : 'text-slate-900'
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`mt-1 text-xl font-semibold ${color}`}>{value}</p>
+      {hint && <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p>}
     </div>
   )
 }
