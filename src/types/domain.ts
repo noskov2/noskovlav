@@ -12,6 +12,7 @@ export interface ProductGroups {
   limonadaCeai: boolean
   carburant: boolean
   gpl: boolean
+  promotii: boolean
 }
 
 export const emptyGroups = (): ProductGroups => ({
@@ -21,6 +22,7 @@ export const emptyGroups = (): ProductGroups => ({
   limonadaCeai: false,
   carburant: false,
   gpl: false,
+  promotii: false,
 })
 
 // Which raw Categorie values (as they appear in Product.category) belong to
@@ -36,6 +38,7 @@ export const emptyCategoryGroupRules = (): CategoryGroupRules => ({
   limonadaCeai: [],
   carburant: [],
   gpl: [],
+  promotii: [],
 })
 
 export interface Product {

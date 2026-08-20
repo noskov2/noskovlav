@@ -17,6 +17,7 @@ const GROUP_LABELS: Record<keyof ProductGroups, string> = {
   limonadaCeai: 'Limonadă/Ceai',
   carburant: 'Carburant',
   gpl: 'GPL',
+  promotii: 'Promoții',
 }
 
 export function NomenclaturePage() {
@@ -59,7 +60,7 @@ export function NomenclaturePage() {
               onToggle={async (category, group, enabled) => {
                 await setGroupForCategory(category, group, enabled)
                 const current = settings?.categoryGroupRules ?? {
-                  cafea: [], dulciuriVitrina: [], sandwich: [], limonadaCeai: [], carburant: [], gpl: [],
+                  cafea: [], dulciuriVitrina: [], sandwich: [], limonadaCeai: [], carburant: [], gpl: [], promotii: [],
                 }
                 const list = current[group]
                 const nextList = enabled ? Array.from(new Set([...list, category])) : list.filter((c) => c !== category)

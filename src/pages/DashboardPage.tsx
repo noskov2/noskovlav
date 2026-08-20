@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { FilterBar } from '@/components/filters/FilterBar'
@@ -17,12 +17,14 @@ import { computeSlowMovers, noSaleSinceDays } from '@/kpi/slowMovers'
 import { computeProductPriceSummaries } from '@/kpi/suppliers'
 import { addDays } from '@/kpi/dateRanges'
 import { productIdsInGroup } from '@/kpi/productGroups'
+import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 
 export function DashboardPage() {
   const { transactions, products, cashiers, supplierReceipts, productsById, cashiersById } = useDataStore()
   const { filter } = useFilterStore()
   const range = effectiveRange(filter)
+  const [compare, setCompare] = useState(false)
 
   const dimFiltered = useMemo(
     () => filterByDimensions(transactions, filter, productsById, cashiersById),
@@ -30,6 +32,15 @@ export function DashboardPage() {
   )
   const periodTx = useMemo(() => filterByRange(dimFiltered, range.start, range.end), [dimFiltered, range])
   const summary = useMemo(() => computePeriodSummary(periodTx, products), [periodTx, products])
+
+  const prevRange = useMemo(() => previousMonthRange(range), [range])
+  const prevTx = useMemo(() => filterByRange(dimFiltered, prevRange.start, prevRange.end), [dimFiltered, prevRange])
+  const prevSummary = useMemo(() => computePeriodSummary(prevTx, products), [prevTx, products])
+  const trend = (key: keyof typeof summary) => {
+    if (!compare) return undefined
+    const d = computeDelta(summary[key] as number, prevSummary[key] as number)
+    return d.pct == null ? undefined : { value: d.pct }
+  }
 
   const insights = useMemo(
     () => computeInsights(range, dimFiltered, products, cashiers, supplierReceipts),
@@ -72,6 +83,16 @@ export function DashboardPage() {
         <FilterBar />
       </div>
 
+      <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
+        <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} />
+        Compară cu luna anterioară
+        {compare && (
+          <span className="text-xs text-slate-400">
+            ({prevRange.start} – {prevRange.end})
+          </span>
+        )}
+      </label>
+
       {insights.length > 0 && (
         <div className="mb-5 grid gap-2 sm:grid-cols-2">
           {insights.map((insight, i) => (
@@ -102,6 +123,7 @@ export function DashboardPage() {
               {formatLei(summary.totalSales)}
             </DrillValue>
           }
+          trend={trend('totalSales')}
         />
         <KpiCard
           label="Marfă"
@@ -110,6 +132,7 @@ export function DashboardPage() {
               {formatLei(summary.goodsSales)}
             </DrillValue>
           }
+          trend={trend('goodsSales')}
         />
         <KpiCard
           label="Carburant"
@@ -119,13 +142,15 @@ export function DashboardPage() {
             </DrillValue>
           }
           hint={`${formatNumber(summary.fuelLiters, 0)} litri${summary.gplLiters > 0 ? ` · GPL ${formatNumber(summary.gplLiters, 0)} L` : ''}`}
+          trend={trend('fuelSales')}
         />
-        <KpiCard label="Bonuri" value={formatNumber(summary.receiptCount)} />
-        <KpiCard label="Bon mediu" value={formatLei(summary.avgReceiptValue)} />
+        <KpiCard label="Bonuri" value={formatNumber(summary.receiptCount)} trend={trend('receiptCount')} />
+        <KpiCard label="Bon mediu" value={formatLei(summary.avgReceiptValue)} trend={trend('avgReceiptValue')} />
         <KpiCard
           label="Cross-sell"
           value={formatPct(summary.crossSellPct)}
           hint={`${formatNumber(summary.crossSellReceipts)} din ${formatNumber(summary.fuelReceiptCount)} bonuri carburant`}
+          trend={trend('crossSellPct')}
         />
         <KpiCard
           label="Cafele"
@@ -134,6 +159,7 @@ export function DashboardPage() {
               {formatNumber(summary.coffeeCount)}
             </DrillValue>
           }
+          trend={trend('coffeeCount')}
         />
         <KpiCard
           label="Sandwich-uri"
@@ -142,6 +168,7 @@ export function DashboardPage() {
               {formatNumber(summary.sandwichCount)}
             </DrillValue>
           }
+          trend={trend('sandwichCount')}
         />
         <KpiCard
           label="Dulciuri vitrină"
@@ -150,6 +177,7 @@ export function DashboardPage() {
               {formatNumber(summary.vitrinaCount)}
             </DrillValue>
           }
+          trend={trend('vitrinaCount')}
         />
         <KpiCard
           label="Limonade/ceai"
@@ -158,6 +186,7 @@ export function DashboardPage() {
               {formatNumber(summary.lemonadeCount)}
             </DrillValue>
           }
+          trend={trend('lemonadeCount')}
         />
         <KpiCard
           label="Profit brut estimat"
@@ -168,6 +197,7 @@ export function DashboardPage() {
               ? `${formatPct(summary.grossProfitKnownShare * 100, 0)} din vânzări au preț de achiziție cunoscut`
               : undefined
           }
+          trend={trend('grossProfitEstimate')}
         />
         <KpiCard
           label="Produse cu vânzare lentă"

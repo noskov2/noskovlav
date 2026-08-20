@@ -32,6 +32,7 @@ const VITRINA_KEYWORDS = [
 const LEMONADE_KEYWORDS = ['limonada', 'ceai', 'lemonade', 'ice tea', 'icetea']
 const FUEL_KEYWORDS = ['motorina', 'benzina', 'diesel', 'euro95', 'euro 95', 'premium', 'gpl']
 const GPL_KEYWORDS = ['gpl']
+const PROMO_KEYWORDS = ['promotie', 'promotii', 'promo', 'pachet promo']
 
 function matches(name: string, keywords: string[]): boolean {
   return keywords.some((k) => name.includes(k))
@@ -49,5 +50,6 @@ export function guessGroupsFromName(rawName: string, categoryRaw: string): Parti
     limonadaCeai: matches(haystack, LEMONADE_KEYWORDS),
     carburant: matches(haystack, FUEL_KEYWORDS),
     gpl: matches(haystack, GPL_KEYWORDS),
+    promotii: matches(haystack, PROMO_KEYWORDS),
   }
 }

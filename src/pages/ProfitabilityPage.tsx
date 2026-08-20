@@ -5,16 +5,18 @@ import { FilterBar } from '@/components/filters/FilterBar'
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable'
 import { DrillValue } from '@/components/ui/DrillValue'
 import { Tabs } from '@/components/ui/Tabs'
+import { DeltaBadge } from '@/components/ui/DeltaBadge'
 import { useDataStore } from '@/store/dataStore'
 import { useFilterStore } from '@/store/filterStore'
 import { effectiveRange } from '@/kpi/filterState'
-import { filterTransactions } from '@/kpi/applyFilters'
+import { filterTransactions, filterByDimensions, filterByRange } from '@/kpi/applyFilters'
 import {
   computeCategoryProfitability,
   computeProductProfitability,
   type CategoryProfitRow,
   type ProductProfitRow,
 } from '@/kpi/profitability'
+import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 
 type RankingKey = 'sales' | 'profit' | 'margin' | 'highSalesLowProfit' | 'lowSalesHighMargin'
@@ -38,6 +40,22 @@ export function ProfitabilityPage() {
 
   const productRows = useMemo(() => computeProductProfitability(filtered, products), [filtered, products])
   const categoryRows = useMemo(() => computeCategoryProfitability(productRows), [productRows])
+
+  const [compare, setCompare] = useState(false)
+  const dimFiltered = useMemo(
+    () => filterByDimensions(transactions, filter, productsById, cashiersById),
+    [transactions, filter, productsById, cashiersById],
+  )
+  const prevRange = useMemo(() => previousMonthRange(range), [range])
+  const prevFiltered = useMemo(() => filterByRange(dimFiltered, prevRange.start, prevRange.end), [dimFiltered, prevRange])
+  const prevCategoryRows = useMemo(
+    () => computeCategoryProfitability(computeProductProfitability(prevFiltered, products)),
+    [prevFiltered, products],
+  )
+  const prevSalesByCategory = useMemo(
+    () => new Map(prevCategoryRows.map((c) => [c.category, c.salesValue])),
+    [prevCategoryRows],
+  )
 
   const [ranking, setRanking] = useState<RankingKey>('sales')
 
@@ -105,6 +123,23 @@ export function ProfitabilityPage() {
       render: (r) => (r.shareOfProfit != null ? formatPct(r.shareOfProfit) : '—'),
       sortValue: (r) => r.shareOfProfit ?? -Infinity,
     },
+    ...(compare
+      ? ([
+          {
+            key: 'vsLastMonth',
+            header: 'vs. luna anterioară',
+            align: 'right',
+            render: (r) => {
+              const prev = prevSalesByCategory.get(r.category) ?? 0
+              return <DeltaBadge delta={computeDelta(r.salesValue, prev)} />
+            },
+            sortValue: (r) => {
+              const prev = prevSalesByCategory.get(r.category) ?? 0
+              return computeDelta(r.salesValue, prev).pct ?? -Infinity
+            },
+          },
+        ] as DataTableColumn<CategoryProfitRow>[])
+      : []),
   ]
 
   const productColumns: DataTableColumn<ProductProfitRow>[] = [
@@ -178,6 +213,11 @@ export function ProfitabilityPage() {
       <div className="mb-5">
         <FilterBar />
       </div>
+
+      <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
+        <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} />
+        Compară vânzările pe categorie cu luna anterioară
+      </label>
 
       {!anyCostKnown && (
         <p className="mb-4 rounded-lg border border-warn/20 bg-warn/5 px-3 py-2 text-sm text-warn">
