@@ -15,6 +15,7 @@ const HINTS: Record<string, string[]> = {
   value: ['valoare', 'suma', 'total', 'incasare', 'value', 'pret vanzare total'],
   valueNoVat: ['fara tva', 'net', 'valoare neta'],
   purchasePrice: ['pret achizitie', 'cost achizitie', 'pret intrare', 'cost unitar', 'pret cumparare'],
+  promotion: ['promotie', 'promotii', 'promo'],
   supplier: ['furnizor', 'supplier'],
   price: ['pret', 'price', 'cost'],
   stockQty: ['stoc', 'stock'],
@@ -52,6 +53,7 @@ export function guessSalesMapping(headers: string[]): SalesColumnMapping {
     value: guessColumn(headers, 'value') ?? '',
     purchasePrice: guessColumn(headers, 'purchasePrice'),
     valueNoVat: guessColumn(headers, 'valueNoVat'),
+    promotion: guessColumn(headers, 'promotion'),
   }
 }
 

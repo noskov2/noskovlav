@@ -65,6 +65,7 @@ export async function importSalesSheet(
     const value = toNumber(row[mapping.value])
     const purchasePriceUnit = mapping.purchasePrice ? toNumber(row[mapping.purchasePrice]) || null : null
     const valueNoVat = mapping.valueNoVat ? toNumber(row[mapping.valueNoVat]) || null : null
+    const promotionRaw = mapping.promotion ? String(row[mapping.promotion] ?? '').trim() || null : null
     const receiptNo = String(row[mapping.receiptNo] ?? '').trim() || `auto-${date}-${i}`
 
     const cashier = await resolveOrCreateCashier(cashierRaw)
@@ -90,6 +91,7 @@ export async function importSalesSheet(
       valueNoVat,
       purchasePriceUnit,
       shift,
+      promotionRaw,
     })
 
     if (!dateMin || date < dateMin) dateMin = date

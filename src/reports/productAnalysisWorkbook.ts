@@ -183,7 +183,7 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
   sectionTitle(ws, r, 5, 'LINII PROMOȚII VÂNDUTE PE ECHIPĂ')
   r++
   if (!data.promoConfigured) {
-    ws.getCell(r, 1).value = 'Grupul "Promoții" nu e încă mapat: în Nomenclator → Grupuri pe categorie, bifează ce categorie din exportul tău reprezintă liniile de promoție, ca să apară aici.'
+    ws.getCell(r, 1).value = 'Nicio sursă de promoții configurată încă: mapează coloana "Promoție" la Import date → Mapare coloane, sau bifează o categorie ca "Promoții" în Nomenclator → Grupuri pe categorie, ca să apară aici.'
     styleCell(ws.getCell(r, 1), { align: 'left' })
     r += 2
   } else {
@@ -219,6 +219,29 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
     const totalReceipts = data.promo.reduce((s, row) => s + row.totalReceipts, 0)
     styleCell(ws.getCell(r, 5), { bold: true, fmt: PCT_FMT })
     ws.getCell(r, 5).value = totalReceipts > 0 ? totalLines / totalReceipts : 0
+    r += 3
+
+    if (data.promoBreakdown.length > 0) {
+      sectionTitle(ws, r, teamCols + 2, 'PROMOȚII – LINII PE TIP DE PROMOȚIE ȘI ECHIPĂ')
+      r++
+      ;['Promoție', ...data.teamIds.map((id) => data.teamNames[id]), 'TOTAL'].forEach((h, i) => {
+        const c = ws.getCell(r, i + 1)
+        c.value = h
+        styleCell(c, { bold: true, align: i === 0 ? 'left' : 'center' })
+      })
+      r++
+      for (const row of data.promoBreakdown) {
+        styleCell(ws.getCell(r, 1), { align: 'left' })
+        ws.getCell(r, 1).value = row.label
+        data.teamIds.forEach((id, i) => {
+          styleCell(ws.getCell(r, i + 2), { fill: colorOf(id), fmt: INT_FMT })
+          ws.getCell(r, i + 2).value = row.byTeam[id] ?? 0
+        })
+        styleCell(ws.getCell(r, teamCols + 2), { bold: true, fmt: INT_FMT })
+        ws.getCell(r, teamCols + 2).value = row.total
+        r++
+      }
+    }
   }
 
   return wb

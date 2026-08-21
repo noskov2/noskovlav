@@ -105,6 +105,7 @@ export interface TransactionLine {
   valueNoVat: number | null
   purchasePriceUnit: number | null // unit purchase price if present in the import
   shift: ShiftNumber | null
+  promotionRaw: string | null // raw value from the mapped "promoție" column, if configured
 }
 
 export type ImportKind = 'sales' | 'purchases' | 'stock'
@@ -132,6 +133,7 @@ export interface SalesColumnMapping {
   value: string
   purchasePrice: string | null
   valueNoVat: string | null
+  promotion: string | null // column that says which promotion (if any) a line belongs to
 }
 
 export interface PurchaseColumnMapping {

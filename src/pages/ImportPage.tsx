@@ -30,6 +30,7 @@ const SALES_FIELDS: { key: keyof SalesColumnMapping; label: string; required: bo
   { key: 'value', label: 'Valoare (vânzare)', required: true },
   { key: 'valueNoVat', label: 'Valoare fără TVA', required: false },
   { key: 'purchasePrice', label: 'Preț achiziție (unitar)', required: false },
+  { key: 'promotion', label: 'Promoție (ce promoție este, dacă e cazul)', required: false },
 ]
 
 const PURCHASE_FIELDS: { key: keyof PurchaseColumnMapping; label: string; required: boolean }[] = [

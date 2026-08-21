@@ -12,12 +12,16 @@ import { NO_TEAM_ID } from '@/kpi/teamRollup'
 // Raport Bonuri, this one is NOT required to be 1:1 with the reference file
 // — it is meant to improve on it.
 //
-// "Linii promoții" relies on the "Promoții" special group in Nomenclator ->
-// Grupuri pe categorie (same mechanism already used for Cafea/Sandwich/
-// Dulciuri Vitrină): map whichever raw category your POS export uses for
-// promotional bundles (e.g. "PROMOTII") to that group, and this section
-// picks it up automatically. Until that's mapped, the section still renders
-// with zeros rather than being silently skipped, so the gap is visible.
+// "Linii promoții" is detected two ways, combined with OR:
+//  1. The "Promoție" column mapped at import time (Import date -> Mapare
+//     coloane) — its raw text becomes the promotion's name/label, so the
+//     breakdown below can show *which* promotion each team sold, not just a
+//     count.
+//  2. The "Promoții" special group in Nomenclator -> Grupuri pe categorie
+//     (same mechanism used for Cafea/Sandwich/Dulciuri Vitrină), for stations
+//     that only have a dedicated category rather than a per-line column.
+// Until at least one is configured, the section still renders with a clear
+// explanation instead of being silently skipped.
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0')
@@ -63,6 +67,12 @@ export interface TeamPromoRow {
   pctOfReceipts: number // 0..100
 }
 
+export interface PromoBreakdownRow {
+  label: string // the promotion's name, from the mapped column (or the product name as a fallback)
+  byTeam: Record<string, number> // teamId -> line count
+  total: number
+}
+
 export interface ProductAnalysisData {
   year: number
   month: number
@@ -83,7 +93,8 @@ export interface ProductAnalysisData {
   coffeeTotals: { espressoLung: number; espresso: number; cappuccino: number; total: number }
 
   promo: TeamPromoRow[]
-  promoConfigured: boolean // false if no category is mapped to the "Promoții" group yet
+  promoBreakdown: PromoBreakdownRow[]
+  promoConfigured: boolean // false if neither the "Promoție" column nor the "Promoții" group is set up yet
 }
 
 export function computeProductAnalysisData(
@@ -213,10 +224,15 @@ export function computeProductAnalysisData(
 
   // ---- PROMOȚII ----
   const promoProductIds = productIdsInGroup(products, 'promotii')
-  const promoConfigured = promoProductIds.size > 0
+  const productsById = new Map(products.map((p) => [p.id, p]))
+  const hasPromoColumn = monthTx.some((t) => !!t.promotionRaw)
+  const promoConfigured = promoProductIds.size > 0 || hasPromoColumn
+  const isPromoLine = (t: TransactionLine) => !!t.promotionRaw || promoProductIds.has(t.productId)
+  const promoLabelOf = (t: TransactionLine) => t.promotionRaw?.trim() || productsById.get(t.productId)?.name || t.productRaw
+
   const promo: TeamPromoRow[] = teamIds.map((id) => {
     const lines = linesByTeam.get(id)!
-    const promoLines = lines.filter((t) => promoProductIds.has(t.productId))
+    const promoLines = lines.filter(isPromoLine)
     const totalReceipts = receiptsByTeam.get(id)!.length
     return {
       teamId: id,
@@ -227,6 +243,32 @@ export function computeProductAnalysisData(
       pctOfReceipts: totalReceipts > 0 ? (promoLines.length / totalReceipts) * 100 : 0,
     }
   })
+
+  const promoCountByLabelTeam = new Map<string, Map<string, number>>() // label -> teamId -> count
+  for (const id of teamIds) {
+    for (const t of linesByTeam.get(id)!) {
+      if (!isPromoLine(t)) continue
+      const label = promoLabelOf(t)
+      let byTeam = promoCountByLabelTeam.get(label)
+      if (!byTeam) {
+        byTeam = new Map()
+        promoCountByLabelTeam.set(label, byTeam)
+      }
+      byTeam.set(id, (byTeam.get(id) ?? 0) + 1)
+    }
+  }
+  const promoBreakdown: PromoBreakdownRow[] = Array.from(promoCountByLabelTeam.entries())
+    .map(([label, byTeam]) => {
+      const byTeamObj: Record<string, number> = {}
+      let total = 0
+      for (const id of teamIds) {
+        const c = byTeam.get(id) ?? 0
+        byTeamObj[id] = c
+        total += c
+      }
+      return { label, byTeam: byTeamObj, total }
+    })
+    .sort((a, b) => b.total - a.total)
 
   const monthLabelText = monthLabel(`${year}-${pad(month)}-01`)
 
@@ -245,6 +287,7 @@ export function computeProductAnalysisData(
     coffee,
     coffeeTotals,
     promo,
+    promoBreakdown,
     promoConfigured,
   }
 }
