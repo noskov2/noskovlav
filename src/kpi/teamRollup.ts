@@ -57,6 +57,9 @@ export function computeTeamRollup(
     const lemonadeQty = sum((r) => r.lemonade.quantity)
     const lemonadeValue = sum((r) => r.lemonade.value)
     const lemonadeReceipts = sum((r) => r.lemonade.receiptsWithLemonade)
+    const promoLineCount = sum((r) => r.promo.lineCount)
+    const promoValue = sum((r) => r.promo.value)
+    const promoReceipts = sum((r) => r.promo.receiptsWithPromo)
 
     result.push({
       cashier: { id: `${TEAM_ROW_PREFIX}${teamId}`, name: teamName, aliases: [], active: true, teamId: null, createdAt: 0 },
@@ -102,6 +105,12 @@ export function computeTeamRollup(
         value: lemonadeValue,
         receiptsWithLemonade: lemonadeReceipts,
         pctReceipts: pct(lemonadeReceipts, totalReceipts),
+      },
+      promo: {
+        lineCount: promoLineCount,
+        value: promoValue,
+        receiptsWithPromo: promoReceipts,
+        pctReceipts: pct(promoReceipts, totalReceipts),
       },
     })
   }

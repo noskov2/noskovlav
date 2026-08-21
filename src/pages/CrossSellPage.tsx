@@ -17,6 +17,7 @@ import { CoffeeTab } from '@/pages/crossSell/CoffeeTab'
 import { VitrinaTab } from '@/pages/crossSell/VitrinaTab'
 import { SandwichTab } from '@/pages/crossSell/SandwichTab'
 import { LemonadeTab } from '@/pages/crossSell/LemonadeTab'
+import { PromoTab } from '@/pages/crossSell/PromoTab'
 import { ScoreTab } from '@/pages/crossSell/ScoreTab'
 
 const TABS = [
@@ -25,6 +26,7 @@ const TABS = [
   { key: 'vitrina', label: 'Dulciuri Vitrină' },
   { key: 'sandwich', label: 'Sandwich-uri' },
   { key: 'lemonade', label: 'Limonade/Ceaiuri' },
+  { key: 'promo', label: 'Promoții' },
   { key: 'score', label: 'Score Casieri' },
 ]
 
@@ -91,6 +93,7 @@ export function CrossSellPage() {
           <CompareStat label="Cafea" current={formatNumber(report.stationTotal.coffee.total)} delta={computeDelta(report.stationTotal.coffee.total, prevReport.stationTotal.coffee.total)} />
           <CompareStat label="Dulciuri vitrină" current={formatNumber(report.stationTotal.vitrina.quantity)} delta={computeDelta(report.stationTotal.vitrina.quantity, prevReport.stationTotal.vitrina.quantity)} />
           <CompareStat label="Sandwich-uri" current={formatNumber(report.stationTotal.sandwich.total)} delta={computeDelta(report.stationTotal.sandwich.total, prevReport.stationTotal.sandwich.total)} />
+          <CompareStat label="Promoții (valoare)" current={formatLei(report.stationTotal.promo.value)} delta={computeDelta(report.stationTotal.promo.value, prevReport.stationTotal.promo.value)} />
         </div>
       )}
 
@@ -122,6 +125,7 @@ export function CrossSellPage() {
           {tab === 'vitrina' && <VitrinaTab {...tabProps} />}
           {tab === 'sandwich' && <SandwichTab {...tabProps} />}
           {tab === 'lemonade' && <LemonadeTab {...tabProps} />}
+          {tab === 'promo' && <PromoTab {...tabProps} />}
           {tab === 'score' && <ScoreTab {...tabProps} />}
         </div>
       </div>

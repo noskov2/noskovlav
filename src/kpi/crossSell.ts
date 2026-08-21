@@ -42,6 +42,13 @@ export interface LemonadeBreakdown {
   pctReceipts: number
 }
 
+export interface PromoBreakdown {
+  lineCount: number
+  value: number
+  receiptsWithPromo: number
+  pctReceipts: number
+}
+
 export interface CashierCrossSellRow {
   cashier: Cashier
   totalReceipts: number
@@ -56,6 +63,7 @@ export interface CashierCrossSellRow {
   vitrina: VitrinaBreakdown
   sandwich: SandwichBreakdown
   lemonade: LemonadeBreakdown
+  promo: PromoBreakdown
 }
 
 function computeCoffee(receipts: Receipt[], products: Product[]): CoffeeBreakdown {
@@ -179,6 +187,36 @@ function computeLemonade(receipts: Receipt[], products: Product[]): LemonadeBrea
   }
 }
 
+// A line counts as promotional either via the "Promoție" column mapped at
+// import time (its raw text becomes the promotion's label elsewhere) or via
+// the "Promoții" special group in Nomenclator -> Grupuri pe categorie.
+function isPromoLine(line: TransactionLine, promoProductIds: Set<string>): boolean {
+  return !!line.promotionRaw || promoProductIds.has(line.productId)
+}
+
+function computePromo(receipts: Receipt[], products: Product[]): PromoBreakdown {
+  const promoProductIds = productIdsInGroup(products, 'promotii')
+  let lineCount = 0
+  let value = 0
+  let receiptsWithPromo = 0
+  for (const r of receipts) {
+    let hasPromo = false
+    for (const l of r.lines) {
+      if (!isPromoLine(l, promoProductIds)) continue
+      lineCount++
+      value += l.value
+      hasPromo = true
+    }
+    if (hasPromo) receiptsWithPromo++
+  }
+  return {
+    lineCount,
+    value,
+    receiptsWithPromo,
+    pctReceipts: receipts.length > 0 ? (receiptsWithPromo / receipts.length) * 100 : 0,
+  }
+}
+
 function buildCashierRow(cashier: Cashier, receipts: Receipt[], products: Product[]): CashierCrossSellRow {
   const totalSales = receipts.reduce((s, r) => s + r.totalValue, 0)
   const fuelReceipts = receipts.filter((r) => r.hasFuel)
@@ -200,6 +238,7 @@ function buildCashierRow(cashier: Cashier, receipts: Receipt[], products: Produc
     vitrina: computeVitrina(receipts, products),
     sandwich: computeSandwich(receipts, products),
     lemonade: computeLemonade(receipts, products),
+    promo: computePromo(receipts, products),
   }
 }
 
