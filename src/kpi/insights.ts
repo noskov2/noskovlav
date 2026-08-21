@@ -15,7 +15,7 @@ export interface Insight {
 
 function previousRange(range: DateRange): DateRange {
   const len = dayCountInRange(range)
-  return { start: addDays(range.start, -len), end: addDays(range.end, -1) }
+  return { start: addDays(range.start, -len), end: addDays(range.start, -1) }
 }
 
 export function computeInsights(

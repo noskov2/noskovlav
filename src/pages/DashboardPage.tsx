@@ -75,6 +75,7 @@ export function DashboardPage() {
   const topProducts = useMemo(() => {
     const map = new Map<string, { name: string; category: string; qty: number; value: number }>()
     for (const t of periodTx) {
+      if (fuelIds.has(t.productId)) continue // combustibilul are propriul panou mai jos — nu ocupă locurile din top
       const p = productsById.get(t.productId)
       const acc = map.get(t.productId) ?? { name: p?.name ?? t.productRaw, category: p?.category ?? t.categoryRaw, qty: 0, value: 0 }
       acc.qty += t.quantity
@@ -85,7 +86,7 @@ export function DashboardPage() {
       .map(([productId, v]) => ({ productId, ...v }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5)
-  }, [periodTx, productsById])
+  }, [periodTx, productsById, fuelIds])
 
   const teamLeaderboard = useMemo(() => {
     const report = computeCrossSellReport(periodTx, products, cashiers)
@@ -325,7 +326,7 @@ export function DashboardPage() {
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Top 5 produse</h3>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Top 5 produse (fără carburant)</h3>
           {topProducts.length === 0 ? (
             <p className="text-sm text-slate-400">Nicio vânzare în perioada selectată.</p>
           ) : (
