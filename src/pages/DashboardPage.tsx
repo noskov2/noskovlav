@@ -24,6 +24,8 @@ import { computeTeamRollup } from '@/kpi/teamRollup'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 import { DeltaBadge } from '@/components/ui/DeltaBadge'
 
+const TOP_GENERAL = '__general__'
+
 export function DashboardPage() {
   const { transactions, products, cashiers, teams, supplierReceipts, productsById, cashiersById } = useDataStore()
   const { filter } = useFilterStore()
@@ -72,12 +74,22 @@ export function DashboardPage() {
   const fuelTypeRows = (['motorina', 'benzina', 'gpl', 'altul'] as FuelTypeKey[]).filter(
     (k) => fuelBreakdown[k].quantity > 0 || fuelBreakdown[k].value > 0 || prevFuelBreakdown[k].value > 0,
   )
+  const [topCategory, setTopCategory] = useState<string>(TOP_GENERAL)
+  const topCategoryOptions = useMemo(
+    () => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort(),
+    [products],
+  )
   const topProducts = useMemo(() => {
     const map = new Map<string, { name: string; category: string; qty: number; value: number }>()
     for (const t of periodTx) {
-      if (fuelIds.has(t.productId)) continue // combustibilul are propriul panou mai jos — nu ocupă locurile din top
       const p = productsById.get(t.productId)
-      const acc = map.get(t.productId) ?? { name: p?.name ?? t.productRaw, category: p?.category ?? t.categoryRaw, qty: 0, value: 0 }
+      const category = p?.category || t.categoryRaw
+      if (topCategory === TOP_GENERAL) {
+        if (fuelIds.has(t.productId)) continue // combustibilul are propriul panou mai jos — nu ocupă locurile din top general
+      } else if (category !== topCategory) {
+        continue
+      }
+      const acc = map.get(t.productId) ?? { name: p?.name ?? t.productRaw, category, qty: 0, value: 0 }
       acc.qty += t.quantity
       acc.value += t.value
       map.set(t.productId, acc)
@@ -85,8 +97,8 @@ export function DashboardPage() {
     return Array.from(map.entries())
       .map(([productId, v]) => ({ productId, ...v }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-  }, [periodTx, productsById, fuelIds])
+      .slice(0, 10)
+  }, [periodTx, productsById, fuelIds, topCategory])
 
   const teamLeaderboard = useMemo(() => {
     const report = computeCrossSellReport(periodTx, products, cashiers)
@@ -326,7 +338,21 @@ export function DashboardPage() {
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-700">Top 5 produse (fără carburant)</h3>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-slate-700">Top 10 produse</h3>
+            <select
+              value={topCategory}
+              onChange={(e) => setTopCategory(e.target.value)}
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+            >
+              <option value={TOP_GENERAL}>General (fără motorină, benzină, GPL)</option>
+              {topCategoryOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
           {topProducts.length === 0 ? (
             <p className="text-sm text-slate-400">Nicio vânzare în perioada selectată.</p>
           ) : (
