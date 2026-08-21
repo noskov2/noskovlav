@@ -1,6 +1,6 @@
 import { db } from '@/data/db'
 import { slugify } from '@/lib/id'
-import { emptyGroups, type Product, type ProductGroups } from '@/types/domain'
+import { emptyGroups, type CategoryGroupRules, type Product, type ProductGroups } from '@/types/domain'
 import { guessGroupsFromName } from '@/processing/groupHeuristics'
 import { getSettings } from '@/data/repo/settings'
 
@@ -55,9 +55,15 @@ export async function resolveOrCreateProduct(
   const now = Date.now()
   const settings = await getSettings()
   const category = categoryRaw || 'Necategorizat'
-  const groups = { ...emptyGroups(), ...guessGroupsFromName(trimmed, categoryRaw) }
-  for (const key of Object.keys(settings.categoryGroupRules) as (keyof ProductGroups)[]) {
-    if (settings.categoryGroupRules[key].includes(category)) groups[key] = true
+  // Once a group has at least one category mapped in Nomenclator -> Grupuri
+  // pe categorie, that mapping is authoritative for the group (true only if
+  // this product's category is in the list, false otherwise) — the
+  // name-keyword heuristic only fills in groups nobody has configured yet.
+  const guessed = { ...emptyGroups(), ...guessGroupsFromName(trimmed, categoryRaw) }
+  const groups = emptyGroups()
+  for (const key of Object.keys(groups) as (keyof ProductGroups)[]) {
+    const rule = settings.categoryGroupRules[key]
+    groups[key] = rule.length > 0 ? rule.includes(category) : guessed[key]
   }
 
   const product: Product = {
@@ -85,21 +91,51 @@ export async function bulkSetProducts(products: Product[]): Promise<void> {
 }
 
 /**
- * Bulk-applies (or removes) one special group flag to every product
- * currently in `category`, so ticking a category once in the Nomenclator
- * fixes every existing product in it — not just future imports.
+ * Re-applies one group's full category list to every product (not just the
+ * one category that was just toggled), so the category rule is fully
+ * authoritative for this group: a product in an allowed category ends up
+ * with the flag on, and — importantly — a product that had picked up the
+ * flag some other way (the name-keyword heuristic at creation time, e.g.)
+ * but is NOT in an allowed category gets it turned back off. This is what
+ * makes toggling a category a real fix, not just an addition.
  */
 export async function setGroupForCategory(
-  category: string,
   group: keyof ProductGroups,
-  enabled: boolean,
+  allowedCategories: string[],
 ): Promise<number> {
-  const matches = await db.products.where('category').equals(category).toArray()
-  const updated = matches.map((p) => ({
-    ...p,
-    groups: { ...p.groups, [group]: enabled },
-    updatedAt: Date.now(),
-  }))
-  await db.products.bulkPut(updated)
-  return updated.length
+  const allowed = new Set(allowedCategories)
+  const all = await db.products.toArray()
+  const toUpdate = all
+    .filter((p) => p.groups[group] !== allowed.has(p.category))
+    .map((p) => ({ ...p, groups: { ...p.groups, [group]: allowed.has(p.category) }, updatedAt: Date.now() }))
+  if (toUpdate.length > 0) await db.products.bulkPut(toUpdate)
+  return toUpdate.length
+}
+
+/**
+ * Re-derives every configured group's membership from categoryGroupRules
+ * across all products in one pass — for groups with no categories mapped
+ * yet, existing flags are left untouched. Use this to clean up products
+ * that were auto-tagged by the name-keyword heuristic before a category
+ * rule existed for their group.
+ */
+export async function resyncAllGroupsFromCategoryRules(rules: CategoryGroupRules): Promise<number> {
+  const all = await db.products.toArray()
+  const toUpdate: Product[] = []
+  for (const p of all) {
+    let changed = false
+    const groups = { ...p.groups }
+    for (const key of Object.keys(rules) as (keyof ProductGroups)[]) {
+      const allowed = rules[key]
+      if (allowed.length === 0) continue
+      const shouldBe = allowed.includes(p.category)
+      if (groups[key] !== shouldBe) {
+        groups[key] = shouldBe
+        changed = true
+      }
+    }
+    if (changed) toUpdate.push({ ...p, groups, updatedAt: Date.now() })
+  }
+  if (toUpdate.length > 0) await db.products.bulkPut(toUpdate)
+  return toUpdate.length
 }

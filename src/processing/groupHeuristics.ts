@@ -14,6 +14,11 @@ function norm(s: string): string {
 
 const COFFEE_KEYWORDS = ['espresso', 'cappuccino', 'capuccino']
 const SANDWICH_KEYWORDS = ['sandwich', 'sandvis', 'sandvici']
+// Deliberately does NOT include generic snack-food words like "covrig" or
+// "napolitan" — those are packaged/purchased snacks (a different category
+// in most POS exports), not in-house patisserie, and matching them caused
+// real false positives. Prefer mapping the exact category via Nomenclator
+// -> Grupuri pe categorie over widening this list further.
 const VITRINA_KEYWORDS = [
   'croissant',
   'gogoasa',
@@ -21,8 +26,6 @@ const VITRINA_KEYWORDS = [
   'brioche',
   'briosa',
   'placinta',
-  'covrig',
-  'napolitan',
   'ecler',
   'tarta',
   'cornulet',

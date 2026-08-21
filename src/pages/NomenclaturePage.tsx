@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Tabs } from '@/components/ui/Tabs'
 import { useDataStore } from '@/store/dataStore'
-import { setGroupForCategory, upsertProduct } from '@/data/repo/products'
+import { resyncAllGroupsFromCategoryRules, setGroupForCategory, upsertProduct } from '@/data/repo/products'
 import { mergeCashiers, upsertCashier } from '@/data/repo/cashiers'
 import { deleteTeam, upsertTeam } from '@/data/repo/teams'
 import { updateSettings } from '@/data/repo/settings'
@@ -58,14 +58,21 @@ export function NomenclaturePage() {
               products={products}
               rules={settings?.categoryGroupRules ?? null}
               onToggle={async (category, group, enabled) => {
-                await setGroupForCategory(category, group, enabled)
                 const current = settings?.categoryGroupRules ?? {
                   cafea: [], dulciuriVitrina: [], sandwich: [], limonadaCeai: [], carburant: [], gpl: [], promotii: [],
                 }
                 const list = current[group]
                 const nextList = enabled ? Array.from(new Set([...list, category])) : list.filter((c) => c !== category)
+                await setGroupForCategory(group, nextList)
                 await updateSettings({ categoryGroupRules: { ...current, [group]: nextList } })
                 await refresh()
+              }}
+              onResync={async () => {
+                const rules = settings?.categoryGroupRules
+                if (!rules) return 0
+                const n = await resyncAllGroupsFromCategoryRules(rules)
+                await refresh()
+                return n
               }}
             />
           )}
@@ -266,12 +273,16 @@ function GroupsByCategoryTab({
   products,
   rules,
   onToggle,
+  onResync,
 }: {
   products: Product[]
   rules: CategoryGroupRules | null
   onToggle: (category: string, group: keyof ProductGroups, enabled: boolean) => Promise<void>
+  onResync: () => Promise<number>
 }) {
   const [pending, setPending] = useState<string | null>(null)
+  const [resyncing, setResyncing] = useState(false)
+  const [resyncResult, setResyncResult] = useState<number | null>(null)
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>()
@@ -288,11 +299,36 @@ function GroupsByCategoryTab({
 
   return (
     <div>
-      <p className="mb-4 text-sm text-slate-500">
+      <p className="mb-2 text-sm text-slate-500">
         Bifează ce categorii din nomenclatorul tău aparțin fiecărui grup special. Aplicarea e imediată — se
         actualizează toate produsele din categoria respectivă, inclusiv cele deja importate — și rămâne activă
-        pentru orice produs nou din acea categorie la viitoarele importuri.
+        pentru orice produs nou din acea categorie la viitoarele importuri. Bifarea/debifarea unei categorii
+        resincronizează întregul grup, deci corectează și produse care fuseseră marcate greșit după nume (nu după
+        categorie) înainte să configurezi regula.
       </p>
+      <div className="mb-4 flex items-center gap-2">
+        <button
+          disabled={resyncing || !rules}
+          onClick={async () => {
+            setResyncing(true)
+            setResyncResult(null)
+            try {
+              const n = await onResync()
+              setResyncResult(n)
+            } finally {
+              setResyncing(false)
+            }
+          }}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+        >
+          {resyncing ? 'Resincronizez...' : 'Resincronizează toate grupurile din regulile de mai jos'}
+        </button>
+        {resyncResult != null && (
+          <span className="text-xs text-slate-500">
+            {resyncResult === 0 ? 'Totul era deja corect.' : `${resyncResult} produse corectate.`}
+          </span>
+        )}
+      </div>
       <div className="overflow-x-auto rounded-lg border border-slate-100 scrollbar-thin">
         <table className="min-w-full divide-y divide-slate-100 text-sm">
           <thead className="bg-slate-50">
