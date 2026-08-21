@@ -11,6 +11,7 @@ import { effectiveRange } from '@/kpi/filterState'
 import { computeDayDetail, computeDayComparisons, COMPARISON_METRIC_LABELS, type ComparisonMetricKey } from '@/kpi/dailyPerformance'
 import { computeDailySeries } from '@/kpi/dailySeries'
 import { productIdsInGroup } from '@/kpi/productGroups'
+import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
 import { formatDateRo, formatLei, formatNumber, formatPct, formatSignedLei, formatSignedPct } from '@/lib/format'
 import { weekdayName } from '@/kpi/dateRanges'
 
@@ -67,6 +68,11 @@ export function DailyPerformancePage() {
   }, [view, detail])
 
   const fuelIds = useMemo(() => productIdsInGroup(products, 'carburant'), [products])
+  const fuelTypeIds = useMemo(() => resolveFuelTypeIds(products), [products])
+  const fuelBreakdown = useMemo(() => computeFuelBreakdown(viewTransactions, products), [viewTransactions, products])
+  const fuelTypeRows = (['motorina', 'benzina', 'gpl', 'altul'] as FuelTypeKey[]).filter(
+    (k) => fuelBreakdown[k].quantity > 0 || fuelBreakdown[k].value > 0,
+  )
   const coffeeIds = useMemo(() => productIdsInGroup(products, 'cafea'), [products])
   const sandwichIds = useMemo(() => productIdsInGroup(products, 'sandwich'), [products])
   const vitrinaIds = useMemo(() => productIdsInGroup(products, 'dulciuriVitrina'), [products])
@@ -197,6 +203,39 @@ export function DailyPerformancePage() {
             />
             <KpiCard label="Cross-sell" value={formatPct(viewSummary.crossSellPct)} />
           </div>
+
+          {fuelTypeRows.length > 0 && (
+            <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="mb-2 text-sm font-semibold text-slate-700">Combustibil pe tip</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-100 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-2 py-1.5">Tip</th>
+                      <th className="px-2 py-1.5 text-right">Cantitate</th>
+                      <th className="px-2 py-1.5 text-right">Valoare</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {fuelTypeRows.map((key) => (
+                      <tr key={key}>
+                        <td className="px-2 py-1.5 font-medium text-slate-800">{FUEL_TYPE_LABELS[key]}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          <DrillValue
+                            title={`${FUEL_TYPE_LABELS[key]} — cantitate`}
+                            lines={viewTransactions.filter((t) => fuelTypeIds[key].has(t.productId))}
+                          >
+                            {formatNumber(fuelBreakdown[key].quantity, 0)} L
+                          </DrillValue>
+                        </td>
+                        <td className="px-2 py-1.5 text-right">{formatLei(fuelBreakdown[key].value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {view === 'total' && detail.byCashier.length > 0 && (
             <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
