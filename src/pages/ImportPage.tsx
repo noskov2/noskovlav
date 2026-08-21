@@ -45,6 +45,7 @@ const STOCK_FIELDS: { key: keyof StockColumnMapping; label: string; required: bo
   { key: 'product', label: 'Produs', required: true },
   { key: 'quantity', label: 'Stoc curent', required: true },
   { key: 'salePrice', label: 'Preț vânzare', required: false },
+  { key: 'category', label: 'Categorie (actualizează categoria produsului)', required: false },
 ]
 
 const KIND_LABELS: Record<ImportKind, string> = {

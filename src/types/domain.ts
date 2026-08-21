@@ -159,6 +159,11 @@ export interface StockColumnMapping {
   product: string
   quantity: string
   salePrice: string | null
+  // The stock/nomenclature export's own category column, if present — this
+  // is treated as the authoritative category for a product (it overwrites
+  // whatever a sales import or heuristic had guessed), since this file is
+  // typically the station's real product master list.
+  category: string | null
 }
 
 // A snapshot row: "this product had this much stock, at this sale price,

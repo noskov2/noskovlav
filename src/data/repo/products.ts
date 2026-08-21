@@ -91,6 +91,38 @@ export async function bulkSetProducts(products: Product[]): Promise<void> {
 }
 
 /**
+ * Corrects each listed product's category from an authoritative source
+ * (the stock/nomenclature export's own "Categorie" column, typically) and
+ * re-derives its groups for every group that already has category rules
+ * configured — same "category rule wins once configured" logic as
+ * resolveOrCreateProduct/setGroupForCategory, just triggered by a category
+ * change instead of a rule change. Groups with no rules yet keep whatever
+ * flag they already had (heuristic or manual).
+ */
+export async function applyCategoriesFromStock(
+  entries: { productId: string; category: string }[],
+  rules: CategoryGroupRules,
+): Promise<number> {
+  const byId = new Map(entries.filter((e) => e.category).map((e) => [e.productId, e.category]))
+  if (byId.size === 0) return 0
+  const all = await db.products.bulkGet(Array.from(byId.keys()))
+  const toUpdate: Product[] = []
+  for (const p of all) {
+    if (!p) continue
+    const category = byId.get(p.id)!
+    if (category === p.category) continue
+    const groups = { ...p.groups }
+    for (const key of Object.keys(rules) as (keyof ProductGroups)[]) {
+      const allowed = rules[key]
+      if (allowed.length > 0) groups[key] = allowed.includes(category)
+    }
+    toUpdate.push({ ...p, category, groups, updatedAt: Date.now() })
+  }
+  if (toUpdate.length > 0) await db.products.bulkPut(toUpdate)
+  return toUpdate.length
+}
+
+/**
  * Re-applies one group's full category list to every product (not just the
  * one category that was just toggled), so the category rule is fully
  * authoritative for this group: a product in an allowed category ends up

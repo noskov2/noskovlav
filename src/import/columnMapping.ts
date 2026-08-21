@@ -72,6 +72,7 @@ export function guessStockMapping(headers: string[]): StockColumnMapping {
     product: guessColumn(headers, 'product') ?? '',
     quantity: guessColumn(headers, 'stockQty') ?? guessColumn(headers, 'quantity') ?? '',
     salePrice: guessColumn(headers, 'salePrice'),
+    category: guessColumn(headers, 'category'),
   }
 }
 

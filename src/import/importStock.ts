@@ -1,9 +1,10 @@
 import { uid } from '@/lib/id'
 import type { ParsedSheet } from '@/import/excelParser'
 import { toNumber } from '@/import/columnMapping'
-import { getProduct, resolveOrCreateProduct, upsertProduct } from '@/data/repo/products'
+import { applyCategoriesFromStock, getProduct, resolveOrCreateProduct, upsertProduct } from '@/data/repo/products'
 import { bulkInsertStockSnapshots, getLatestSnapshotForProduct } from '@/data/repo/stockSnapshots'
 import { addImportBatch } from '@/data/repo/importBatches'
+import { getSettings } from '@/data/repo/settings'
 import type { StockColumnMapping, StockSnapshotLine } from '@/types/domain'
 
 export interface StockImportResult {
@@ -28,6 +29,7 @@ export async function importStockSheet(
 ): Promise<StockImportResult> {
   const importBatchId = uid('import')
   const lines: StockSnapshotLine[] = []
+  const categoryEntries: { productId: string; category: string }[] = []
   let skipped = 0
 
   for (const row of sheet.rows) {
@@ -38,8 +40,10 @@ export async function importStockSheet(
     }
     const quantity = toNumber(row[mapping.quantity])
     const salePrice = mapping.salePrice ? toNumber(row[mapping.salePrice]) || null : null
+    const categoryRaw = mapping.category ? String(row[mapping.category] ?? '').trim() : ''
 
-    const product = await resolveOrCreateProduct(productRaw, '', null)
+    const product = await resolveOrCreateProduct(productRaw, categoryRaw, null)
+    if (categoryRaw) categoryEntries.push({ productId: product.id, category: categoryRaw })
 
     lines.push({
       id: uid('stock'),
@@ -53,6 +57,15 @@ export async function importStockSheet(
   }
 
   await bulkInsertStockSnapshots(lines)
+
+  // The stock/nomenclature export's category column is treated as
+  // authoritative — it corrects a product's category (and, for any group
+  // that already has category rules configured, its groups too) even for
+  // products that already existed from an earlier sales import.
+  if (categoryEntries.length > 0) {
+    const settings = await getSettings()
+    await applyCategoriesFromStock(categoryEntries, settings.categoryGroupRules)
+  }
 
   const asOfDate = new Date(asOf)
   const asOfIso = `${asOfDate.getFullYear()}-${String(asOfDate.getMonth() + 1).padStart(2, '0')}-${String(asOfDate.getDate()).padStart(2, '0')}`
