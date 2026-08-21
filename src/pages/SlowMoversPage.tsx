@@ -4,9 +4,11 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { DrillValue } from '@/components/ui/DrillValue'
+import { DeltaBadge } from '@/components/ui/DeltaBadge'
 import { useDataStore } from '@/store/dataStore'
 import { computeSlowMovers, MOVEMENT_LABELS, type MovementClass, type SlowMoverRow } from '@/kpi/slowMovers'
 import { addDays, todayStr, type DateRange } from '@/kpi/dateRanges'
+import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
 
 type WindowPreset = 7 | 14 | 30 | 60 | 'custom'
@@ -38,6 +40,11 @@ export function SlowMoversPage() {
   )
 
   const rows = useMemo(() => computeSlowMovers(transactions, products, range), [transactions, products, range])
+
+  const [compare, setCompare] = useState(false)
+  const prevRange = useMemo(() => previousMonthRange(range), [range])
+  const prevRows = useMemo(() => computeSlowMovers(transactions, products, prevRange), [transactions, products, prevRange])
+  const prevSalesByProduct = useMemo(() => new Map(prevRows.map((r) => [r.product.id, r.salesValue])), [prevRows])
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
@@ -133,6 +140,17 @@ export function SlowMoversPage() {
       render: (r) => <Badge tone={CLASS_TONE[r.classification]}>{MOVEMENT_LABELS[r.classification]}</Badge>,
       sortValue: (r) => r.classification,
     },
+    ...(compare
+      ? ([
+          {
+            key: 'vsLastMonth',
+            header: 'vs. luna anterioară',
+            align: 'right',
+            render: (r) => <DeltaBadge delta={computeDelta(r.salesValue, prevSalesByProduct.get(r.product.id) ?? 0)} />,
+            sortValue: (r) => computeDelta(r.salesValue, prevSalesByProduct.get(r.product.id) ?? 0).pct ?? -Infinity,
+          },
+        ] as DataTableColumn<SlowMoverRow>[])
+      : []),
   ]
 
   return (
@@ -218,6 +236,11 @@ export function SlowMoversPage() {
           />
         </div>
       </div>
+
+      <label className="mb-4 flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm">
+        <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} />
+        Compară vânzările fiecărui produs cu luna anterioară
+      </label>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatBox label="Produse analizate" value={formatNumber(rows.length)} />

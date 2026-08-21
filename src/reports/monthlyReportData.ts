@@ -1,6 +1,7 @@
 import type { Product, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts } from '@/kpi/receipts'
 import { fuelProductIds } from '@/kpi/productGroups'
+import { computeFuelBreakdown, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
 import { monthLabel } from '@/kpi/dateRanges'
 
 // Exact category order and section rules reverse-engineered from the
@@ -68,6 +69,14 @@ export interface CategoryRow {
   pct: number
 }
 
+export interface FuelTypeRow {
+  key: FuelTypeKey
+  label: string
+  quantity: number
+  value: number
+  pct: number // % of total fuel value
+}
+
 export interface ProductRow {
   rank: number
   name: string
@@ -108,6 +117,7 @@ export interface MonthlyReportData {
 
   byWeekday: WeekdayRow[]
   byCategory: CategoryRow[]
+  byFuelType: FuelTypeRow[]
 
   topProducts: ProductRow[]
   topProductsTotal: { quantity: number; value: number; pct: number }
@@ -195,6 +205,18 @@ export function computeMonthlyReportData(
       pct: totalSales > 0 ? value / totalSales : 0,
     }
   })
+
+  // ---- fuel by type (Motorină/Benzină/GPL) ----
+  const fuelBreakdown = computeFuelBreakdown(monthTx, products)
+  const byFuelType: FuelTypeRow[] = (['motorina', 'benzina', 'gpl', 'altul'] as FuelTypeKey[])
+    .map((key) => ({
+      key,
+      label: FUEL_TYPE_LABELS[key],
+      quantity: fuelBreakdown[key].quantity,
+      value: fuelBreakdown[key].value,
+      pct: fuelBreakdown.total.value > 0 ? fuelBreakdown[key].value / fuelBreakdown.total.value : 0,
+    }))
+    .filter((r) => r.quantity > 0 || r.value > 0)
 
   // ---- top products (all categories) ----
   const byProductMap = new Map<string, { name: string; category: string; quantity: number; value: number }>()
@@ -309,6 +331,7 @@ export function computeMonthlyReportData(
     avgPerDay,
     byWeekday,
     byCategory,
+    byFuelType,
     topProducts,
     topProductsTotal,
     topProductsExcl,

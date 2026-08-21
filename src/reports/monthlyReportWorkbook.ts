@@ -173,6 +173,43 @@ function buildRezumat(wb: ExcelJS.Workbook, data: MonthlyReportData) {
   ws.getCell(r, 4).value = { formula: `SUM(D${catFirstDataRow}:D${catLastDataRow})` }
   styleCell(ws.getCell(r, 5), { bold: true, align: 'right', fmt: PCT_FMT })
   ws.getCell(r, 5).value = 1
+  r += 2
+
+  // New section, appended after everything reverse-engineered from the
+  // reference file, so it never shifts the 1:1 sections above it.
+  if (data.byFuelType.length > 0) {
+    const fuelTitleRow = r
+    ws.mergeCells(fuelTitleRow, 1, fuelTitleRow, 4)
+    const fuelTitleCell = ws.getCell(fuelTitleRow, 1)
+    fuelTitleCell.value = `  COMBUSTIBIL PE TIP — ${data.monthLabelText}`
+    fuelTitleCell.font = { name: 'Arial', size: 13, bold: true }
+    fuelTitleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    ws.getRow(fuelTitleRow).height = 16.5
+    r++
+    tableHeader(ws, r, ['Tip', 'Cantitate (L)', 'Valoare (lei)', '% din Combustibil'])
+    r++
+    const fuelFirstDataRow = r
+    for (const f of data.byFuelType) {
+      styleCell(ws.getCell(r, 1), {})
+      ws.getCell(r, 1).value = f.label
+      styleCell(ws.getCell(r, 2), { align: 'right', fmt: QTY4_FMT })
+      ws.getCell(r, 2).value = f.quantity
+      styleCell(ws.getCell(r, 3), { align: 'right', fmt: LEI_FMT })
+      ws.getCell(r, 3).value = f.value
+      styleCell(ws.getCell(r, 4), { align: 'right', fmt: PCT_FMT })
+      ws.getCell(r, 4).value = f.pct
+      r++
+    }
+    const fuelLastDataRow = r - 1
+    styleCell(ws.getCell(r, 1), { bold: true })
+    ws.getCell(r, 1).value = 'TOTAL'
+    styleCell(ws.getCell(r, 2), { bold: true, align: 'right', fmt: QTY4_FMT })
+    ws.getCell(r, 2).value = { formula: `SUM(B${fuelFirstDataRow}:B${fuelLastDataRow})` }
+    styleCell(ws.getCell(r, 3), { bold: true, align: 'right', fmt: LEI_FMT })
+    ws.getCell(r, 3).value = { formula: `SUM(C${fuelFirstDataRow}:C${fuelLastDataRow})` }
+    styleCell(ws.getCell(r, 4), { bold: true, align: 'right', fmt: PCT_FMT })
+    ws.getCell(r, 4).value = 1
+  }
 }
 
 function buildTopProducts(
