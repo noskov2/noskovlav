@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import clsx from 'clsx'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { KpiCard } from '@/components/ui/KpiCard'
@@ -13,35 +14,64 @@ import { filterByDimensions, filterByRange } from '@/kpi/applyFilters'
 import { computePeriodSummary } from '@/kpi/summary'
 import { computeDailySeries } from '@/kpi/dailySeries'
 import { computeInsights } from '@/kpi/insights'
-import { computeSlowMovers, noSaleSinceDays } from '@/kpi/slowMovers'
-import { computeProductPriceSummaries } from '@/kpi/suppliers'
-import { addDays } from '@/kpi/dateRanges'
+import { addDays, dayCountInRange, monthLabel, todayStr } from '@/kpi/dateRanges'
 import { productIdsInGroup } from '@/kpi/productGroups'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
 import { computeCrossSellReport } from '@/kpi/crossSell'
 import { computeTeamRollup } from '@/kpi/teamRollup'
-import { formatLei, formatNumber, formatPct } from '@/lib/format'
+import { computeForecast, computePace, type PaceStatus } from '@/kpi/forecast'
+import { computeActionCenter, type ActionTone } from '@/kpi/actionCenter'
+import { getMonthTargets } from '@/data/repo/settings'
+import { emptyMonthTargets } from '@/types/domain'
+import { formatLei, formatNumber, formatPct, formatSignedLei } from '@/lib/format'
 import { DeltaBadge } from '@/components/ui/DeltaBadge'
 
 const TOP_GENERAL = '__general__'
 
+const PACE_STATUS_LABEL: Record<PaceStatus, string> = {
+  reached: 'Target deja atins',
+  sufficient: 'Ritm suficient',
+  marginal: 'Ritm la limită',
+  insufficient: 'Ritm insuficient',
+}
+const PACE_STATUS_TONE: Record<PaceStatus, 'good' | 'warn' | 'bad'> = {
+  reached: 'good',
+  sufficient: 'good',
+  marginal: 'warn',
+  insufficient: 'bad',
+}
+const ACTION_TONE_CLASSES: Record<ActionTone, string> = {
+  red: 'border-bad/20 bg-bad/5 text-bad',
+  orange: 'border-warn/20 bg-warn/5 text-warn',
+  green: 'border-good/20 bg-good/5 text-good',
+}
+const ACTION_TONE_ICON: Record<ActionTone, string> = { red: '🔴', orange: '🟠', green: '🟢' }
+
 export function DashboardPage() {
-  const { transactions, products, cashiers, teams, supplierReceipts, productsById, cashiersById } = useDataStore()
+  const { transactions, products, cashiers, teams, supplierReceipts, settings, productsById, cashiersById } =
+    useDataStore()
   const { filter } = useFilterStore()
   const range = effectiveRange(filter)
   const [compare, setCompare] = useState(false)
+  const defaultVatRatePct = settings?.defaultVatRatePct ?? 19
 
   const dimFiltered = useMemo(
     () => filterByDimensions(transactions, filter, productsById, cashiersById),
     [transactions, filter, productsById, cashiersById],
   )
   const periodTx = useMemo(() => filterByRange(dimFiltered, range.start, range.end), [dimFiltered, range])
-  const summary = useMemo(() => computePeriodSummary(periodTx, products), [periodTx, products])
+  const summary = useMemo(
+    () => computePeriodSummary(periodTx, products, defaultVatRatePct),
+    [periodTx, products, defaultVatRatePct],
+  )
 
   const prevRange = useMemo(() => previousMonthRange(range), [range])
   const prevTx = useMemo(() => filterByRange(dimFiltered, prevRange.start, prevRange.end), [dimFiltered, prevRange])
-  const prevSummary = useMemo(() => computePeriodSummary(prevTx, products), [prevTx, products])
+  const prevSummary = useMemo(
+    () => computePeriodSummary(prevTx, products, defaultVatRatePct),
+    [prevTx, products, defaultVatRatePct],
+  )
   const trend = (key: keyof typeof summary) => {
     if (!compare) return undefined
     const d = computeDelta(summary[key] as number, prevSummary[key] as number)
@@ -54,18 +84,6 @@ export function DashboardPage() {
   )
 
   const dailySeries = useMemo(() => computeDailySeries(periodTx, products, range), [periodTx, products, range])
-
-  const slowRows = useMemo(() => computeSlowMovers(transactions, products, range), [transactions, products, range])
-  const noSale30 = useMemo(() => noSaleSinceDays(slowRows, range.end, 30), [slowRows, range])
-
-  const recentReceipts = useMemo(
-    () => supplierReceipts.filter((r) => r.date >= addDays(range.end, -60)),
-    [supplierReceipts, range],
-  )
-  const priceHikes = useMemo(
-    () => computeProductPriceSummaries(recentReceipts, products).filter((s) => (s.diffPct ?? 0) > 5),
-    [recentReceipts, products],
-  )
 
   const fuelIds = useMemo(() => productIdsInGroup(products, 'carburant'), [products])
   const fuelTypeIds = useMemo(() => resolveFuelTypeIds(products), [products])
@@ -109,6 +127,67 @@ export function DashboardPage() {
   const sandwichIds = useMemo(() => productIdsInGroup(products, 'sandwich'), [products])
   const vitrinaIds = useMemo(() => productIdsInGroup(products, 'dulciuriVitrina'), [products])
   const lemonadeIds = useMemo(() => productIdsInGroup(products, 'limonadaCeai'), [products])
+  const gplIds = useMemo(() => productIdsInGroup(products, 'gpl'), [products])
+  const promoIds = useMemo(() => productIdsInGroup(products, 'promotii'), [products])
+  const promoLines = useMemo(
+    () => periodTx.filter((t) => !!t.promotionRaw || promoIds.has(t.productId)),
+    [periodTx, promoIds],
+  )
+  const promoValue = useMemo(() => promoLines.reduce((s, t) => s + t.value, 0), [promoLines])
+
+  // Targeturi: momentan sunt configurate per lună calendaristică, la nivel de
+  // stație — vezi pagina Targeturi. Folosim aceeași lună (curentă) atât pentru
+  // comparațiile din KPI-urile principale, cât și pentru panoul Forecast/Ritm,
+  // indiferent de filtrul de perioadă activ pe Dashboard.
+  const currentMonthKey = todayStr().slice(0, 7)
+  const stationTarget = useMemo(
+    () => (settings ? getMonthTargets(settings, currentMonthKey).station : emptyMonthTargets().station),
+    [settings, currentMonthKey],
+  )
+
+  const monthRange = useMemo(() => ({ start: `${currentMonthKey}-01`, end: todayStr() }), [currentMonthKey])
+  const monthTx = useMemo(() => filterByRange(dimFiltered, monthRange.start, monthRange.end), [dimFiltered, monthRange])
+  const monthSummary = useMemo(
+    () => computePeriodSummary(monthTx, products, defaultVatRatePct),
+    [monthTx, products, defaultVatRatePct],
+  )
+  const operationalDaysSoFar = useMemo(() => new Set(monthTx.map((t) => t.date)).size, [monthTx])
+  const daysInCurrentMonth = useMemo(() => {
+    const [y, m] = currentMonthKey.split('-').map(Number)
+    return new Date(y, m, 0).getDate()
+  }, [currentMonthKey])
+  const daysElapsedInMonth = new Date(`${todayStr()}T00:00:00`).getDate()
+
+  const recentRange = useMemo(() => ({ start: addDays(todayStr(), -6), end: todayStr() }), [])
+  const recentTx = useMemo(() => filterByRange(dimFiltered, recentRange.start, recentRange.end), [dimFiltered, recentRange])
+  const recentAvgPerDay = useMemo(
+    () => recentTx.reduce((s, t) => s + t.value, 0) / dayCountInRange(recentRange),
+    [recentTx, recentRange],
+  )
+
+  const salesForecast = useMemo(
+    () =>
+      computeForecast(
+        monthSummary.totalSales,
+        operationalDaysSoFar,
+        daysElapsedInMonth,
+        daysInCurrentMonth,
+        stationTarget.totalSales,
+      ),
+    [monthSummary.totalSales, operationalDaysSoFar, daysElapsedInMonth, daysInCurrentMonth, stationTarget.totalSales],
+  )
+  const salesPace = useMemo(
+    () =>
+      stationTarget.totalSales != null
+        ? computePace(monthSummary.totalSales, stationTarget.totalSales, salesForecast.daysRemainingInMonth, recentAvgPerDay)
+        : null,
+    [monthSummary.totalSales, stationTarget.totalSales, salesForecast.daysRemainingInMonth, recentAvgPerDay],
+  )
+
+  const actionItems = useMemo(
+    () => computeActionCenter(range, transactions, products, supplierReceipts, stationTarget, summary.crossSellPct, defaultVatRatePct),
+    [range, transactions, products, supplierReceipts, stationTarget, summary.crossSellPct, defaultVatRatePct],
+  )
 
   if (transactions.length === 0) {
     return (
@@ -158,16 +237,153 @@ export function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        <KpiCard
-          label="Vânzări totale"
-          value={
+      {actionItems.length > 0 && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Necesită atenție</h3>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {actionItems.map((item, i) => (
+              <Link
+                key={i}
+                to={item.link}
+                className={clsx(
+                  'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm transition hover:opacity-80',
+                  ACTION_TONE_CLASSES[item.tone],
+                )}
+              >
+                <span>{ACTION_TONE_ICON[item.tone]}</span>
+                <span>{item.text}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <h3 className="mb-3 text-sm font-semibold text-slate-700">Indicatori principali</h3>
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vânzări totale</p>
+          <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900">
             <DrillValue title="Vânzări totale" lines={periodTx}>
               {formatLei(summary.totalSales)}
             </DrillValue>
-          }
-          trend={trend('totalSales')}
-        />
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <span>Target: {stationTarget.totalSales != null ? formatLei(stationTarget.totalSales) : '—'}</span>
+            {compare && <DeltaBadge delta={computeDelta(summary.totalSales, prevSummary.totalSales)} />}
+          </div>
+        </div>
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Profit brut</p>
+          <p
+            className={clsx(
+              'mt-1.5 text-3xl font-bold tabular-nums',
+              summary.grossProfitEstimate >= 0 ? 'text-good' : 'text-bad',
+            )}
+          >
+            {formatLei(summary.grossProfitEstimate)}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <span>Marjă: {summary.totalSales > 0 ? formatPct((summary.grossProfitEstimate / summary.totalSales) * 100) : '—'}</span>
+            <span>Coverage: {formatPct(summary.grossProfitKnownShare * 100, 0)}</span>
+          </div>
+        </div>
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cross-sell</p>
+          <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900">{formatPct(summary.crossSellPct)}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <span>Target: {stationTarget.crossSellPct != null ? formatPct(stationTarget.crossSellPct) : '—'}</span>
+            {stationTarget.crossSellPct != null && (
+              <span className={summary.crossSellPct >= stationTarget.crossSellPct ? 'text-good' : 'text-bad'}>
+                {(summary.crossSellPct - stationTarget.crossSellPct) >= 0 ? '+' : ''}
+                {(summary.crossSellPct - stationTarget.crossSellPct).toFixed(1)} pp
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bon mediu</p>
+          <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900">{formatLei(summary.avgReceiptValue)}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            {compare ? (
+              <DeltaBadge delta={computeDelta(summary.avgReceiptValue, prevSummary.avgReceiptValue)} />
+            ) : (
+              <span>{formatNumber(summary.receiptCount)} bonuri</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-slate-700">
+          Forecast &amp; ritm către target — {monthLabel(`${currentMonthKey}-01`)}
+        </h3>
+        {stationTarget.totalSales == null ? (
+          <p className="text-sm text-slate-400">
+            Nu ai configurat un target de vânzări totale pentru luna curentă.{' '}
+            <Link to="/targeturi" className="text-brand-600 hover:underline">
+              Configurează-l în pagina Targeturi
+            </Link>{' '}
+            pentru a vedea estimarea de sfârșit de lună și ritmul necesar.
+          </p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="text-sm text-slate-600">
+              <p>
+                Target: <span className="font-medium text-slate-900">{formatLei(salesForecast.target ?? 0)}</span> · Actual:{' '}
+                <span className="font-medium text-slate-900">{formatLei(salesForecast.actual)}</span>
+              </p>
+              <p className="mt-1">
+                Forecast (estimare sfârșit de lună):{' '}
+                <span className="font-medium text-slate-900">{formatLei(salesForecast.forecast)}</span>
+              </p>
+              {salesForecast.gap != null && (
+                <p className={clsx('mt-1 font-medium', salesForecast.gap >= 0 ? 'text-good' : 'text-bad')}>
+                  Gap estimat: {formatSignedLei(salesForecast.gap)}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-slate-400">
+                {salesForecast.operationalDaysSoFar} zile cu vânzări în luna curentă · medie{' '}
+                {formatLei(salesForecast.avgPerOperationalDay)}/zi operațională
+              </p>
+            </div>
+            {salesPace && (
+              <div className="text-sm text-slate-600">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span
+                    className={clsx(
+                      'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold',
+                      PACE_STATUS_TONE[salesPace.status] === 'good'
+                        ? 'bg-good/10 text-good'
+                        : PACE_STATUS_TONE[salesPace.status] === 'warn'
+                          ? 'bg-warn/10 text-warn'
+                          : 'bg-bad/10 text-bad',
+                    )}
+                  >
+                    {PACE_STATUS_LABEL[salesPace.status]}
+                  </span>
+                </div>
+                {salesPace.status === 'reached' ? (
+                  <p>Targetul lunii a fost deja atins.</p>
+                ) : (
+                  <>
+                    <p>
+                      Mai sunt necesari <span className="font-medium text-slate-900">{formatLei(salesPace.remaining)}</span> în{' '}
+                      {salesPace.daysRemaining} zile.
+                    </p>
+                    <p className="mt-1">
+                      Necesar: <span className="font-medium text-slate-900">{formatLei(salesPace.neededPerDay)}</span>/zi. Media
+                      ultimelor 7 zile: <span className="font-medium text-slate-900">{formatLei(salesPace.recentAvgPerDay)}</span>/zi.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <h3 className="mb-3 text-sm font-semibold text-slate-700">Alți indicatori</h3>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <KpiCard
           label="Marfă"
           value={
@@ -184,17 +400,23 @@ export function DashboardPage() {
               {formatLei(summary.fuelSales)}
             </DrillValue>
           }
-          hint={`${formatNumber(summary.fuelLiters, 0)} litri${summary.gplLiters > 0 ? ` · GPL ${formatNumber(summary.gplLiters, 0)} L` : ''}`}
           trend={trend('fuelSales')}
         />
-        <KpiCard label="Bonuri" value={formatNumber(summary.receiptCount)} trend={trend('receiptCount')} />
-        <KpiCard label="Bon mediu" value={formatLei(summary.avgReceiptValue)} trend={trend('avgReceiptValue')} />
         <KpiCard
-          label="Cross-sell"
-          value={formatPct(summary.crossSellPct)}
-          hint={`${formatNumber(summary.crossSellReceipts)} din ${formatNumber(summary.fuelReceiptCount)} bonuri carburant`}
-          trend={trend('crossSellPct')}
+          label="GPL"
+          value={
+            <DrillValue title="Vânzări GPL" lines={periodTx.filter((t) => gplIds.has(t.productId))}>
+              {formatLei(fuelBreakdown.gpl.value)}
+            </DrillValue>
+          }
+          hint={`${formatNumber(fuelBreakdown.gpl.quantity, 0)} L`}
         />
+        <KpiCard
+          label="Litri (motorină+benzină)"
+          value={formatNumber(summary.fuelLiters, 0)}
+          hint="litri"
+        />
+        <KpiCard label="Bonuri" value={formatNumber(summary.receiptCount)} trend={trend('receiptCount')} />
         <KpiCard
           label="Cafele"
           value={
@@ -232,35 +454,13 @@ export function DashboardPage() {
           trend={trend('lemonadeCount')}
         />
         <KpiCard
-          label="Profit brut estimat"
-          value={formatLei(summary.grossProfitEstimate)}
-          tone={summary.grossProfitEstimate >= 0 ? 'good' : 'bad'}
-          hint={
-            summary.grossProfitKnownShare < 0.99
-              ? `${formatPct(summary.grossProfitKnownShare * 100, 0)} din vânzări au preț de achiziție cunoscut`
-              : undefined
-          }
-          trend={trend('grossProfitEstimate')}
-        />
-        <KpiCard
-          label="Produse cu vânzare lentă"
+          label="Promoții"
           value={
-            <Link to="/vanzare-slaba" className="hover:text-brand-600">
-              {formatNumber(noSale30.length)}
-            </Link>
+            <DrillValue title="Vânzări prin promoții" lines={promoLines}>
+              {formatLei(promoValue)}
+            </DrillValue>
           }
-          hint="fără vânzare în ultimele 30 zile"
-          tone={noSale30.length > 0 ? 'warn' : 'default'}
-        />
-        <KpiCard
-          label="Produse cu scumpiri recente"
-          value={
-            <Link to="/furnizori" className="hover:text-brand-600">
-              {formatNumber(priceHikes.length)}
-            </Link>
-          }
-          hint="creștere &gt; 5% în ultimele 60 zile"
-          tone={priceHikes.length > 0 ? 'bad' : 'default'}
+          hint={`${formatNumber(promoLines.length)} linii`}
         />
       </div>
 

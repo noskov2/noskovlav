@@ -195,6 +195,39 @@ export interface StockSnapshotLine {
   salePrice: number | null
 }
 
+// A monthly target set for one scope (the station, or one team). Every
+// field is optional — leaving one blank just means "no target set for this
+// metric", not zero, so Dashboard/Forecast skip fields that were never
+// configured instead of showing a misleading 0% pace.
+export interface TargetSet {
+  totalSales: number | null
+  goodsSales: number | null
+  gplValue: number | null
+  crossSellPct: number | null
+  coffeeCount: number | null
+  sandwichCount: number | null
+  grossProfit: number | null
+  avgReceiptValue: number | null
+}
+
+export const emptyTargetSet = (): TargetSet => ({
+  totalSales: null,
+  goodsSales: null,
+  gplValue: null,
+  crossSellPct: null,
+  coffeeCount: null,
+  sandwichCount: null,
+  grossProfit: null,
+  avgReceiptValue: null,
+})
+
+export interface MonthTargets {
+  station: TargetSet
+  byTeam: Record<string, TargetSet> // teamId -> TargetSet
+}
+
+export const emptyMonthTargets = (): MonthTargets => ({ station: emptyTargetSet(), byTeam: {} })
+
 export interface AppSettings {
   id: 'app-settings' // singleton row
   shiftConfig: ShiftConfig
@@ -204,4 +237,5 @@ export interface AppSettings {
   categoryGroupRules: CategoryGroupRules
   reportsAcknowledged: string[] // "YYYY-MM" months whose report banner was dismissed/downloaded
   defaultVatRatePct: number // used to derive ex-VAT sales value when the import has no "Valoare fără TVA" column and the product has no override
+  monthlyTargets: Record<string, MonthTargets> // "YYYY-MM" -> targets for that month
 }

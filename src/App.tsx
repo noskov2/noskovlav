@@ -11,6 +11,7 @@ import { ReportsPage } from '@/pages/ReportsPage'
 import { NomenclaturePage } from '@/pages/NomenclaturePage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { DataQualityPage } from '@/pages/DataQualityPage'
+import { TargetsPage } from '@/pages/TargetsPage'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/furnizori" element={<SuppliersPage />} />
           <Route path="/rapoarte" element={<ReportsPage />} />
           <Route path="/calitate-date" element={<DataQualityPage />} />
+          <Route path="/targeturi" element={<TargetsPage />} />
           <Route path="/nomenclator" element={<NomenclaturePage />} />
           <Route path="/setari" element={<SettingsPage />} />
         </Route>

@@ -17,6 +17,7 @@ const items: NavItem[] = [
   { to: '/cross-sell', label: 'Cross-sell & Casieri', icon: '🤝' },
   { to: '/furnizori', label: 'Furnizori & Prețuri', icon: '🚚' },
   { to: '/rapoarte', label: 'Rapoarte', icon: '🧾' },
+  { to: '/targeturi', label: 'Targeturi', icon: '🎯' },
   { to: '/calitate-date', label: 'Calitatea datelor', icon: '✅' },
   { to: '/nomenclator', label: 'Nomenclator', icon: '🗂️' },
   { to: '/setari', label: 'Setări', icon: '⚙️' },

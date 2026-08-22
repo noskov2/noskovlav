@@ -1,5 +1,5 @@
 import { db } from '@/data/db'
-import { defaultShiftConfig, emptyCategoryGroupRules, type AppSettings } from '@/types/domain'
+import { defaultShiftConfig, emptyCategoryGroupRules, emptyMonthTargets, type AppSettings, type MonthTargets } from '@/types/domain'
 
 const SETTINGS_ID = 'app-settings' as const
 
@@ -12,6 +12,7 @@ const defaultSettings: AppSettings = {
   categoryGroupRules: emptyCategoryGroupRules(),
   reportsAcknowledged: [],
   defaultVatRatePct: 19,
+  monthlyTargets: {},
 }
 
 export async function getSettings(): Promise<AppSettings> {
@@ -28,4 +29,13 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
   const next = { ...current, ...patch }
   await db.settings.put(next)
   return next
+}
+
+export function getMonthTargets(settings: AppSettings, monthKey: string): MonthTargets {
+  return settings.monthlyTargets[monthKey] ?? emptyMonthTargets()
+}
+
+export async function saveMonthTargets(monthKey: string, targets: MonthTargets): Promise<void> {
+  const current = await getSettings()
+  await updateSettings({ monthlyTargets: { ...current.monthlyTargets, [monthKey]: targets } })
 }
