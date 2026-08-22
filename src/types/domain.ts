@@ -263,6 +263,31 @@ export interface StockThresholds {
 
 export const defaultStockThresholds: StockThresholds = { ruptureDays: 7, lowDays: 14, overstockDays: 60 }
 
+// An immutable record of a month's headline KPIs, taken at "close" time.
+// Later edits to the Nomenclator (recategorizing a product, fixing a group
+// flag, etc.) recompute every LIVE page from current data, as they should —
+// but a closed month's snapshot never changes, so "what we reported for
+// August" stays exactly what was reported, even if a live page's number for
+// August drifts afterward because of an unrelated data-quality fix.
+export interface MonthSnapshot {
+  id: string // "YYYY-MM", one snapshot per month
+  monthKey: string
+  closedAt: number
+  totalSales: number
+  goodsSales: number
+  fuelSales: number
+  grossProfitEstimate: number
+  marginPct: number | null
+  receiptCount: number
+  avgReceiptValue: number
+  totalLiters: number
+  crossSellPct: number
+  coffeeCount: number
+  sandwichCount: number
+  target: TargetSet | null
+  dataQualityScore: number
+}
+
 export interface AppSettings {
   id: 'app-settings' // singleton row
   shiftConfig: ShiftConfig
@@ -271,6 +296,8 @@ export interface AppSettings {
   stockMapping: StockColumnMapping | null
   categoryGroupRules: CategoryGroupRules
   reportsAcknowledged: string[] // "YYYY-MM" months whose report banner was dismissed/downloaded
+  reportsGenerated: string[] // "YYYY-MM:slug" — a report was downloaded/generated at least once for that month
+  reportsVerified: string[] // "YYYY-MM:slug" — user explicitly marked that report reviewed for that month
   defaultVatRatePct: number // used to derive ex-VAT sales value when the import has no "Valoare fără TVA" column and the product has no override
   monthlyTargets: Record<string, MonthTargets> // "YYYY-MM" -> targets for that month
   scoreWeights: ScoreWeights

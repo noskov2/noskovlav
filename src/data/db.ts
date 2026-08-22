@@ -8,6 +8,7 @@ import type {
   SupplierReceiptLine,
   StockSnapshotLine,
   AppSettings,
+  MonthSnapshot,
 } from '@/types/domain'
 
 // Single IndexedDB database for the whole app. All persistence goes through
@@ -23,6 +24,7 @@ class PecoDatabase extends Dexie {
   supplierReceipts!: EntityTable<SupplierReceiptLine, 'id'>
   stockSnapshots!: EntityTable<StockSnapshotLine, 'id'>
   settings!: EntityTable<AppSettings, 'id'>
+  monthSnapshots!: EntityTable<MonthSnapshot, 'id'>
 
   constructor() {
     super('peco-station-db')
@@ -58,6 +60,19 @@ class PecoDatabase extends Dexie {
       supplierReceipts: 'id, importBatchId, productId, supplier, date',
       stockSnapshots: 'id, importBatchId, productId, asOf',
       settings: 'id',
+    })
+    // v4: monthSnapshots table for "Închidere lună" (immutable per-month KPI record).
+    this.version(4).stores({
+      transactions:
+        'id, importBatchId, date, timestamp, cashierId, productId, receiptNo, shift, fingerprint',
+      products: 'id, name, category, active',
+      cashiers: 'id, name, active, teamId',
+      teams: 'id, name',
+      importBatches: 'id, importedAt, kind',
+      supplierReceipts: 'id, importBatchId, productId, supplier, date',
+      stockSnapshots: 'id, importBatchId, productId, asOf',
+      settings: 'id',
+      monthSnapshots: 'id, monthKey, closedAt',
     })
   }
 }

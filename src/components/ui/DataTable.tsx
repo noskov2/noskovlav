@@ -88,7 +88,7 @@ export function DataTable<T>({
       )}
       <div className="overflow-x-auto rounded-lg border border-slate-100 scrollbar-thin">
         <table className="min-w-full divide-y divide-slate-100 text-sm">
-          <thead className="bg-slate-50">
+          <thead className="sticky top-0 z-10 bg-slate-50">
             <tr>
               {columns.map((col) => (
                 <th

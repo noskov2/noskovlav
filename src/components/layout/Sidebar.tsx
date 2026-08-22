@@ -19,6 +19,7 @@ const items: NavItem[] = [
   { to: '/bonuri', label: 'Vânzări & Bonuri', icon: '🛒' },
   { to: '/furnizori', label: 'Furnizori & Prețuri', icon: '🚚' },
   { to: '/rapoarte', label: 'Rapoarte', icon: '🧾' },
+  { to: '/inchidere-luna', label: 'Închidere lună', icon: '🔒' },
   { to: '/targeturi', label: 'Targeturi', icon: '🎯' },
   { to: '/calitate-date', label: 'Calitatea datelor', icon: '✅' },
   { to: '/nomenclator', label: 'Nomenclator', icon: '🗂️' },

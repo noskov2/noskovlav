@@ -20,6 +20,8 @@ const defaultSettings: AppSettings = {
   stockMapping: null,
   categoryGroupRules: emptyCategoryGroupRules(),
   reportsAcknowledged: [],
+  reportsGenerated: [],
+  reportsVerified: [],
   defaultVatRatePct: 19,
   monthlyTargets: {},
   scoreWeights: defaultScoreWeights,

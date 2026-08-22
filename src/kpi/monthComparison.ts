@@ -34,6 +34,15 @@ export function previousMonthRange(range: DateRange): DateRange {
   }
 }
 
+// Same calendar span, exactly one year earlier (keeps leap-year/day-length
+// clamping via shiftDateByMonths, called with -12 months instead of -1).
+export function previousYearRange(range: DateRange): DateRange {
+  return {
+    start: shiftDateByMonths(range.start, -12),
+    end: shiftDateByMonths(range.end, -12),
+  }
+}
+
 export interface Delta {
   current: number
   previous: number

@@ -3,6 +3,7 @@ import type {
   AppSettings,
   Cashier,
   ImportBatch,
+  MonthSnapshot,
   Product,
   StockSnapshotLine,
   SupplierReceiptLine,
@@ -29,10 +30,11 @@ export interface BackupData {
   supplierReceipts: SupplierReceiptLine[]
   stockSnapshots: StockSnapshotLine[]
   settings: AppSettings | null
+  monthSnapshots: MonthSnapshot[]
 }
 
 export async function buildBackup(): Promise<BackupData> {
-  const [transactions, products, cashiers, teams, importBatches, supplierReceipts, stockSnapshots, settingsRows] =
+  const [transactions, products, cashiers, teams, importBatches, supplierReceipts, stockSnapshots, settingsRows, monthSnapshots] =
     await Promise.all([
       db.transactions.toArray(),
       db.products.toArray(),
@@ -42,6 +44,7 @@ export async function buildBackup(): Promise<BackupData> {
       db.supplierReceipts.toArray(),
       db.stockSnapshots.toArray(),
       db.settings.toArray(),
+      db.monthSnapshots.toArray(),
     ])
   return {
     formatVersion: BACKUP_FORMAT_VERSION,
@@ -54,6 +57,7 @@ export async function buildBackup(): Promise<BackupData> {
     supplierReceipts,
     stockSnapshots,
     settings: settingsRows[0] ?? null,
+    monthSnapshots,
   }
 }
 
@@ -84,6 +88,7 @@ export interface BackupValidation {
     importBatches: number
     supplierReceipts: number
     stockSnapshots: number
+    monthSnapshots: number
     exportedAt: number | null
   } | null
 }
@@ -122,6 +127,7 @@ export function validateBackup(raw: unknown): BackupValidation {
       importBatches: d.importBatches.length,
       supplierReceipts: d.supplierReceipts.length,
       stockSnapshots: d.stockSnapshots.length,
+      monthSnapshots: Array.isArray(d.monthSnapshots) ? d.monthSnapshots.length : 0,
       exportedAt: typeof d.exportedAt === 'number' ? d.exportedAt : null,
     },
   }
@@ -134,7 +140,17 @@ export function validateBackup(raw: unknown): BackupValidation {
 export async function restoreBackup(data: BackupData): Promise<void> {
   await db.transaction(
     'rw',
-    [db.transactions, db.products, db.cashiers, db.teams, db.importBatches, db.supplierReceipts, db.stockSnapshots, db.settings],
+    [
+      db.transactions,
+      db.products,
+      db.cashiers,
+      db.teams,
+      db.importBatches,
+      db.supplierReceipts,
+      db.stockSnapshots,
+      db.settings,
+      db.monthSnapshots,
+    ],
     async () => {
       await Promise.all([
         db.transactions.clear(),
@@ -145,6 +161,7 @@ export async function restoreBackup(data: BackupData): Promise<void> {
         db.supplierReceipts.clear(),
         db.stockSnapshots.clear(),
         db.settings.clear(),
+        db.monthSnapshots.clear(),
       ])
       await Promise.all([
         db.transactions.bulkPut(data.transactions),
@@ -155,6 +172,7 @@ export async function restoreBackup(data: BackupData): Promise<void> {
         db.supplierReceipts.bulkPut(data.supplierReceipts),
         db.stockSnapshots.bulkPut(data.stockSnapshots),
         data.settings ? db.settings.put(data.settings) : Promise.resolve(),
+        Array.isArray(data.monthSnapshots) ? db.monthSnapshots.bulkPut(data.monthSnapshots) : Promise.resolve(),
       ])
     },
   )

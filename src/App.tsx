@@ -14,6 +14,7 @@ import { DataQualityPage } from '@/pages/DataQualityPage'
 import { TargetsPage } from '@/pages/TargetsPage'
 import { ReceiptsPage } from '@/pages/ReceiptsPage'
 import { StockPage } from '@/pages/StockPage'
+import { ClosingPage } from '@/pages/ClosingPage'
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/targeturi" element={<TargetsPage />} />
           <Route path="/bonuri" element={<ReceiptsPage />} />
           <Route path="/stoc" element={<StockPage />} />
+          <Route path="/inchidere-luna" element={<ClosingPage />} />
           <Route path="/nomenclator" element={<NomenclaturePage />} />
           <Route path="/setari" element={<SettingsPage />} />
         </Route>

@@ -261,7 +261,12 @@ export function DashboardPage() {
       <h3 className="mb-3 text-sm font-semibold text-slate-700">Indicatori principali</h3>
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Vânzări totale</p>
+          <p
+            className="text-xs font-medium uppercase tracking-wide text-slate-500"
+            title="Suma valorii tuturor liniilor de tranzacție din perioada selectată."
+          >
+            Vânzări totale
+          </p>
           <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900">
             <DrillValue title="Vânzări totale" lines={periodTx}>
               {formatLei(summary.totalSales)}
@@ -273,7 +278,12 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Profit brut</p>
+          <p
+            className="text-xs font-medium uppercase tracking-wide text-slate-500"
+            title="Profit brut = Vânzări fără TVA − Cost (pe partea cu cost cunoscut). Marjă % = Profit brut / Vânzări totale. Coverage = % din vânzări cu cost de achiziție cunoscut."
+          >
+            Profit brut
+          </p>
           <p
             className={clsx(
               'mt-1.5 text-3xl font-bold tabular-nums',
@@ -288,7 +298,12 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Cross-sell</p>
+          <p
+            className="text-xs font-medium uppercase tracking-wide text-slate-500"
+            title="Cross-sell % = (bonuri cu carburant + minimum un produs eligibil de marfă) / (toate bonurile cu carburant) × 100. Exclude SGR, discounturi, taxe și alte linii tehnice."
+          >
+            Cross-sell
+          </p>
           <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900">{formatPct(summary.crossSellPct)}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
             <span>Target: {stationTarget.crossSellPct != null ? formatPct(stationTarget.crossSellPct) : '—'}</span>
@@ -301,7 +316,12 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Bon mediu</p>
+          <p
+            className="text-xs font-medium uppercase tracking-wide text-slate-500"
+            title="Bon mediu = Vânzări totale / Numărul de bonuri (grupate după dată + bon + casier)."
+          >
+            Bon mediu
+          </p>
           <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900">{formatLei(summary.avgReceiptValue)}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
             {compare ? (

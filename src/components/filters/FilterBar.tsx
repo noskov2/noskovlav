@@ -35,7 +35,7 @@ export function FilterBar({ hideCategory, hideProduct, hideShift, hideCashier }:
   const range = effectiveRange(filter)
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <div className="flex flex-wrap gap-1">
         {PRESET_ORDER.map((preset) => (
           <button
