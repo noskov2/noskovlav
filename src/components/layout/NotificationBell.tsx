@@ -57,7 +57,7 @@ export function NotificationBell() {
               {gaps.map((gap, i) => (
                 <li key={i}>
                   <Link
-                    to="/import"
+                    to={`/import?kind=${gap.kind}`}
                     onClick={() => setOpen(false)}
                     className={clsx(
                       'flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs transition hover:opacity-80',

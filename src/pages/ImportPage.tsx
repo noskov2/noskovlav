@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { parseExcelFile, type ParsedSheet } from '@/import/excelParser'
 import {
@@ -75,7 +76,11 @@ function nowTime(): string {
 
 export function ImportPage() {
   const { refresh, importBatches } = useDataStore()
-  const [kind, setKind] = useState<ImportKind>('sales')
+  const [searchParams] = useSearchParams()
+  const [kind, setKind] = useState<ImportKind>(() => {
+    const requested = searchParams.get('kind')
+    return requested === 'sales' || requested === 'purchases' || requested === 'stock' ? requested : 'sales'
+  })
   const [file, setFile] = useState<File | null>(null)
   const [sheet, setSheet] = useState<ParsedSheet | null>(null)
   const [salesMapping, setSalesMapping] = useState<SalesColumnMapping | null>(null)
