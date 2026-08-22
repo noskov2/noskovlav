@@ -1,5 +1,6 @@
 import type { Product, TransactionLine } from '@/types/domain'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
+import { looksLikeGpl } from '@/processing/groupHeuristics'
 
 function norm(s: string): string {
   return s
@@ -10,12 +11,13 @@ function norm(s: string): string {
 
 const MOTORINA_KEYWORDS = ['motorina', 'diesel']
 const BENZINA_KEYWORDS = ['benzina', 'petrol', 'euro95', 'euro 95', 'premium', 'optim', 'jetane', 'v-power', 'vpower', 'excellium']
-// "Gaz Petrolier Lichefiat" is GPL spelled out in full — and its normalized
+// GPL detection is shared with groupHeuristics.ts (single source of truth
+// for the keyword list) rather than duplicated here. That matters because
+// "Gaz Petrolier Lichefiat" is GPL spelled out in full — its normalized
 // form contains "petrol" as a substring of "petrolier", which used to match
 // BENZINA_KEYWORDS first and silently count GPL sales as Benzină (GPL frozen
 // at 0L while Benzină was quietly inflated). GPL is checked before
 // Motorină/Benzină below specifically to prevent that collision.
-const GPL_KEYWORDS = ['gpl', 'gaz petrolier', 'autogaz']
 
 export type FuelTypeKey = 'motorina' | 'benzina' | 'gpl' | 'altul'
 
@@ -47,7 +49,7 @@ export function resolveFuelTypeIds(products: Product[]): Record<FuelTypeKey, Set
   for (const p of products) {
     if (!fuelIds.has(p.id)) continue
     const name = norm(p.name)
-    if (gplIds.has(p.id) || GPL_KEYWORDS.some((k) => name.includes(k))) {
+    if (gplIds.has(p.id) || looksLikeGpl(p.name, p.category)) {
       gpl.add(p.id)
       continue
     }

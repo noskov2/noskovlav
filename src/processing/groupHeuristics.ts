@@ -56,6 +56,23 @@ function matches(name: string, keywords: string[]): boolean {
   return keywords.some((k) => name.includes(k))
 }
 
+// Exposed separately from guessGroupsFromName so the *gate* that decides
+// "is this product fuel at all" (kpi/productGroups.ts's fuelProductIds, and
+// the GPL sub-classification in kpi/fuelVariants.ts) can fall back to the
+// same name/category match the auto-tagger uses, instead of trusting the
+// Nomenclator checkboxes alone. A product created before these keywords
+// existed, or one whose checkboxes were simply never ticked, would
+// otherwise be silently treated as "marfă" everywhere (goods sales, cross-
+// sell, top-products) with no way to notice short of opening Nomenclator
+// row by row.
+export function looksLikeFuel(name: string, category: string): boolean {
+  return matches(`${norm(name)} ${norm(category || '')}`, FUEL_KEYWORDS)
+}
+
+export function looksLikeGpl(name: string, category: string): boolean {
+  return matches(`${norm(name)} ${norm(category || '')}`, GPL_KEYWORDS)
+}
+
 export function guessGroupsFromName(rawName: string, categoryRaw: string): Partial<ProductGroups> {
   const name = norm(rawName)
   const category = norm(categoryRaw || '')
