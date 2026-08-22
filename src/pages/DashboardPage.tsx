@@ -341,7 +341,7 @@ export function DashboardPage() {
           <p className="text-sm text-slate-400">
             Nu ai configurat un target de vânzări totale pentru luna curentă.{' '}
             <Link to="/targeturi" className="text-brand-600 hover:underline">
-              Configurează-l în pagina Targeturi
+              Configurează-l în pagina Target
             </Link>{' '}
             pentru a vedea estimarea de sfârșit de lună și ritmul necesar.
           </p>

@@ -134,7 +134,7 @@ export function computeExecutiveReportData(
   if (stationTarget?.totalSales != null && summary.totalSales < stationTarget.totalSales) {
     const gap = stationTarget.totalSales - summary.totalSales
     problems.push(`Vânzările lunii (${fmt(summary.totalSales)} lei) sunt sub targetul de ${fmt(stationTarget.totalSales)} lei — diferență de ${fmt(gap)} lei.`)
-    recommendations.push('Verifică pagina Targeturi → Forecast & Ritm pentru a vedea ce ritm zilnic mai e necesar.')
+    recommendations.push('Verifică pagina Target → Forecast & Ritm pentru a vedea ce ritm zilnic mai e necesar.')
   }
   if (stationTarget?.crossSellPct != null && summary.crossSellPct < stationTarget.crossSellPct) {
     problems.push(`Cross-sell (${summary.crossSellPct.toFixed(1)}%) este sub targetul de ${stationTarget.crossSellPct.toFixed(1)}%.`)

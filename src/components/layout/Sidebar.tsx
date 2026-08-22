@@ -20,7 +20,7 @@ const items: NavItem[] = [
   { to: '/furnizori', label: 'Furnizori & Prețuri', icon: '🚚' },
   { to: '/rapoarte', label: 'Rapoarte', icon: '🧾' },
   { to: '/inchidere-luna', label: 'Închidere lună', icon: '🔒' },
-  { to: '/targeturi', label: 'Targeturi', icon: '🎯' },
+  { to: '/targeturi', label: 'Target', icon: '🎯' },
   { to: '/calitate-date', label: 'Calitatea datelor', icon: '✅' },
   { to: '/nomenclator', label: 'Nomenclator', icon: '🗂️' },
   { to: '/setari', label: 'Setări', icon: '⚙️' },
