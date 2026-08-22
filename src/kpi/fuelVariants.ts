@@ -10,6 +10,7 @@ function norm(s: string): string {
 
 const MOTORINA_KEYWORDS = ['motorina', 'diesel']
 const BENZINA_KEYWORDS = ['benzina', 'petrol', 'euro95', 'euro 95', 'premium', 'optim', 'jetane', 'v-power', 'vpower', 'excellium']
+const GPL_KEYWORDS = ['gpl']
 
 export type FuelTypeKey = 'motorina' | 'benzina' | 'gpl' | 'altul'
 
@@ -20,11 +21,14 @@ export const FUEL_TYPE_LABELS: Record<FuelTypeKey, string> = {
   altul: 'Alt combustibil',
 }
 
-// Splits every product tagged "Carburant" into Motorină / Benzină / GPL /
-// Alt combustibil, by name (GPL uses the dedicated "GPL" group when set,
-// since that's a reliable per-product flag already; Motorină/Benzină are
+// Splits every fuel product into Motorină / Benzină / GPL / Alt combustibil.
+// GPL is recognized either by the dedicated "GPL" group flag OR by name —
+// a station manager who never manually ticked that checkbox (only
+// "Carburant") would otherwise see their GPL silently land in "Alt
+// combustibil" instead of the GPL row, which is exactly the "GPL shows 0L"
+// symptom this mirrors for the group-flag path. Motorină/Benzină are
 // name-matched the same way coffee/sandwich variants are, since there's no
-// separate group for them). Nothing silently drops: any fuel product that
+// separate group for them. Nothing silently drops: any fuel product that
 // doesn't match a specific keyword lands in "Alt combustibil" rather than
 // disappearing from the totals.
 export function resolveFuelTypeIds(products: Product[]): Record<FuelTypeKey, Set<string>> {
@@ -37,11 +41,11 @@ export function resolveFuelTypeIds(products: Product[]): Record<FuelTypeKey, Set
 
   for (const p of products) {
     if (!fuelIds.has(p.id)) continue
-    if (gplIds.has(p.id)) {
+    const name = norm(p.name)
+    if (gplIds.has(p.id) || GPL_KEYWORDS.some((k) => name.includes(k))) {
       gpl.add(p.id)
       continue
     }
-    const name = norm(p.name)
     if (MOTORINA_KEYWORDS.some((k) => name.includes(k))) motorina.add(p.id)
     else if (BENZINA_KEYWORDS.some((k) => name.includes(k))) benzina.add(p.id)
     else altul.add(p.id)

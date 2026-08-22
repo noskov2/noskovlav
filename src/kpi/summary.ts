@@ -1,6 +1,7 @@
 import type { Product, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts } from '@/kpi/receipts'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
+import { resolveFuelTypeIds } from '@/kpi/fuelVariants'
 import { exVatValue } from '@/kpi/vat'
 
 export interface PeriodSummary {
@@ -32,7 +33,10 @@ export function computePeriodSummary(
 ): PeriodSummary {
   const fuelIds = fuelProductIds(products)
   const excludedIds = productIdsInGroup(products, 'crossSellExcluded')
-  const gplIds = productIdsInGroup(products, 'gpl')
+  // Same GPL detection as the Dashboard's Combustibil tile (group flag OR
+  // name match) so a GPL product never counts as plain "fuelLiters" just
+  // because nobody manually ticked the GPL checkbox.
+  const gplIds = resolveFuelTypeIds(products).gpl
   const coffeeIds = productIdsInGroup(products, 'cafea')
   const sandwichIds = productIdsInGroup(products, 'sandwich')
   const lemonadeIds = productIdsInGroup(products, 'limonadaCeai')
