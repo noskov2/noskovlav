@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { DrillValue } from '@/components/ui/DrillValue'
 import { DeltaBadge } from '@/components/ui/DeltaBadge'
 import { useDataStore } from '@/store/dataStore'
+import { useDrillFilterStore } from '@/store/drillFilterStore'
 import { computeSlowMovers, MOVEMENT_LABELS, type MovementClass, type SlowMoverRow } from '@/kpi/slowMovers'
 import { addDays, todayStr, type DateRange } from '@/kpi/dateRanges'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
@@ -27,6 +28,7 @@ export function SlowMoversPage() {
   const [category, setCategory] = useState('all')
   const [productQuery, setProductQuery] = useState('')
   const [classFilter, setClassFilter] = useState<MovementClass | 'all'>('all')
+  const [presetIds, setPresetIds] = useState<string[] | null>(() => useDrillFilterStore.getState().consume('/vanzare-slaba'))
 
   const range: DateRange = useMemo(() => {
     if (windowPreset === 'custom') return customRange
@@ -48,12 +50,13 @@ export function SlowMoversPage() {
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
+      if (presetIds && !presetIds.includes(r.product.id)) return false
       if (category !== 'all' && r.product.category !== category) return false
       if (productQuery && !r.product.name.toLowerCase().includes(productQuery.toLowerCase())) return false
       if (classFilter !== 'all' && r.classification !== classFilter) return false
       return true
     })
-  }, [rows, category, productQuery, classFilter])
+  }, [rows, presetIds, category, productQuery, classFilter])
 
   const worst = useMemo(
     () =>
@@ -159,6 +162,15 @@ export function SlowMoversPage() {
         title="Produse cu vânzare slabă / stoc blocat"
         description="Identifică produsele care se vând greu și, dacă introduci stocul curent, banii blocați în ele."
       />
+
+      {presetIds && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
+          <span>Filtrat din alertă: {formatNumber(presetIds.length)} produse.</span>
+          <button onClick={() => setPresetIds(null)} className="ml-auto rounded border border-brand-200 px-2 py-0.5 text-xs hover:bg-brand-100">
+            Șterge filtrul
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex gap-1">

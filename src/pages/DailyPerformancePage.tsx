@@ -10,7 +10,7 @@ import { useFilterStore } from '@/store/filterStore'
 import { effectiveRange } from '@/kpi/filterState'
 import { computeDayDetail, computeDayComparisons, COMPARISON_METRIC_LABELS, type ComparisonMetricKey } from '@/kpi/dailyPerformance'
 import { computeDailySeries } from '@/kpi/dailySeries'
-import { productIdsInGroup } from '@/kpi/productGroups'
+import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
 import { HourlyHeatmap } from '@/components/charts/Heatmap'
 import { formatDateRo, formatLei, formatNumber, formatPct, formatSignedLei, formatSignedPct } from '@/lib/format'
@@ -72,7 +72,7 @@ export function DailyPerformancePage() {
     return detail.byCashier.find((c) => c.cashier.id === view)?.summary
   }, [view, detail])
 
-  const fuelIds = useMemo(() => productIdsInGroup(products, 'carburant'), [products])
+  const fuelIds = useMemo(() => fuelProductIds(products), [products])
   const fuelTypeIds = useMemo(() => resolveFuelTypeIds(products), [products])
   const fuelBreakdown = useMemo(() => computeFuelBreakdown(viewTransactions, products), [viewTransactions, products])
   const fuelTypeRows = (['motorina', 'benzina', 'gpl', 'altul'] as FuelTypeKey[]).filter(

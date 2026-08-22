@@ -44,26 +44,6 @@ const STYLE = `
   background: var(--page); color: var(--text-primary);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  .target-tool:not([data-theme="light"]) {
-    color-scheme: dark;
-    --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232322;
-    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
-    --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
-    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
-    --good: #0ca30c; --warning: #fab219; --critical: #e66767;
-    --good-bg: rgba(12,163,12,0.18); --warning-bg: rgba(250,178,25,0.14); --critical-bg: rgba(230,103,103,0.14);
-  }
-}
-.target-tool[data-theme="dark"] {
-  color-scheme: dark;
-  --page: #0d0d0d; --surface-1: #1a1a19; --surface-2: #232322;
-  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
-  --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
-  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
-  --good: #0ca30c; --warning: #fab219; --critical: #e66767;
-  --good-bg: rgba(12,163,12,0.18); --warning-bg: rgba(250,178,25,0.14); --critical-bg: rgba(230,103,103,0.14);
-}
 .target-tool * { box-sizing: border-box; }
 .target-tool .page { max-width: 1080px; margin: 0 auto; padding: 16px 16px 64px; }
 .target-tool header.top {
@@ -126,8 +106,6 @@ const STYLE = `
 .target-tool .status-warning { background: var(--warning-bg); color: #8a6100; }
 .target-tool .status-critical { background: var(--critical-bg); color: var(--critical); }
 .target-tool .status-pending { background: var(--surface-2); color: var(--text-muted); }
-@media (prefers-color-scheme: dark) { .target-tool:not([data-theme="light"]) .status-warning { color: var(--warning); } }
-.target-tool[data-theme="dark"] .status-warning { color: var(--warning); }
 .target-tool .team-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 14px; }
 .target-tool .team-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--surface-1); border-top: 3px solid var(--accent); }
 .target-tool .team-card .name { font-weight: 700; font-size: 14px; margin-bottom: 1px; }

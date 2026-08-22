@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { FilterBar } from '@/components/filters/FilterBar'
@@ -15,7 +15,7 @@ import { computePeriodSummary } from '@/kpi/summary'
 import { computeDailySeries } from '@/kpi/dailySeries'
 import { computeInsights } from '@/kpi/insights'
 import { addDays, dayCountInRange, monthLabel, todayStr } from '@/kpi/dateRanges'
-import { productIdsInGroup } from '@/kpi/productGroups'
+import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
 import { computeCrossSellReport } from '@/kpi/crossSell'
@@ -23,6 +23,7 @@ import { computeTeamRollup } from '@/kpi/teamRollup'
 import { computeForecast, computePace, type PaceStatus } from '@/kpi/forecast'
 import { computeActionCenter, type ActionTone } from '@/kpi/actionCenter'
 import { getMonthTargets } from '@/data/repo/settings'
+import { useDrillFilterStore } from '@/store/drillFilterStore'
 import { emptyMonthTargets } from '@/types/domain'
 import { formatLei, formatNumber, formatPct, formatSignedLei } from '@/lib/format'
 import { DeltaBadge } from '@/components/ui/DeltaBadge'
@@ -55,6 +56,8 @@ export function DashboardPage() {
   const range = effectiveRange(filter)
   const [compare, setCompare] = useState(false)
   const defaultVatRatePct = settings?.defaultVatRatePct ?? 19
+  const navigate = useNavigate()
+  const setPendingDrillFilter = useDrillFilterStore((s) => s.setPending)
 
   const dimFiltered = useMemo(
     () => filterByDimensions(transactions, filter, productsById, cashiersById),
@@ -85,7 +88,7 @@ export function DashboardPage() {
 
   const dailySeries = useMemo(() => computeDailySeries(periodTx, products, range), [periodTx, products, range])
 
-  const fuelIds = useMemo(() => productIdsInGroup(products, 'carburant'), [products])
+  const fuelIds = useMemo(() => fuelProductIds(products), [products])
   const fuelTypeIds = useMemo(() => resolveFuelTypeIds(products), [products])
   const fuelBreakdown = useMemo(() => computeFuelBreakdown(periodTx, products), [periodTx, products])
   const prevFuelBreakdown = useMemo(() => computeFuelBreakdown(prevTx, products), [prevTx, products])
@@ -127,7 +130,6 @@ export function DashboardPage() {
   const sandwichIds = useMemo(() => productIdsInGroup(products, 'sandwich'), [products])
   const vitrinaIds = useMemo(() => productIdsInGroup(products, 'dulciuriVitrina'), [products])
   const lemonadeIds = useMemo(() => productIdsInGroup(products, 'limonadaCeai'), [products])
-  const gplIds = useMemo(() => productIdsInGroup(products, 'gpl'), [products])
   const promoIds = useMemo(() => productIdsInGroup(products, 'promotii'), [products])
   const promoLines = useMemo(
     () => periodTx.filter((t) => !!t.promotionRaw || promoIds.has(t.productId)),
@@ -242,17 +244,21 @@ export function DashboardPage() {
           <h3 className="mb-3 text-sm font-semibold text-slate-700">Necesită atenție</h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {actionItems.map((item, i) => (
-              <Link
+              <button
                 key={i}
-                to={item.link}
+                type="button"
+                onClick={() => {
+                  if (item.productIds) setPendingDrillFilter(item.link, item.productIds)
+                  navigate(item.link)
+                }}
                 className={clsx(
-                  'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm transition hover:opacity-80',
+                  'flex items-start gap-2 rounded-lg border px-3 py-2 text-left text-sm transition hover:opacity-80',
                   ACTION_TONE_CLASSES[item.tone],
                 )}
               >
                 <span>{ACTION_TONE_ICON[item.tone]}</span>
                 <span>{item.text}</span>
-              </Link>
+              </button>
             ))}
           </div>
         </div>
@@ -413,29 +419,23 @@ export function DashboardPage() {
           }
           trend={trend('goodsSales')}
         />
-        <KpiCard
-          label="Carburant"
-          value={
-            <DrillValue title="Vânzări carburant" lines={periodTx.filter((t) => fuelIds.has(t.productId))}>
-              {formatLei(summary.fuelSales)}
-            </DrillValue>
-          }
-          trend={trend('fuelSales')}
-        />
-        <KpiCard
-          label="GPL"
-          value={
-            <DrillValue title="Vânzări GPL" lines={periodTx.filter((t) => gplIds.has(t.productId))}>
-              {formatLei(fuelBreakdown.gpl.value)}
-            </DrillValue>
-          }
-          hint={`${formatNumber(fuelBreakdown.gpl.quantity, 0)} L`}
-        />
-        <KpiCard
-          label="Litri (motorină+benzină)"
-          value={formatNumber(summary.fuelLiters, 0)}
-          hint="litri"
-        />
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Combustibil</p>
+          <div className="space-y-1">
+            {(['motorina', 'benzina', 'gpl'] as FuelTypeKey[]).map((key) => (
+              <div key={key} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-slate-500">{FUEL_TYPE_LABELS[key]}</span>
+                <DrillValue
+                  title={`${FUEL_TYPE_LABELS[key]} — vânzări`}
+                  lines={periodTx.filter((t) => fuelTypeIds[key].has(t.productId))}
+                  className="text-right font-medium text-slate-800"
+                >
+                  {formatNumber(fuelBreakdown[key].quantity, 0)} L · {formatLei(fuelBreakdown[key].value)}
+                </DrillValue>
+              </div>
+            ))}
+          </div>
+        </div>
         <KpiCard label="Bonuri" value={formatNumber(summary.receiptCount)} trend={trend('receiptCount')} />
         <KpiCard
           label="Cafele"

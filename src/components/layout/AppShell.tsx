@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, Link } from 'react-router-dom'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { NotificationBell } from '@/components/layout/NotificationBell'
 import { DrillDownModal } from '@/components/ui/DrillDownModal'
 import { useDataStore } from '@/store/dataStore'
 import { updateSettings } from '@/data/repo/settings'
@@ -39,15 +40,16 @@ export function AppShell() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:hidden">
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:justify-end md:px-8">
           <button
             onClick={() => setMobileOpen(true)}
-            className="rounded-md border border-slate-200 p-1.5 text-slate-600"
+            className="rounded-md border border-slate-200 p-1.5 text-slate-600 md:hidden"
             aria-label="Meniu"
           >
             ☰
           </button>
-          <span className="text-sm font-semibold">PECO Dashboard</span>
+          <span className="flex-1 text-sm font-semibold md:hidden">PECO Dashboard</span>
+          <NotificationBell />
         </header>
 
         {loaded && pendingReports.length > 0 && (

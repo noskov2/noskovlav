@@ -12,6 +12,9 @@ export interface ActionItem {
   tone: ActionTone
   text: string
   link: string
+  // When set, the click target should filter to exactly these products
+  // instead of showing the whole page unfiltered — see drillFilterStore.
+  productIds?: string[]
 }
 
 // Thresholds here are judgment calls, documented rather than hidden:
@@ -41,7 +44,8 @@ export function computeActionCenter(
     items.push({
       tone: 'red',
       text: `${atRisk.length} produse au sub ${STOCK_RISK_DAYS} zile de stoc la ritmul curent de vânzare.`,
-      link: '/vanzare-slaba',
+      link: '/stoc',
+      productIds: atRisk.map((r) => r.product.id),
     })
   }
 
@@ -53,6 +57,7 @@ export function computeActionCenter(
       tone: 'red',
       text: `${hikes.length} produse au avut creșteri de cost peste 5% în ultimele 60 zile.`,
       link: '/furnizori',
+      productIds: hikes.map((s) => s.product.id),
     })
   }
 
@@ -66,6 +71,7 @@ export function computeActionCenter(
       tone: 'orange',
       text: `${noSale30.length} produse nu au avut nicio vânzare în ultimele 30 zile.`,
       link: '/vanzare-slaba',
+      productIds: noSale30.map((r) => r.product.id),
     })
   }
   if (noSale90.length > 0) {
@@ -73,6 +79,7 @@ export function computeActionCenter(
       tone: 'orange',
       text: `${noSale90.length} produse nu au avut nicio vânzare în ultimele 90 zile — candidați clari pentru scos din stoc.`,
       link: '/vanzare-slaba',
+      productIds: noSale90.map((r) => r.product.id),
     })
   }
 

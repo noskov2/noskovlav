@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
 import { useDataStore } from '@/store/dataStore'
+import { useDrillFilterStore } from '@/store/drillFilterStore'
 import {
   computeStockRotation,
   STOCK_RISK_LABELS,
@@ -40,6 +41,7 @@ export function StockPage() {
   const [riskFilter, setRiskFilter] = useState<StockRiskClass | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [productQuery, setProductQuery] = useState('')
+  const [presetIds, setPresetIds] = useState<string[] | null>(() => useDrillFilterStore.getState().consume('/stoc'))
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -64,12 +66,13 @@ export function StockPage() {
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
+      if (presetIds && !presetIds.includes(r.product.id)) return false
       if (riskFilter !== 'all' && r.riskClass !== riskFilter) return false
       if (categoryFilter !== 'all' && r.product.category !== categoryFilter) return false
       if (productQuery && !r.product.name.toLowerCase().includes(productQuery.toLowerCase())) return false
       return true
     })
-  }, [rows, riskFilter, categoryFilter, productQuery])
+  }, [rows, presetIds, riskFilter, categoryFilter, productQuery])
 
   const totalBlockedCapital = useMemo(() => rows.reduce((s, r) => s + (r.blockedCapital ?? 0), 0), [rows])
   const ruptureCount = rows.filter((r) => r.riskClass === 'risc-ruptura').length
@@ -173,6 +176,17 @@ export function StockPage() {
         title="Stoc & Rotație"
         description="Cât stoc ai, cât capital ține blocat și cât de riscant e — pe baza ultimului instantaneu de stoc importat."
       />
+
+      {presetIds && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
+          <span>
+            Filtrat din alertă: {formatNumber(presetIds.length)} produse.
+          </span>
+          <button onClick={() => setPresetIds(null)} className="ml-auto rounded border border-brand-200 px-2 py-0.5 text-xs hover:bg-brand-100">
+            Șterge filtrul
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <span className="text-xs text-slate-500">Fereastră analiză viteză vânzare:</span>

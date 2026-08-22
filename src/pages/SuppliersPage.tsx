@@ -6,16 +6,28 @@ import { AlertDot } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { TrendChart } from '@/components/charts/TrendChart'
 import { useDataStore } from '@/store/dataStore'
+import { useDrillFilterStore } from '@/store/drillFilterStore'
 import { computeProductPriceSummaries, type ProductPriceSummary } from '@/kpi/suppliers'
 import { computeSupplierImpact } from '@/kpi/supplierImpact'
+import { computeSupplierRanking, type SupplierRankingRow } from '@/kpi/supplierRanking'
 import { todayStr } from '@/kpi/dateRanges'
 import { formatDateRo, formatLei, formatNumber, formatSignedLei, formatSignedPct } from '@/lib/format'
 
 export function SuppliersPage() {
   const { supplierReceipts, products, transactions } = useDataStore()
   const [selected, setSelected] = useState<ProductPriceSummary | null>(null)
+  const [presetIds, setPresetIds] = useState<string[] | null>(() => useDrillFilterStore.getState().consume('/furnizori'))
+
+  const supplierRanking = useMemo(
+    () => computeSupplierRanking(supplierReceipts, transactions, products),
+    [supplierReceipts, transactions, products],
+  )
 
   const summaries = useMemo(() => computeProductPriceSummaries(supplierReceipts, products), [supplierReceipts, products])
+  const displaySummaries = useMemo(
+    () => (presetIds ? summaries.filter((s) => presetIds.includes(s.product.id)) : summaries),
+    [summaries, presetIds],
+  )
 
   const impactAsOf = useMemo(() => {
     if (transactions.length === 0) return todayStr()
@@ -52,6 +64,39 @@ export function SuppliersPage() {
       </div>
     )
   }
+
+  const supplierRankingColumns: DataTableColumn<SupplierRankingRow>[] = [
+    { key: 'supplier', header: 'Furnizor', render: (r) => r.supplier, sortValue: (r) => r.supplier },
+    { key: 'productCount', header: 'Produse', align: 'right', render: (r) => formatNumber(r.productCount), sortValue: (r) => r.productCount },
+    {
+      key: 'purchaseQuantity',
+      header: 'Cantitate cumpărată',
+      align: 'right',
+      render: (r) => formatNumber(r.purchaseQuantity, 2),
+      sortValue: (r) => r.purchaseQuantity,
+    },
+    {
+      key: 'purchaseValue',
+      header: 'Valoare cumpărată',
+      align: 'right',
+      render: (r) => formatLei(r.purchaseValue),
+      sortValue: (r) => r.purchaseValue,
+    },
+    {
+      key: 'salesQuantity',
+      header: 'Cantitate vândută',
+      align: 'right',
+      render: (r) => formatNumber(r.salesQuantity, 2),
+      sortValue: (r) => r.salesQuantity,
+    },
+    {
+      key: 'salesValue',
+      header: 'Valoare vândută',
+      align: 'right',
+      render: (r) => formatLei(r.salesValue),
+      sortValue: (r) => r.salesValue,
+    },
+  ]
 
   const columns: DataTableColumn<ProductPriceSummary>[] = [
     {
@@ -123,6 +168,32 @@ export function SuppliersPage() {
         description="Evoluția prețului de achiziție per produs, comparație între furnizori și scumpiri semnalate vizual."
       />
 
+      {presetIds && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
+          <span>Filtrat din alertă: {formatNumber(presetIds.length)} produse.</span>
+          <button onClick={() => setPresetIds(null)} className="ml-auto rounded border border-brand-200 px-2 py-0.5 text-xs hover:bg-brand-100">
+            Șterge filtrul
+          </button>
+        </div>
+      )}
+
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-700">Top Furnizori</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Apasă pe un antet de coloană pentru a sorta după achiziții sau după vânzări. „Valoare vândută" atribuie
+          vânzările fiecărui produs furnizorului lui cel mai recent (nu există un furnizor unic per produs în timp).
+        </p>
+        <DataTable
+          columns={supplierRankingColumns}
+          rows={supplierRanking}
+          rowKey={(r) => r.supplier}
+          searchable
+          searchPredicate={(r, q) => r.supplier.toLowerCase().includes(q)}
+          defaultSortKey="purchaseValue"
+          pageSize={15}
+        />
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-4 text-sm">
         <Legend level="green" label="0–2% creștere" />
         <Legend level="yellow" label="2–5% creștere" />
@@ -135,7 +206,7 @@ export function SuppliersPage() {
       <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <DataTable
           columns={columns}
-          rows={summaries}
+          rows={displaySummaries}
           rowKey={(r) => r.product.id}
           searchable
           searchPredicate={(r, q) => r.product.name.toLowerCase().includes(q)}
