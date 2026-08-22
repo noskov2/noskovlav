@@ -33,8 +33,8 @@ const VITRINA_KEYWORDS = [
   'vitrina',
 ]
 const LEMONADE_KEYWORDS = ['limonada', 'ceai', 'lemonade', 'ice tea', 'icetea']
-const FUEL_KEYWORDS = ['motorina', 'benzina', 'diesel', 'euro95', 'euro 95', 'premium', 'gpl']
-const GPL_KEYWORDS = ['gpl']
+const FUEL_KEYWORDS = ['motorina', 'benzina', 'diesel', 'euro95', 'euro 95', 'premium', 'gpl', 'gaz petrolier', 'autogaz']
+const GPL_KEYWORDS = ['gpl', 'gaz petrolier', 'autogaz']
 const PROMO_KEYWORDS = ['promotie', 'promotii', 'promo', 'pachet promo']
 // Lines that must never count as "marfă" for cross-sell purposes even
 // though they aren't fuel: deposits, discounts, technical/service lines.
