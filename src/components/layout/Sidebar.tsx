@@ -12,6 +12,7 @@ const items: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
   { to: '/import', label: 'Import date', icon: '📥' },
   { to: '/vanzare-slaba', label: 'Vânzare slabă', icon: '🐢' },
+  { to: '/stoc', label: 'Stoc & Rotație', icon: '📦' },
   { to: '/zi', label: 'Zi de vânzare', icon: '📅' },
   { to: '/profitabilitate', label: 'Profitabilitate', icon: '💰' },
   { to: '/cross-sell', label: 'Cross-sell & Casieri', icon: '🤝' },

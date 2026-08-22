@@ -7,13 +7,38 @@ import { Modal } from '@/components/ui/Modal'
 import { TrendChart } from '@/components/charts/TrendChart'
 import { useDataStore } from '@/store/dataStore'
 import { computeProductPriceSummaries, type ProductPriceSummary } from '@/kpi/suppliers'
-import { formatDateRo, formatLei, formatSignedLei, formatSignedPct } from '@/lib/format'
+import { computeSupplierImpact } from '@/kpi/supplierImpact'
+import { todayStr } from '@/kpi/dateRanges'
+import { formatDateRo, formatLei, formatNumber, formatSignedLei, formatSignedPct } from '@/lib/format'
 
 export function SuppliersPage() {
-  const { supplierReceipts, products } = useDataStore()
+  const { supplierReceipts, products, transactions } = useDataStore()
   const [selected, setSelected] = useState<ProductPriceSummary | null>(null)
 
   const summaries = useMemo(() => computeProductPriceSummaries(supplierReceipts, products), [supplierReceipts, products])
+
+  const impactAsOf = useMemo(() => {
+    if (transactions.length === 0) return todayStr()
+    return transactions.reduce((max, t) => (t.date > max ? t.date : max), transactions[0].date)
+  }, [transactions])
+  const impactRows = useMemo(
+    () => computeSupplierImpact(summaries, transactions, impactAsOf),
+    [summaries, transactions, impactAsOf],
+  )
+  const hikeImpacts = useMemo(
+    () =>
+      impactRows
+        .filter((r) => r.hikeImpactPerMonth != null && r.hikeImpactPerMonth > 0)
+        .sort((a, b) => (b.hikeImpactPerMonth ?? 0) - (a.hikeImpactPerMonth ?? 0)),
+    [impactRows],
+  )
+  const savingOpportunities = useMemo(
+    () =>
+      impactRows
+        .filter((r) => r.theoreticalMonthlySaving != null && r.theoreticalMonthlySaving > 0)
+        .sort((a, b) => (b.theoreticalMonthlySaving ?? 0) - (a.theoreticalMonthlySaving ?? 0)),
+    [impactRows],
+  )
 
   if (supplierReceipts.length === 0) {
     return (
@@ -59,13 +84,33 @@ export function SuppliersPage() {
     },
     { key: 'min', header: 'Preț minim istoric', align: 'right', render: (r) => (r.minPrice != null ? formatLei(r.minPrice) : '—'), sortValue: (r) => r.minPrice ?? -1 },
     { key: 'max', header: 'Preț maxim', align: 'right', render: (r) => (r.maxPrice != null ? formatLei(r.maxPrice) : '—'), sortValue: (r) => r.maxPrice ?? -1 },
-    { key: 'avg', header: 'Preț mediu', align: 'right', render: (r) => (r.avgPrice != null ? formatLei(r.avgPrice) : '—'), sortValue: (r) => r.avgPrice ?? -1 },
+    {
+      key: 'avg',
+      header: 'Preț mediu ponderat',
+      align: 'right',
+      render: (r) => (r.weightedAvgPrice != null ? formatLei(r.weightedAvgPrice) : '—'),
+      sortValue: (r) => r.weightedAvgPrice ?? -1,
+    },
     {
       key: 'vsAvg',
       header: 'Diferență vs. media istorică',
       align: 'right',
       render: (r) => (r.diffVsAvgPct != null ? formatSignedPct(r.diffVsAvgPct) : '—'),
       sortValue: (r) => r.diffVsAvgPct ?? -Infinity,
+    },
+    {
+      key: 'qtyPurchased',
+      header: 'Cantitate cumpărată',
+      align: 'right',
+      render: (r) => formatNumber(r.totalQuantityPurchased, 2),
+      sortValue: (r) => r.totalQuantityPurchased,
+    },
+    {
+      key: 'totalPurchased',
+      header: 'Total cumpărat',
+      align: 'right',
+      render: (r) => formatLei(r.totalValuePurchased),
+      sortValue: (r) => r.totalValuePurchased,
     },
   ]
 
@@ -87,7 +132,7 @@ export function SuppliersPage() {
         </span>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <DataTable
           columns={columns}
           rows={summaries}
@@ -97,6 +142,82 @@ export function SuppliersPage() {
           defaultSortKey="diff"
           pageSize={25}
         />
+      </div>
+
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-700">Impact financiar al scumpirilor</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Estimare: (creșterea de preț pe unitate) × (cantitatea vândută în ultimele 30 zile, ca proxy pentru volumul
+          actual). Nu este o previziune de achiziții viitoare.
+        </p>
+        {hikeImpacts.length === 0 ? (
+          <p className="text-sm text-slate-400">Nicio scumpire cu impact estimabil în acest moment.</p>
+        ) : (
+          <table className="min-w-full divide-y divide-slate-100 text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <th className="px-2 py-1.5">Produs</th>
+                <th className="px-2 py-1.5 text-right">Scumpire</th>
+                <th className="px-2 py-1.5 text-right">Volum lunar (estimat)</th>
+                <th className="px-2 py-1.5 text-right">Impact estimat</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {hikeImpacts.slice(0, 20).map((r) => (
+                <tr key={r.summary.product.id}>
+                  <td className="px-2 py-1.5">{r.summary.product.name}</td>
+                  <td className="px-2 py-1.5 text-right">
+                    {r.summary.diffPct != null ? formatSignedPct(r.summary.diffPct) : '—'} (
+                    {formatSignedLei(r.summary.diffAbs ?? 0)})
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-slate-500">{formatNumber(r.monthlyVolumeEstimate, 2)} buc/lună</td>
+                  <td className="px-2 py-1.5 text-right font-semibold text-bad">
+                    {formatSignedLei(r.hikeImpactPerMonth ?? 0)}/lună (estimat)
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-700">Economie teoretică — schimbare furnizor</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Ce s-ar economisi (estimat) dacă produsul ar fi cumpărat de la cel mai ieftin furnizor cunoscut, la volumul
+          actual, în loc de furnizorul folosit ultima dată.
+        </p>
+        {savingOpportunities.length === 0 ? (
+          <p className="text-sm text-slate-400">Nicio oportunitate de economie identificată — furnizorul folosit ultima dată e deja cel mai ieftin, pentru toate produsele cu istoric de la mai mulți furnizori.</p>
+        ) : (
+          <table className="min-w-full divide-y divide-slate-100 text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <th className="px-2 py-1.5">Produs</th>
+                <th className="px-2 py-1.5">Furnizor actual</th>
+                <th className="px-2 py-1.5">Cel mai ieftin</th>
+                <th className="px-2 py-1.5 text-right">Economie estimată</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {savingOpportunities.slice(0, 20).map((r) => (
+                <tr key={r.summary.product.id}>
+                  <td className="px-2 py-1.5">{r.summary.product.name}</td>
+                  <td className="px-2 py-1.5 text-slate-500">
+                    {r.summary.lastSupplier} ({r.summary.lastPrice != null ? formatLei(r.summary.lastPrice) : '—'})
+                  </td>
+                  <td className="px-2 py-1.5 text-slate-500">
+                    {r.summary.bySupplier.find((s) => s.isCheapest)?.supplier} (
+                    {formatLei(r.summary.bySupplier.find((s) => s.isCheapest)?.lastPrice ?? 0)})
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-semibold text-good">
+                    {formatLei(r.theoreticalMonthlySaving ?? 0)}/lună (estimat)
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.product.name ?? ''} subtitle="Evoluția prețului de achiziție" wide>
@@ -122,6 +243,9 @@ function ProductPriceDetail({ summary }: { summary: ProductPriceSummary }) {
         <Stat label="Cost anterior" value={summary.prevPrice != null ? formatLei(summary.prevPrice) : '—'} />
         <Stat label="Preț minim" value={summary.minPrice != null ? formatLei(summary.minPrice) : '—'} />
         <Stat label="Preț maxim" value={summary.maxPrice != null ? formatLei(summary.maxPrice) : '—'} />
+        <Stat label="Preț mediu ponderat" value={summary.weightedAvgPrice != null ? formatLei(summary.weightedAvgPrice) : '—'} />
+        <Stat label="Cantitate cumpărată" value={formatNumber(summary.totalQuantityPurchased, 2)} />
+        <Stat label="Total cumpărat" value={formatLei(summary.totalValuePurchased)} />
       </div>
 
       <h4 className="mb-2 text-sm font-semibold text-slate-700">Grafic evoluție preț</h4>

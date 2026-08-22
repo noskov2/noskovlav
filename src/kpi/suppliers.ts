@@ -38,6 +38,9 @@ export interface ProductPriceSummary {
   minPrice: number | null
   maxPrice: number | null
   avgPrice: number | null
+  weightedAvgPrice: number | null // SUM(preț × cantitate) / SUM(cantitate)
+  totalQuantityPurchased: number
+  totalValuePurchased: number
   diffVsAvgPct: number | null
   bySupplier: SupplierComparisonRow[]
 }
@@ -82,6 +85,10 @@ export function computeProductPriceSummaries(
     const maxPrice = prices.length ? Math.max(...prices) : null
     const avgPrice = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null
 
+    const totalQuantityPurchased = sorted.reduce((s, l) => s + l.quantity, 0)
+    const totalValuePurchased = sorted.reduce((s, l) => s + l.price * l.quantity, 0)
+    const weightedAvgPrice = totalQuantityPurchased > 0 ? totalValuePurchased / totalQuantityPurchased : null
+
     const bySupplierMap = new Map<string, SupplierReceiptLine[]>()
     for (const line of sorted) {
       const arr = bySupplierMap.get(line.supplier)
@@ -116,6 +123,9 @@ export function computeProductPriceSummaries(
       minPrice,
       maxPrice,
       avgPrice,
+      weightedAvgPrice,
+      totalQuantityPurchased,
+      totalValuePurchased,
       diffVsAvgPct,
       bySupplier,
     })

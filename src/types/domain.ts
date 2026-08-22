@@ -251,6 +251,18 @@ export const defaultScoreWeights: ScoreWeights = {
   promoPer100: 5,
 }
 
+// Days-of-Stock thresholds used to classify a product's stock risk (see
+// kpi/stockRotation.ts). ruptureDays/lowDays/overstockDays are strictly
+// increasing: below ruptureDays = risc ruptură, below lowDays = stoc
+// scăzut, above overstockDays = suprastoc, everything between = sănătos.
+export interface StockThresholds {
+  ruptureDays: number
+  lowDays: number
+  overstockDays: number
+}
+
+export const defaultStockThresholds: StockThresholds = { ruptureDays: 7, lowDays: 14, overstockDays: 60 }
+
 export interface AppSettings {
   id: 'app-settings' // singleton row
   shiftConfig: ShiftConfig
@@ -262,4 +274,6 @@ export interface AppSettings {
   defaultVatRatePct: number // used to derive ex-VAT sales value when the import has no "Valoare fără TVA" column and the product has no override
   monthlyTargets: Record<string, MonthTargets> // "YYYY-MM" -> targets for that month
   scoreWeights: ScoreWeights
+  stockThresholds: StockThresholds // global default
+  stockThresholdsByCategory: Record<string, StockThresholds> // per-category override, only for categories explicitly customized
 }

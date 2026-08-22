@@ -2,10 +2,12 @@ import { db } from '@/data/db'
 import {
   defaultScoreWeights,
   defaultShiftConfig,
+  defaultStockThresholds,
   emptyCategoryGroupRules,
   emptyMonthTargets,
   type AppSettings,
   type MonthTargets,
+  type StockThresholds,
 } from '@/types/domain'
 
 const SETTINGS_ID = 'app-settings' as const
@@ -21,6 +23,12 @@ const defaultSettings: AppSettings = {
   defaultVatRatePct: 19,
   monthlyTargets: {},
   scoreWeights: defaultScoreWeights,
+  stockThresholds: defaultStockThresholds,
+  stockThresholdsByCategory: {},
+}
+
+export function getStockThresholdsForCategory(settings: AppSettings, category: string): StockThresholds {
+  return settings.stockThresholdsByCategory[category] ?? settings.stockThresholds
 }
 
 export async function getSettings(): Promise<AppSettings> {

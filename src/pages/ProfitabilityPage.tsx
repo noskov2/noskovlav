@@ -17,6 +17,10 @@ import {
   type ProductProfitRow,
 } from '@/kpi/profitability'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
+import { computeAbcAnalysis, type AbcBasis } from '@/kpi/abcAnalysis'
+import { computeMarginMatrix, MATRIX_DESCRIPTIONS, MATRIX_LABELS, type MatrixQuadrant } from '@/kpi/marginMatrix'
+import { ParetoChart } from '@/components/charts/ParetoChart'
+import { Badge } from '@/components/ui/Badge'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 
 type RankingKey = 'sales' | 'profit' | 'margin' | 'highSalesLowProfit' | 'lowSalesHighMargin'
@@ -62,6 +66,28 @@ export function ProfitabilityPage() {
   )
 
   const [ranking, setRanking] = useState<RankingKey>('sales')
+
+  const [abcBasis, setAbcBasis] = useState<AbcBasis>('sales')
+  const abcAnalysis = useMemo(() => computeAbcAnalysis(productRows, abcBasis), [productRows, abcBasis])
+  const abcClassByProductId = useMemo(
+    () => new Map(abcAnalysis.rows.map((r) => [r.row.product.id, r.abcClass])),
+    [abcAnalysis],
+  )
+  const paretoChartData = useMemo(
+    () => abcAnalysis.rows.slice(0, 40).map((r) => ({ name: r.row.product.name, value: r.value, cumulativePct: r.cumulativePct })),
+    [abcAnalysis],
+  )
+
+  const marginMatrix = useMemo(() => computeMarginMatrix(productRows), [productRows])
+  const matrixByQuadrant = useMemo(() => {
+    const map = new Map<MatrixQuadrant, typeof marginMatrix.rows>()
+    for (const r of marginMatrix.rows) {
+      const arr = map.get(r.quadrant)
+      if (arr) arr.push(r)
+      else map.set(r.quadrant, [r])
+    }
+    return map
+  }, [marginMatrix])
 
   const rankedCategories = useMemo(() => {
     const withProfit = categoryRows.filter((c) => c.grossProfit != null)
@@ -211,6 +237,15 @@ export function ProfitabilityPage() {
       render: (r) => (r.shareOfProfit != null ? formatPct(r.shareOfProfit) : '—'),
       sortValue: (r) => r.shareOfProfit ?? -Infinity,
     },
+    {
+      key: 'abc',
+      header: `Clasă ABC (${abcBasis === 'sales' ? 'vânzări' : 'profit'})`,
+      render: (r) => {
+        const cls = abcClassByProductId.get(r.product.id)
+        return cls ? <Badge tone={cls === 'A' ? 'good' : cls === 'B' ? 'warn' : 'neutral'}>{cls}</Badge> : '—'
+      },
+      sortValue: (r) => abcClassByProductId.get(r.product.id) ?? 'Z',
+    },
   ]
 
   return (
@@ -270,7 +305,7 @@ export function ProfitabilityPage() {
         <DataTable columns={categoryColumns} rows={categoryRows} rowKey={(r) => r.category} defaultSortKey="sales" pageSize={20} />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-slate-700">Profitabilitate pe produs</h3>
         <DataTable
           columns={productColumns}
@@ -281,6 +316,91 @@ export function ProfitabilityPage() {
           defaultSortKey="sales"
           pageSize={30}
         />
+      </div>
+
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-700">Analiza ABC / Pareto produse</h3>
+          <div className="flex gap-1 rounded-full bg-slate-100 p-0.5">
+            <button
+              onClick={() => setAbcBasis('sales')}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                abcBasis === 'sales' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              După vânzări
+            </button>
+            <button
+              onClick={() => setAbcBasis('profit')}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                abcBasis === 'profit' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+              }`}
+            >
+              După profit
+            </button>
+          </div>
+        </div>
+
+        {abcAnalysis.paretoPoint && (
+          <p className="mb-3 text-sm text-slate-600">
+            <span className="font-semibold text-slate-900">{formatPct(abcAnalysis.paretoPoint.productSharePct, 0)}</span> dintre
+            produse generează aproximativ{' '}
+            <span className="font-semibold text-slate-900">{formatPct(abcAnalysis.paretoPoint.valueSharePct, 0)}</span> din{' '}
+            {abcBasis === 'sales' ? 'vânzări' : 'profit'}.
+          </p>
+        )}
+
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          {abcAnalysis.summary.map((s) => (
+            <div key={s.abcClass} className="rounded-lg border border-slate-100 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Clasa {s.abcClass}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">{formatNumber(s.productCount)} produse</p>
+              <p className="text-xs text-slate-500">{formatPct(s.valueShare, 1)} din {abcBasis === 'sales' ? 'vânzări' : 'profit'}</p>
+            </div>
+          ))}
+        </div>
+
+        {paretoChartData.length > 0 ? (
+          <>
+            <ParetoChart data={paretoChartData} />
+            <p className="mt-2 text-xs text-slate-400">
+              Primele {formatNumber(paretoChartData.length)} din {formatNumber(abcAnalysis.rows.length)} produse (sortate
+              descrescător), linia punctată = pragul de 80%.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-slate-400">
+            Nu există suficiente date {abcBasis === 'profit' ? '(profit cunoscut) ' : ''}pentru analiza ABC în perioada
+            selectată.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-700">Matrice Vânzări × Marjă</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Praguri pe mediana vânzărilor ({formatLei(marginMatrix.salesMedian)}) și a marjei (
+          {formatPct(marginMatrix.marginMedian, 1)}) dintre produsele cu cost cunoscut din perioada selectată.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {(['star', 'traffic-builder', 'hidden-gem', 'slab'] as MatrixQuadrant[]).map((q) => {
+            const items = (matrixByQuadrant.get(q) ?? []).sort((a, b) => b.row.salesValue - a.row.salesValue)
+            return (
+              <div key={q} className="rounded-lg border border-slate-100 p-3">
+                <p className="text-sm font-semibold text-slate-800">{MATRIX_LABELS[q]}</p>
+                <p className="mb-2 text-xs text-slate-500">{MATRIX_DESCRIPTIONS[q]}</p>
+                <p className="mb-2 text-xs font-medium text-slate-600">{formatNumber(items.length)} produse</p>
+                <ul className="space-y-0.5 text-xs text-slate-600">
+                  {items.slice(0, 5).map((m) => (
+                    <li key={m.row.product.id} className="truncate">
+                      {m.row.product.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
