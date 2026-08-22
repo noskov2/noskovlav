@@ -45,6 +45,9 @@ export type ComparisonMetricKey =
   | 'coffeeCount'
   | 'sandwichCount'
   | 'crossSellPct'
+  | 'grossProfitEstimate'
+  | 'promoValue'
+  | 'totalLiters'
 
 export const COMPARISON_METRIC_LABELS: Record<ComparisonMetricKey, string> = {
   totalSales: 'Vânzări totale',
@@ -55,6 +58,9 @@ export const COMPARISON_METRIC_LABELS: Record<ComparisonMetricKey, string> = {
   coffeeCount: 'Cafele',
   sandwichCount: 'Sandwich-uri',
   crossSellPct: 'Cross-sell %',
+  grossProfitEstimate: 'Profit brut estimat',
+  promoValue: 'Promoții (valoare)',
+  totalLiters: 'Litri',
 }
 
 export interface ComparisonPoint {
@@ -71,6 +77,7 @@ export interface DayComparisons {
   vsWeekdayAvg: ComparisonPoint
   vsLast30Avg: ComparisonPoint
   vsMonthAvg: ComparisonPoint
+  vsLast4SimilarAvg: ComparisonPoint
 }
 
 function averageMetric(
@@ -142,6 +149,13 @@ export function computeDayComparisons(
   const monthDates = Array.from(byDate.keys()).filter((d) => d.startsWith(monthPrefix))
   const monthAvg = averageMetric(monthDates, byDate, products, metric)
 
+  // Last 4 occurrences of the same weekday before the selected date (7, 14,
+  // 21, 28 days back) — a recency-focused reading distinct from
+  // vsWeekdayAvg, which averages every matching weekday across the whole
+  // selected filter period regardless of how far back it goes.
+  const last4SimilarDates = [7, 14, 21, 28].map((n) => addDays(date, -n))
+  const last4SimilarAvg = averageMetric(last4SimilarDates, byDate, products, metric)
+
   return {
     date,
     value: dayValue,
@@ -149,5 +163,6 @@ export function computeDayComparisons(
     vsWeekdayAvg: makePoint(`Media zilelor de ${weekday}`, dayValue, weekdayAvg),
     vsLast30Avg: makePoint('Media ultimelor 30 zile', dayValue, last30Avg),
     vsMonthAvg: makePoint('Media lunii', dayValue, monthAvg),
+    vsLast4SimilarAvg: makePoint('Ultimele 4 zile similare', dayValue, last4SimilarAvg),
   }
 }

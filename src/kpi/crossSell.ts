@@ -20,6 +20,7 @@ export interface VitrinaBreakdown {
   pctReceipts: number
   quantity: number
   value: number
+  per100Receipts: number
 }
 
 export interface SandwichBreakdown {
@@ -47,6 +48,7 @@ export interface PromoBreakdown {
   value: number
   receiptsWithPromo: number
   pctReceipts: number
+  per100Receipts: number
 }
 
 export interface CashierCrossSellRow {
@@ -61,6 +63,7 @@ export interface CashierCrossSellRow {
   fuelReceipts: number
   fuelPlusGoodsReceipts: number
   crossSellPct: number
+  goodsValueOnFuelReceipts: number // valoare marfă (non-carburant, non-exclusă) însumată pe toate bonurile cu carburant
   coffee: CoffeeBreakdown
   vitrina: VitrinaBreakdown
   sandwich: SandwichBreakdown
@@ -124,6 +127,7 @@ function computeVitrina(receipts: Receipt[], products: Product[]): VitrinaBreakd
     pctReceipts: receipts.length > 0 ? (receiptsWithVitrina / receipts.length) * 100 : 0,
     quantity,
     value,
+    per100Receipts: receipts.length > 0 ? (quantity / receipts.length) * 100 : 0,
   }
 }
 
@@ -216,15 +220,26 @@ function computePromo(receipts: Receipt[], products: Product[]): PromoBreakdown 
     value,
     receiptsWithPromo,
     pctReceipts: receipts.length > 0 ? (receiptsWithPromo / receipts.length) * 100 : 0,
+    per100Receipts: receipts.length > 0 ? (lineCount / receipts.length) * 100 : 0,
   }
 }
 
-function buildCashierRow(cashier: Cashier, receipts: Receipt[], products: Product[]): CashierCrossSellRow {
+function buildCashierRow(
+  cashier: Cashier,
+  receipts: Receipt[],
+  products: Product[],
+  fuelIds: Set<string>,
+  excludedIds: Set<string>,
+): CashierCrossSellRow {
   const totalSales = receipts.reduce((s, r) => s + r.totalValue, 0)
   const fuelReceipts = receipts.filter((r) => r.hasFuel)
   const fuelPlusGoods = fuelReceipts.filter((r) => r.hasGoods)
   const dayKeys = Array.from(new Set(receipts.map((r) => r.date)))
   const shiftKeys = Array.from(new Set(receipts.filter((r) => r.shift).map((r) => `${r.date}:${r.shift}`)))
+  const goodsValueOnFuelReceipts = fuelReceipts.reduce(
+    (s, r) => s + r.lines.reduce((ls, l) => (fuelIds.has(l.productId) || excludedIds.has(l.productId) ? ls : ls + l.value), 0),
+    0,
+  )
 
   return {
     cashier,
@@ -238,6 +253,7 @@ function buildCashierRow(cashier: Cashier, receipts: Receipt[], products: Produc
     fuelReceipts: fuelReceipts.length,
     fuelPlusGoodsReceipts: fuelPlusGoods.length,
     crossSellPct: fuelReceipts.length > 0 ? (fuelPlusGoods.length / fuelReceipts.length) * 100 : 0,
+    goodsValueOnFuelReceipts,
     coffee: computeCoffee(receipts, products),
     vitrina: computeVitrina(receipts, products),
     sandwich: computeSandwich(receipts, products),
@@ -268,7 +284,7 @@ export function computeCrossSellReport(
     teamId: null,
     createdAt: 0,
   }
-  const stationTotal = buildCashierRow(stationCashier, receipts, products)
+  const stationTotal = buildCashierRow(stationCashier, receipts, products, fuelIds, excludedIds)
 
   const byCashierId = new Map<string, Receipt[]>()
   for (const r of receipts) {
@@ -281,7 +297,7 @@ export function computeCrossSellReport(
     .map(([cashierId, cashierReceipts]) => {
       const cashier = cashiers.find((c) => c.id === cashierId)
       if (!cashier) return null
-      return buildCashierRow(cashier, cashierReceipts, products)
+      return buildCashierRow(cashier, cashierReceipts, products, fuelIds, excludedIds)
     })
     .filter((r): r is CashierCrossSellRow => r !== null)
     .sort((a, b) => b.totalSales - a.totalSales)

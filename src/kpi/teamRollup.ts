@@ -48,6 +48,7 @@ export function computeTeamRollup(
     const daysWorked = new Set(rows.flatMap((r) => r.dayKeys)).size
     const fuelReceipts = sum((r) => r.fuelReceipts)
     const fuelPlusGoodsReceipts = sum((r) => r.fuelPlusGoodsReceipts)
+    const goodsValueOnFuelReceipts = sum((r) => r.goodsValueOnFuelReceipts)
 
     const coffeeTotal = sum((r) => r.coffee.total)
     const coffeeReceipts = sum((r) => r.coffee.receiptsWithCoffee)
@@ -76,6 +77,7 @@ export function computeTeamRollup(
       fuelReceipts,
       fuelPlusGoodsReceipts,
       crossSellPct: pct(fuelPlusGoodsReceipts, fuelReceipts),
+      goodsValueOnFuelReceipts,
       coffee: {
         espresso: sum((r) => r.coffee.espresso),
         espressoLung: sum((r) => r.coffee.espressoLung),
@@ -92,6 +94,7 @@ export function computeTeamRollup(
         pctReceipts: pct(vitrinaReceipts, totalReceipts),
         quantity: vitrinaQty,
         value: vitrinaValue,
+        per100Receipts: pct(vitrinaQty, totalReceipts),
       },
       sandwich: {
         prosciuttoCotto: sum((r) => r.sandwich.prosciuttoCotto),
@@ -116,6 +119,7 @@ export function computeTeamRollup(
         value: promoValue,
         receiptsWithPromo: promoReceipts,
         pctReceipts: pct(promoReceipts, totalReceipts),
+        per100Receipts: pct(promoLineCount, totalReceipts),
       },
     })
   }

@@ -1,5 +1,12 @@
 import { db } from '@/data/db'
-import { defaultShiftConfig, emptyCategoryGroupRules, emptyMonthTargets, type AppSettings, type MonthTargets } from '@/types/domain'
+import {
+  defaultScoreWeights,
+  defaultShiftConfig,
+  emptyCategoryGroupRules,
+  emptyMonthTargets,
+  type AppSettings,
+  type MonthTargets,
+} from '@/types/domain'
 
 const SETTINGS_ID = 'app-settings' as const
 
@@ -13,6 +20,7 @@ const defaultSettings: AppSettings = {
   reportsAcknowledged: [],
   defaultVatRatePct: 19,
   monthlyTargets: {},
+  scoreWeights: defaultScoreWeights,
 }
 
 export async function getSettings(): Promise<AppSettings> {

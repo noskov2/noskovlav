@@ -228,6 +228,29 @@ export interface MonthTargets {
 
 export const emptyMonthTargets = (): MonthTargets => ({ station: emptyTargetSet(), byTeam: {} })
 
+// Weights used to combine each normalized cross-sell metric into the 0-100
+// cashier Performance Score (see kpi/cashierScore.ts). Values are relative
+// (not required to sum to 100 — the score computation normalizes by their
+// sum), so a station can emphasize e.g. cross-sell over cafea without
+// having to re-balance every other weight by hand.
+export interface ScoreWeights {
+  salesPerShift: number
+  crossSellPct: number
+  coffeePer100: number
+  sandwichPer100: number
+  vitrinaPer100: number
+  promoPer100: number
+}
+
+export const defaultScoreWeights: ScoreWeights = {
+  salesPerShift: 30,
+  crossSellPct: 30,
+  coffeePer100: 15,
+  sandwichPer100: 15,
+  vitrinaPer100: 5,
+  promoPer100: 5,
+}
+
 export interface AppSettings {
   id: 'app-settings' // singleton row
   shiftConfig: ShiftConfig
@@ -238,4 +261,5 @@ export interface AppSettings {
   reportsAcknowledged: string[] // "YYYY-MM" months whose report banner was dismissed/downloaded
   defaultVatRatePct: number // used to derive ex-VAT sales value when the import has no "Valoare fără TVA" column and the product has no override
   monthlyTargets: Record<string, MonthTargets> // "YYYY-MM" -> targets for that month
+  scoreWeights: ScoreWeights
 }

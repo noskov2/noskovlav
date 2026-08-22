@@ -1,4 +1,4 @@
-import type { Cashier, Product, TransactionLine } from '@/types/domain'
+import type { Cashier, Product, ScoreWeights, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts, receiptContainsProduct } from '@/kpi/receipts'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { NO_TEAM_ID, TEAM_ROW_PREFIX } from '@/kpi/teamRollup'
@@ -8,7 +8,9 @@ export interface CrossSellTabProps {
   transactions: TransactionLine[]
   products: Product[]
   report: CrossSellReport
+  prevReport?: CrossSellReport
   cashiersById: Map<string, Cashier>
+  scoreWeights?: ScoreWeights
 }
 
 /**

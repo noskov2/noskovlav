@@ -33,7 +33,7 @@ const TABS = [
 type GroupBy = 'casier' | 'echipa'
 
 export function CrossSellPage() {
-  const { transactions, products, cashiers, teams, productsById, cashiersById } = useDataStore()
+  const { transactions, products, cashiers, teams, settings, productsById, cashiersById } = useDataStore()
   const { filter } = useFilterStore()
   const [tab, setTab] = useState('fuel')
   const [groupBy, setGroupBy] = useState<GroupBy>('casier')
@@ -57,6 +57,7 @@ export function CrossSellPage() {
     () => computeCrossSellReport(prevFiltered, products, cashiers),
     [prevFiltered, products, cashiers],
   )
+  const prevTeamRows = useMemo(() => computeTeamRollup(prevReport.cashiers, teams), [prevReport, teams])
 
   if (transactions.length === 0) {
     return (
@@ -68,7 +69,16 @@ export function CrossSellPage() {
   }
 
   const displayReport = groupBy === 'echipa' ? { stationTotal: report.stationTotal, cashiers: teamRows } : report
-  const tabProps = { transactions: filtered, products, report: displayReport, cashiersById }
+  const prevDisplayReport =
+    groupBy === 'echipa' ? { stationTotal: prevReport.stationTotal, cashiers: prevTeamRows } : prevReport
+  const tabProps = {
+    transactions: filtered,
+    products,
+    report: displayReport,
+    prevReport: prevDisplayReport,
+    cashiersById,
+    scoreWeights: settings?.scoreWeights,
+  }
 
   return (
     <div>

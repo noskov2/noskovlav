@@ -4,11 +4,14 @@ import { getSettings, updateSettings } from '@/data/repo/settings'
 import { recomputeAllShifts } from '@/data/repo/transactions'
 import { determineShift } from '@/processing/shift'
 import { downloadBackup, restoreBackup, validateBackup, type BackupData, type BackupValidation } from '@/data/backup'
+import { MIN_SHIFTS_FOR_SCORE } from '@/kpi/cashierScore'
 import { useDataStore } from '@/store/dataStore'
 import {
+  defaultScoreWeights,
   defaultShiftConfig,
   type PurchaseColumnMapping,
   type SalesColumnMapping,
+  type ScoreWeights,
   type ShiftConfig,
   type StockColumnMapping,
 } from '@/types/domain'
@@ -31,6 +34,8 @@ export function SettingsPage() {
   const [stockMapping, setStockMapping] = useState<StockColumnMapping | null>(null)
   const [vatRate, setVatRate] = useState(19)
   const [vatSaved, setVatSaved] = useState(false)
+  const [scoreWeights, setScoreWeights] = useState<ScoreWeights>(defaultScoreWeights)
+  const [scoreWeightsSaved, setScoreWeightsSaved] = useState(false)
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -39,6 +44,7 @@ export function SettingsPage() {
       setPurchaseMapping(s.purchaseMapping)
       setStockMapping(s.stockMapping)
       setVatRate(s.defaultVatRatePct)
+      setScoreWeights(s.scoreWeights)
     })
   }, [])
 
@@ -59,6 +65,12 @@ export function SettingsPage() {
     await updateSettings({ defaultVatRatePct: vatRate })
     setVatSaved(true)
     setTimeout(() => setVatSaved(false), 2000)
+  }
+
+  async function saveScoreWeights() {
+    await updateSettings({ scoreWeights })
+    setScoreWeightsSaved(true)
+    setTimeout(() => setScoreWeightsSaved(false), 2000)
   }
 
   async function saveShifts() {
@@ -181,6 +193,48 @@ export function SettingsPage() {
             Salvează
           </button>
           {vatSaved && <span className="text-sm text-good">Salvat.</span>}
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-700">Ponderi Score Casier</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Greutățile relative folosite pentru scorul 0-100 din Cross-sell → Score Casieri. Nu trebuie să însumeze
+          100 — sunt normalizate automat între ele. Casierii cu mai puțin de {MIN_SHIFTS_FOR_SCORE} ture în perioada
+          selectată nu primesc scor (eșantion insuficient).
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {(
+            [
+              { key: 'salesPerShift', label: 'Vânzări/tură' },
+              { key: 'crossSellPct', label: 'Cross-sell' },
+              { key: 'coffeePer100', label: 'Cafea/100 bonuri' },
+              { key: 'sandwichPer100', label: 'Sandwich/100 bonuri' },
+              { key: 'vitrinaPer100', label: 'Dulciuri/100 bonuri' },
+              { key: 'promoPer100', label: 'Promoții/100 bonuri' },
+            ] as { key: keyof ScoreWeights; label: string }[]
+          ).map((f) => (
+            <label key={f.key} className="text-xs text-slate-600">
+              <span className="mb-1 block font-medium">{f.label}</span>
+              <input
+                type="number"
+                min={0}
+                step="1"
+                value={scoreWeights[f.key]}
+                onChange={(e) => setScoreWeights((w) => ({ ...w, [f.key]: Number(e.target.value) }))}
+                className="w-full rounded border border-slate-200 px-2 py-1 text-sm"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={saveScoreWeights}
+            className="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600"
+          >
+            Salvează
+          </button>
+          {scoreWeightsSaved && <span className="text-sm text-good">Salvat.</span>}
         </div>
       </div>
 

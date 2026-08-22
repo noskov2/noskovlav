@@ -12,6 +12,7 @@ import { computeDayDetail, computeDayComparisons, COMPARISON_METRIC_LABELS, type
 import { computeDailySeries } from '@/kpi/dailySeries'
 import { productIdsInGroup } from '@/kpi/productGroups'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
+import { HourlyHeatmap } from '@/components/charts/Heatmap'
 import { formatDateRo, formatLei, formatNumber, formatPct, formatSignedLei, formatSignedPct } from '@/lib/format'
 import { weekdayName } from '@/kpi/dateRanges'
 
@@ -24,11 +25,15 @@ const METRICS: ComparisonMetricKey[] = [
   'coffeeCount',
   'sandwichCount',
   'crossSellPct',
+  'grossProfitEstimate',
+  'promoValue',
+  'totalLiters',
 ]
 
 function formatMetric(key: ComparisonMetricKey, value: number): string {
   if (key === 'receiptCount' || key === 'coffeeCount' || key === 'sandwichCount') return formatNumber(value)
   if (key === 'crossSellPct') return formatPct(value)
+  if (key === 'totalLiters') return `${formatNumber(value, 0)} L`
   return formatLei(value)
 }
 
@@ -77,6 +82,11 @@ export function DailyPerformancePage() {
   const sandwichIds = useMemo(() => productIdsInGroup(products, 'sandwich'), [products])
   const vitrinaIds = useMemo(() => productIdsInGroup(products, 'dulciuriVitrina'), [products])
   const lemonadeIds = useMemo(() => productIdsInGroup(products, 'limonadaCeai'), [products])
+  const promoIds = useMemo(() => productIdsInGroup(products, 'promotii'), [products])
+  const promoLines = useMemo(
+    () => viewTransactions.filter((t) => !!t.promotionRaw || promoIds.has(t.productId)),
+    [viewTransactions, promoIds],
+  )
 
   const [comparisonMetric, setComparisonMetric] = useState<ComparisonMetricKey>('totalSales')
   const comparisons = useMemo(
@@ -202,6 +212,26 @@ export function DailyPerformancePage() {
               }
             />
             <KpiCard label="Cross-sell" value={formatPct(viewSummary.crossSellPct)} />
+            <KpiCard
+              label="Profit brut estimat"
+              value={formatLei(viewSummary.grossProfitEstimate)}
+              tone={viewSummary.grossProfitEstimate >= 0 ? 'good' : 'bad'}
+              hint={
+                viewSummary.grossProfitKnownShare < 0.99
+                  ? `${formatPct(viewSummary.grossProfitKnownShare * 100, 0)} din vânzări au preț de achiziție cunoscut`
+                  : undefined
+              }
+            />
+            <KpiCard label="Litri" value={`${formatNumber(viewSummary.totalLiters, 0)} L`} />
+            <KpiCard
+              label="Promoții"
+              value={
+                <DrillValue title="Vânzări prin promoții" lines={promoLines}>
+                  {formatLei(viewSummary.promoValue)}
+                </DrillValue>
+              }
+              hint={`${formatNumber(viewSummary.promoCount)} linii`}
+            />
           </div>
 
           {fuelTypeRows.length > 0 && (
@@ -298,9 +328,15 @@ export function DailyPerformancePage() {
             </p>
           </div>
         )}
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {comparisons &&
-            [comparisons.vsPeriodAvg, comparisons.vsWeekdayAvg, comparisons.vsLast30Avg, comparisons.vsMonthAvg].map(
+            [
+              comparisons.vsPeriodAvg,
+              comparisons.vsWeekdayAvg,
+              comparisons.vsLast4SimilarAvg,
+              comparisons.vsLast30Avg,
+              comparisons.vsMonthAvg,
+            ].map(
               (p) => (
                 <div key={p.label} className="rounded-lg border border-slate-100 p-3">
                   <p className="text-xs text-slate-500">{p.label}</p>
@@ -322,6 +358,10 @@ export function DailyPerformancePage() {
         <div className="mt-3">
           <TrendChart data={dailySeries.map((p) => ({ date: p.date, value: p.summary.totalSales }))} />
         </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <HourlyHeatmap transactions={transactions} products={products} range={range} />
       </div>
     </div>
   )

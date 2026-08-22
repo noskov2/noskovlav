@@ -20,6 +20,9 @@ export interface PeriodSummary {
   fuelReceiptCount: number
   grossProfitEstimate: number
   grossProfitKnownShare: number // fraction of goods sales for which a purchase price was available
+  totalLiters: number // fuelLiters + gplLiters
+  promoValue: number
+  promoCount: number // number of promotional lines (not receipts)
 }
 
 export function computePeriodSummary(
@@ -34,6 +37,7 @@ export function computePeriodSummary(
   const sandwichIds = productIdsInGroup(products, 'sandwich')
   const lemonadeIds = productIdsInGroup(products, 'limonadaCeai')
   const vitrinaIds = productIdsInGroup(products, 'dulciuriVitrina')
+  const promoIds = productIdsInGroup(products, 'promotii')
   const productsById = new Map(products.map((p) => [p.id, p]))
 
   let totalSales = 0
@@ -48,6 +52,8 @@ export function computePeriodSummary(
   let costKnown = 0
   let costUnknownSalesValue = 0
   let grossProfit = 0
+  let promoValue = 0
+  let promoCount = 0
 
   for (const t of transactions) {
     totalSales += t.value
@@ -62,6 +68,10 @@ export function computePeriodSummary(
     if (sandwichIds.has(t.productId)) sandwichCount += t.quantity
     if (lemonadeIds.has(t.productId)) lemonadeCount += t.quantity
     if (vitrinaIds.has(t.productId)) vitrinaCount += t.quantity
+    if (t.promotionRaw || promoIds.has(t.productId)) {
+      promoValue += t.value
+      promoCount++
+    }
 
     const product = productsById.get(t.productId)
     const purchaseUnit = t.purchasePriceUnit ?? product?.purchasePrice ?? null
@@ -100,5 +110,8 @@ export function computePeriodSummary(
     fuelReceiptCount: fuelReceipts.length,
     grossProfitEstimate: grossProfit,
     grossProfitKnownShare: knownShare,
+    totalLiters: fuelLiters + gplLiters,
+    promoValue,
+    promoCount,
   }
 }
