@@ -2,6 +2,7 @@ import type { Product, SupplierReceiptLine, TargetSet, TransactionLine } from '@
 import type { DateRange } from '@/kpi/dateRanges'
 import { addDays, monthLabel } from '@/kpi/dateRanges'
 import { computePeriodSummary, type PeriodSummary } from '@/kpi/summary'
+import { computeFuelBreakdown } from '@/kpi/fuelVariants'
 import { computeProductProfitability, type ProductProfitRow } from '@/kpi/profitability'
 import { computeMarginMatrix } from '@/kpi/marginMatrix'
 import { computeStockRotation } from '@/kpi/stockRotation'
@@ -131,9 +132,15 @@ export function computeExecutiveReportData(
   const opportunities: string[] = []
   const recommendations: string[] = []
 
-  if (stationTarget?.totalSales != null && summary.totalSales < stationTarget.totalSales) {
-    const gap = stationTarget.totalSales - summary.totalSales
-    problems.push(`Vânzările lunii (${fmt(summary.totalSales)} lei) sunt sub targetul de ${fmt(stationTarget.totalSales)} lei — diferență de ${fmt(gap)} lei.`)
+  // Targetul e definit ca marfă + GPL, fără motorină/benzină (vezi și
+  // DashboardPage) — comparăm cu aceeași bază, nu cu vânzările totale ale
+  // stației, altfel targetul ar părea mereu "depășit" din cauza volumului
+  // mult mai mare de la motorină/benzină.
+  const fuelBreakdown = computeFuelBreakdown(monthTx, products)
+  const targetRelevantActual = summary.totalSales - fuelBreakdown.motorina.value - fuelBreakdown.benzina.value
+  if (stationTarget?.totalSales != null && targetRelevantActual < stationTarget.totalSales) {
+    const gap = stationTarget.totalSales - targetRelevantActual
+    problems.push(`Vânzările lunii pe marfă + GPL (${fmt(targetRelevantActual)} lei) sunt sub targetul de ${fmt(stationTarget.totalSales)} lei — diferență de ${fmt(gap)} lei.`)
     recommendations.push('Verifică pagina Target → Forecast & Ritm pentru a vedea ce ritm zilnic mai e necesar.')
   }
   if (stationTarget?.crossSellPct != null && summary.crossSellPct < stationTarget.crossSellPct) {

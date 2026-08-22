@@ -153,6 +153,14 @@ export function DashboardPage() {
     () => computePeriodSummary(monthTx, products, defaultVatRatePct),
     [monthTx, products, defaultVatRatePct],
   )
+  // Targetul de vânzări e definit ca marfă + GPL, EXCLUZÂND motorină și
+  // benzină (acelea au propriile ritmuri de vânzare, mult mai mari, și nu
+  // fac parte din ce trebuie să "facă" echipa) — vezi și pagina Target.
+  // Comparăm deci targetul cu aceeași bază, nu cu vânzările totale ale
+  // stației (care ar include motorină+benzină și ar face targetul să pară
+  // "deja atins" din prima săptămână, indiferent de ritmul real la marfă+GPL).
+  const monthFuelBreakdown = useMemo(() => computeFuelBreakdown(monthTx, products), [monthTx, products])
+  const targetRelevantActual = monthSummary.totalSales - monthFuelBreakdown.motorina.value - monthFuelBreakdown.benzina.value
   const operationalDaysSoFar = useMemo(() => new Set(monthTx.map((t) => t.date)).size, [monthTx])
   const daysInCurrentMonth = useMemo(() => {
     const [y, m] = currentMonthKey.split('-').map(Number)
@@ -162,28 +170,30 @@ export function DashboardPage() {
 
   const recentRange = useMemo(() => ({ start: addDays(todayStr(), -6), end: todayStr() }), [])
   const recentTx = useMemo(() => filterByRange(dimFiltered, recentRange.start, recentRange.end), [dimFiltered, recentRange])
-  const recentAvgPerDay = useMemo(
-    () => recentTx.reduce((s, t) => s + t.value, 0) / dayCountInRange(recentRange),
-    [recentTx, recentRange],
-  )
+  const recentFuelBreakdown = useMemo(() => computeFuelBreakdown(recentTx, products), [recentTx, products])
+  const recentAvgPerDay = useMemo(() => {
+    const recentTargetRelevant =
+      recentTx.reduce((s, t) => s + t.value, 0) - recentFuelBreakdown.motorina.value - recentFuelBreakdown.benzina.value
+    return recentTargetRelevant / dayCountInRange(recentRange)
+  }, [recentTx, recentFuelBreakdown, recentRange])
 
   const salesForecast = useMemo(
     () =>
       computeForecast(
-        monthSummary.totalSales,
+        targetRelevantActual,
         operationalDaysSoFar,
         daysElapsedInMonth,
         daysInCurrentMonth,
         stationTarget.totalSales,
       ),
-    [monthSummary.totalSales, operationalDaysSoFar, daysElapsedInMonth, daysInCurrentMonth, stationTarget.totalSales],
+    [targetRelevantActual, operationalDaysSoFar, daysElapsedInMonth, daysInCurrentMonth, stationTarget.totalSales],
   )
   const salesPace = useMemo(
     () =>
       stationTarget.totalSales != null
-        ? computePace(monthSummary.totalSales, stationTarget.totalSales, salesForecast.daysRemainingInMonth, recentAvgPerDay)
+        ? computePace(targetRelevantActual, stationTarget.totalSales, salesForecast.daysRemainingInMonth, recentAvgPerDay)
         : null,
-    [monthSummary.totalSales, stationTarget.totalSales, salesForecast.daysRemainingInMonth, recentAvgPerDay],
+    [targetRelevantActual, stationTarget.totalSales, salesForecast.daysRemainingInMonth, recentAvgPerDay],
   )
 
   const actionItems = useMemo(
@@ -279,7 +289,6 @@ export function DashboardPage() {
             </DrillValue>
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-            <span>Target: {stationTarget.totalSales != null ? formatLei(stationTarget.totalSales) : '—'}</span>
             {compare && <DeltaBadge delta={computeDelta(summary.totalSales, prevSummary.totalSales)} />}
           </div>
         </div>
@@ -340,9 +349,10 @@ export function DashboardPage() {
       </div>
 
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-slate-700">
+        <h3 className="text-sm font-semibold text-slate-700">
           Forecast &amp; ritm către target — {monthLabel(`${currentMonthKey}-01`)}
         </h3>
+        <p className="mb-3 text-xs text-slate-400">Target pe marfă + GPL — motorina și benzina nu intră în calcul.</p>
         {stationTarget.totalSales == null ? (
           <p className="text-sm text-slate-400">
             Nu ai configurat un target de vânzări totale pentru luna curentă.{' '}
