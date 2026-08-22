@@ -41,8 +41,11 @@ export function computeTeamRollup(
     const sum = (pick: (r: CashierCrossSellRow) => number) => rows.reduce((s, r) => s + pick(r), 0)
     const totalReceipts = sum((r) => r.totalReceipts)
     const totalSales = sum((r) => r.totalSales)
-    const shiftsWorked = sum((r) => r.shiftsWorked)
-    const daysWorked = sum((r) => r.daysWorked)
+    // Union, not sum: two teammates on the same date+shift is one tură for
+    // the team, not two — summing per-member counts double-counts every
+    // shift/day the team actually worked together.
+    const shiftsWorked = new Set(rows.flatMap((r) => r.shiftKeys)).size
+    const daysWorked = new Set(rows.flatMap((r) => r.dayKeys)).size
     const fuelReceipts = sum((r) => r.fuelReceipts)
     const fuelPlusGoodsReceipts = sum((r) => r.fuelPlusGoodsReceipts)
 
@@ -67,7 +70,9 @@ export function computeTeamRollup(
       totalSales,
       avgReceiptValue: totalReceipts > 0 ? totalSales / totalReceipts : 0,
       daysWorked,
+      dayKeys: Array.from(new Set(rows.flatMap((r) => r.dayKeys))),
       shiftsWorked,
+      shiftKeys: Array.from(new Set(rows.flatMap((r) => r.shiftKeys))),
       fuelReceipts,
       fuelPlusGoodsReceipts,
       crossSellPct: pct(fuelPlusGoodsReceipts, fuelReceipts),

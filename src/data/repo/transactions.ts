@@ -25,6 +25,12 @@ export async function countTransactions(): Promise<number> {
   return db.transactions.count()
 }
 
+/** Every existing line's dedup fingerprint, for checking new import rows against. */
+export async function listAllFingerprints(): Promise<Set<string>> {
+  const all = await db.transactions.toArray()
+  return new Set(all.map((t) => t.fingerprint))
+}
+
 export async function getDateBounds(): Promise<{ min: string | null; max: string | null }> {
   const min = await db.transactions.orderBy('date').first()
   const max = await db.transactions.orderBy('date').last()

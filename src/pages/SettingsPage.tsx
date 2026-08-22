@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { recomputeAllShifts } from '@/data/repo/transactions'
+import { determineShift } from '@/processing/shift'
+import { downloadBackup, restoreBackup, validateBackup, type BackupData, type BackupValidation } from '@/data/backup'
 import { useDataStore } from '@/store/dataStore'
 import {
   defaultShiftConfig,
@@ -14,6 +16,12 @@ import { formatNumber } from '@/lib/format'
 
 export function SettingsPage() {
   const { refresh, transactions, importBatches } = useDataStore()
+  const [backingUp, setBackingUp] = useState(false)
+  const [restoreFile, setRestoreFile] = useState<{ data: BackupData; validation: BackupValidation } | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  const [restoreConfirmStep, setRestoreConfirmStep] = useState(false)
+  const restoreInputRef = useRef<HTMLInputElement>(null)
   const [shiftConfig, setShiftConfig] = useState<ShiftConfig>(defaultShiftConfig)
   const [saved, setSaved] = useState(false)
   const [recomputing, setRecomputing] = useState(false)
@@ -21,6 +29,8 @@ export function SettingsPage() {
   const [salesMapping, setSalesMapping] = useState<SalesColumnMapping | null>(null)
   const [purchaseMapping, setPurchaseMapping] = useState<PurchaseColumnMapping | null>(null)
   const [stockMapping, setStockMapping] = useState<StockColumnMapping | null>(null)
+  const [vatRate, setVatRate] = useState(19)
+  const [vatSaved, setVatSaved] = useState(false)
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -28,8 +38,28 @@ export function SettingsPage() {
       setSalesMapping(s.salesMapping)
       setPurchaseMapping(s.purchaseMapping)
       setStockMapping(s.stockMapping)
+      setVatRate(s.defaultVatRatePct)
     })
   }, [])
+
+  // How many stored transactions would actually change shift under the
+  // currently-edited (not-yet-saved) hours — derived straight from render
+  // inputs, so the warning below is concrete, not abstract, with no extra
+  // effect/state round-trip needed.
+  const shiftPreview = useMemo(() => {
+    if (transactions.length === 0) return null
+    let changed = 0
+    for (const t of transactions) {
+      if (determineShift(t.time, shiftConfig) !== t.shift) changed++
+    }
+    return changed
+  }, [shiftConfig, transactions])
+
+  async function saveVatRate() {
+    await updateSettings({ defaultVatRatePct: vatRate })
+    setVatSaved(true)
+    setTimeout(() => setVatSaved(false), 2000)
+  }
 
   async function saveShifts() {
     await updateSettings({ shiftConfig })
@@ -44,6 +74,47 @@ export function SettingsPage() {
     await refresh()
     setRecomputeMsg(`${formatNumber(count)} tranzacții recalculate cu noile ore de tură.`)
     setRecomputing(false)
+  }
+
+  async function doBackup() {
+    setBackingUp(true)
+    try {
+      await downloadBackup()
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
+  async function handleRestoreFile(file: File) {
+    setRestoreError(null)
+    setRestoreFile(null)
+    setRestoreConfirmStep(false)
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const validation = validateBackup(parsed)
+      if (!validation.valid) {
+        setRestoreError(`Fișierul nu pare un backup valid: ${validation.errors.join(' ')}`)
+        return
+      }
+      setRestoreFile({ data: parsed as BackupData, validation })
+    } catch {
+      setRestoreError('Fișierul nu a putut fi citit ca JSON valid.')
+    }
+  }
+
+  async function confirmRestore() {
+    if (!restoreFile) return
+    setRestoring(true)
+    try {
+      await restoreBackup(restoreFile.data)
+      await refresh()
+      setRestoreFile(null)
+      setRestoreConfirmStep(false)
+      if (restoreInputRef.current) restoreInputRef.current.value = ''
+    } finally {
+      setRestoring(false)
+    }
   }
 
   return (
@@ -66,6 +137,13 @@ export function SettingsPage() {
             onChange={(start, end) => setShiftConfig((c) => ({ ...c, shift2Start: start, shift2End: end }))}
           />
         </div>
+        {shiftPreview != null && shiftPreview > 0 && (
+          <p className="mt-3 rounded-lg border border-warn/20 bg-warn/5 px-3 py-2 text-sm text-warn">
+            Cu aceste ore, {formatNumber(shiftPreview)} din {formatNumber(transactions.length)} tranzacții deja
+            importate și-ar schimba tura. Apasă „Recalculează" ca să le actualizezi — până atunci rămân la turele
+            calculate cu orele vechi.
+          </p>
+        )}
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button onClick={saveShifts} className="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600">
             Salvează
@@ -79,6 +157,30 @@ export function SettingsPage() {
             {recomputing ? 'Se recalculează...' : 'Recalculează turele pentru toate tranzacțiile importate'}
           </button>
           {recomputeMsg && <span className="text-sm text-slate-500">{recomputeMsg}</span>}
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-700">TVA implicit</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Folosit pentru a calcula valoarea fără TVA (deci profitul și marja) atunci când fișierul importat nu are
+          coloană „Valoare fără TVA" și produsul nu are un TVA propriu setat în Nomenclator.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="0.1"
+            value={vatRate}
+            onChange={(e) => setVatRate(Number(e.target.value))}
+            className="w-24 rounded border border-slate-200 px-2 py-1.5 text-sm"
+          />
+          <span className="text-sm text-slate-500">%</span>
+          <button onClick={saveVatRate} className="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600">
+            Salvează
+          </button>
+          {vatSaved && <span className="text-sm text-good">Salvat.</span>}
         </div>
       </div>
 
@@ -121,6 +223,89 @@ export function SettingsPage() {
           >
             Resetează maparea stocului
           </button>
+        </div>
+      </div>
+
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-700">Backup & Restaurare</h3>
+        <p className="mb-3 text-xs text-slate-500">
+          Aplicația e 100% locală — datele există doar în acest browser. Descarcă un backup periodic; dacă golești
+          datele browserului sau treci pe alt calculator, îl poți restaura de aici.
+        </p>
+        <button
+          onClick={doBackup}
+          disabled={backingUp}
+          className="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+        >
+          {backingUp ? 'Se pregătește...' : 'Descarcă backup (.json)'}
+        </button>
+
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <label className="flex cursor-pointer flex-col items-start gap-1">
+            <span className="text-xs font-semibold text-slate-700">Restaurează dintr-un backup</span>
+            <span className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50">
+              Alege fișier .json
+            </span>
+            <input
+              ref={restoreInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleRestoreFile(f)
+              }}
+            />
+          </label>
+
+          {restoreError && <p className="mt-2 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{restoreError}</p>}
+
+          {restoreFile?.validation.summary && (
+            <div className="mt-3 rounded-lg border border-warn/30 bg-warn/5 p-3">
+              <p className="text-sm text-warn">
+                Acest backup conține {formatNumber(restoreFile.validation.summary.transactions)} tranzacții,{' '}
+                {formatNumber(restoreFile.validation.summary.products)} produse,{' '}
+                {formatNumber(restoreFile.validation.summary.importBatches)} importuri
+                {restoreFile.validation.summary.exportedAt
+                  ? ` (exportat la ${new Date(restoreFile.validation.summary.exportedAt).toLocaleString('ro-RO')})`
+                  : ''}
+                .
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-bad">
+                Restaurarea ÎNLOCUIEȘTE complet datele curente din acest browser ({formatNumber(transactions.length)}{' '}
+                tranzacții, {formatNumber(importBatches.length)} importuri) — acțiunea nu poate fi anulată.
+              </p>
+              {!restoreConfirmStep ? (
+                <button
+                  onClick={() => setRestoreConfirmStep(true)}
+                  className="mt-2 rounded-lg border border-bad px-3 py-1.5 text-sm font-medium text-bad hover:bg-bad/10"
+                >
+                  Continuă spre restaurare
+                </button>
+              ) : (
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={confirmRestore}
+                    disabled={restoring}
+                    className="rounded-lg bg-bad px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    {restoring ? 'Se restaurează...' : 'Da, înlocuiește datele cu acest backup'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRestoreConfirmStep(false)
+                      setRestoreFile(null)
+                      if (restoreInputRef.current) restoreInputRef.current.value = ''
+                    }}
+                    disabled={restoring}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600"
+                  >
+                    Anulează
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

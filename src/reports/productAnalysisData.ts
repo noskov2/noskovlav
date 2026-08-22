@@ -137,8 +137,11 @@ export function computeProductAnalysisData(
   // ---- TURE (shifts) ----
   const shifts: TeamShiftRow[] = teamIds.map((id) => {
     const lines = linesByTeam.get(id)!
-    const morningKeys = new Set(lines.filter((t) => t.shift === 1).map((t) => `${t.date}:${t.cashierId}`))
-    const eveningKeys = new Set(lines.filter((t) => t.shift === 2).map((t) => `${t.date}:${t.cashierId}`))
+    // One team-shift per date, not per member on duty that date — two
+    // cashiers from the same team working the same date+shift is one tură
+    // for the team, not two.
+    const morningKeys = new Set(lines.filter((t) => t.shift === 1).map((t) => t.date))
+    const eveningKeys = new Set(lines.filter((t) => t.shift === 2).map((t) => t.date))
     return {
       teamId: id,
       teamName: teamName.get(id) ?? id,

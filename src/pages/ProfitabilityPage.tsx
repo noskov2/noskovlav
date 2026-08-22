@@ -30,15 +30,19 @@ const RANKING_TABS: { key: RankingKey; label: string }[] = [
 ]
 
 export function ProfitabilityPage() {
-  const { transactions, products, productsById, cashiersById } = useDataStore()
+  const { transactions, products, productsById, cashiersById, supplierReceipts, settings } = useDataStore()
   const { filter } = useFilterStore()
   const range = effectiveRange(filter)
+  const vatRate = settings?.defaultVatRatePct ?? 19
   const filtered = useMemo(
     () => filterTransactions(transactions, filter, productsById, cashiersById),
     [transactions, filter, productsById, cashiersById],
   )
 
-  const productRows = useMemo(() => computeProductProfitability(filtered, products), [filtered, products])
+  const productRows = useMemo(
+    () => computeProductProfitability(filtered, products, supplierReceipts, vatRate),
+    [filtered, products, supplierReceipts, vatRate],
+  )
   const categoryRows = useMemo(() => computeCategoryProfitability(productRows), [productRows])
 
   const [compare, setCompare] = useState(false)
@@ -49,8 +53,8 @@ export function ProfitabilityPage() {
   const prevRange = useMemo(() => previousMonthRange(range), [range])
   const prevFiltered = useMemo(() => filterByRange(dimFiltered, prevRange.start, prevRange.end), [dimFiltered, prevRange])
   const prevCategoryRows = useMemo(
-    () => computeCategoryProfitability(computeProductProfitability(prevFiltered, products)),
-    [prevFiltered, products],
+    () => computeCategoryProfitability(computeProductProfitability(prevFiltered, products, supplierReceipts, vatRate)),
+    [prevFiltered, products, supplierReceipts, vatRate],
   )
   const prevSalesByCategory = useMemo(
     () => new Map(prevCategoryRows.map((c) => [c.category, c.salesValue])),
@@ -80,6 +84,13 @@ export function ProfitabilityPage() {
           .slice(0, 8)
     }
   }, [categoryRows, ranking])
+
+  const anyCostKnown = productRows.some((r) => r.costCoverage > 0)
+  const costCoveragePct = useMemo(() => {
+    const totalQty = productRows.reduce((s, r) => s + r.quantity, 0)
+    const coveredQty = productRows.reduce((s, r) => s + r.quantity * r.costCoverage, 0)
+    return totalQty > 0 ? (coveredQty / totalQty) * 100 : 0
+  }, [productRows])
 
   if (transactions.length === 0) {
     return (
@@ -202,8 +213,6 @@ export function ProfitabilityPage() {
     },
   ]
 
-  const anyCostKnown = productRows.some((r) => r.costKnown)
-
   return (
     <div>
       <PageHeader
@@ -223,6 +232,13 @@ export function ProfitabilityPage() {
         <p className="mb-4 rounded-lg border border-warn/20 bg-warn/5 px-3 py-2 text-sm text-warn">
           Nu există preț de achiziție pentru produsele din perioada selectată — profitul nu poate fi calculat.
           Completează prețurile de achiziție în <strong>Nomenclator</strong> sau importă coloana corespunzătoare.
+        </p>
+      )}
+      {anyCostKnown && costCoveragePct < 99.5 && (
+        <p className="mb-4 rounded-lg border border-warn/20 bg-warn/5 px-3 py-2 text-sm text-warn">
+          Coverage cost: {formatPct(costCoveragePct, 1)} din cantitatea vândută are un cost cunoscut (linie proprie,
+          istoric furnizor, sau preț curent din Nomenclator). Profitul/marja de mai jos sunt calculate doar pe partea
+          acoperită — restul apare ca „necunoscut".
         </p>
       )}
 

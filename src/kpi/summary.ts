@@ -1,6 +1,7 @@
 import type { Product, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts } from '@/kpi/receipts'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
+import { exVatValue } from '@/kpi/vat'
 
 export interface PeriodSummary {
   totalSales: number
@@ -24,8 +25,10 @@ export interface PeriodSummary {
 export function computePeriodSummary(
   transactions: TransactionLine[],
   products: Product[],
+  defaultVatRatePct = 19,
 ): PeriodSummary {
   const fuelIds = fuelProductIds(products)
+  const excludedIds = productIdsInGroup(products, 'crossSellExcluded')
   const gplIds = productIdsInGroup(products, 'gpl')
   const coffeeIds = productIdsInGroup(products, 'cafea')
   const sandwichIds = productIdsInGroup(products, 'sandwich')
@@ -63,14 +66,15 @@ export function computePeriodSummary(
     const product = productsById.get(t.productId)
     const purchaseUnit = t.purchasePriceUnit ?? product?.purchasePrice ?? null
     if (purchaseUnit != null) {
-      grossProfit += t.value - purchaseUnit * t.quantity
+      const salesNoVat = exVatValue(t, product, defaultVatRatePct)
+      grossProfit += salesNoVat - purchaseUnit * t.quantity
       costKnown += t.value
     } else {
       costUnknownSalesValue += t.value
     }
   }
 
-  const receipts = groupIntoReceipts(transactions, fuelIds)
+  const receipts = groupIntoReceipts(transactions, fuelIds, excludedIds)
   const fuelReceipts = receipts.filter((r) => r.hasFuel)
 
   // Cross-sell = receipts that contain fuel AND at least one non-fuel line.

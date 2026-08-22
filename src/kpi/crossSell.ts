@@ -55,7 +55,9 @@ export interface CashierCrossSellRow {
   totalSales: number
   avgReceiptValue: number
   daysWorked: number
+  dayKeys: string[] // unique dates — lets team rollups de-duplicate instead of summing per-member counts
   shiftsWorked: number
+  shiftKeys: string[] // unique "date:shift" keys — lets team rollups de-duplicate instead of summing per-member counts
   fuelReceipts: number
   fuelPlusGoodsReceipts: number
   crossSellPct: number
@@ -221,16 +223,18 @@ function buildCashierRow(cashier: Cashier, receipts: Receipt[], products: Produc
   const totalSales = receipts.reduce((s, r) => s + r.totalValue, 0)
   const fuelReceipts = receipts.filter((r) => r.hasFuel)
   const fuelPlusGoods = fuelReceipts.filter((r) => r.hasGoods)
-  const daysWorked = new Set(receipts.map((r) => r.date)).size
-  const shiftsWorked = new Set(receipts.filter((r) => r.shift).map((r) => `${r.date}:${r.shift}`)).size
+  const dayKeys = Array.from(new Set(receipts.map((r) => r.date)))
+  const shiftKeys = Array.from(new Set(receipts.filter((r) => r.shift).map((r) => `${r.date}:${r.shift}`)))
 
   return {
     cashier,
     totalReceipts: receipts.length,
     totalSales,
     avgReceiptValue: receipts.length > 0 ? totalSales / receipts.length : 0,
-    daysWorked,
-    shiftsWorked,
+    daysWorked: dayKeys.length,
+    dayKeys,
+    shiftsWorked: shiftKeys.length,
+    shiftKeys,
     fuelReceipts: fuelReceipts.length,
     fuelPlusGoodsReceipts: fuelPlusGoods.length,
     crossSellPct: fuelReceipts.length > 0 ? (fuelPlusGoods.length / fuelReceipts.length) * 100 : 0,
@@ -253,7 +257,8 @@ export function computeCrossSellReport(
   cashiers: Cashier[],
 ): CrossSellReport {
   const fuelIds = fuelProductIds(products)
-  const receipts = groupIntoReceipts(transactions, fuelIds)
+  const excludedIds = productIdsInGroup(products, 'crossSellExcluded')
+  const receipts = groupIntoReceipts(transactions, fuelIds, excludedIds)
 
   const stationCashier: Cashier = {
     id: '__station__',

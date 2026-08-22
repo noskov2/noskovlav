@@ -8,7 +8,7 @@ import { mergeCashiers, upsertCashier } from '@/data/repo/cashiers'
 import { deleteTeam, upsertTeam } from '@/data/repo/teams'
 import { updateSettings } from '@/data/repo/settings'
 import { slugify, uid } from '@/lib/id'
-import type { Cashier, CategoryGroupRules, Product, ProductGroups, Team } from '@/types/domain'
+import { emptyCategoryGroupRules, type Cashier, type CategoryGroupRules, type Product, type ProductGroups, type Team } from '@/types/domain'
 
 const GROUP_LABELS: Record<keyof ProductGroups, string> = {
   cafea: 'Cafea',
@@ -18,6 +18,7 @@ const GROUP_LABELS: Record<keyof ProductGroups, string> = {
   carburant: 'Carburant',
   gpl: 'GPL',
   promotii: 'Promoții',
+  crossSellExcluded: 'Exclus din Cross-sell',
 }
 
 export function NomenclaturePage() {
@@ -58,9 +59,7 @@ export function NomenclaturePage() {
               products={products}
               rules={settings?.categoryGroupRules ?? null}
               onToggle={async (category, group, enabled) => {
-                const current = settings?.categoryGroupRules ?? {
-                  cafea: [], dulciuriVitrina: [], sandwich: [], limonadaCeai: [], carburant: [], gpl: [], promotii: [],
-                }
+                const current = settings?.categoryGroupRules ?? emptyCategoryGroupRules()
                 const list = current[group]
                 const nextList = enabled ? Array.from(new Set([...list, category])) : list.filter((c) => c !== category)
                 await setGroupForCategory(group, nextList)

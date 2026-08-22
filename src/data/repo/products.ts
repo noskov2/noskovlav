@@ -79,6 +79,7 @@ export async function resolveOrCreateProduct(
     groups,
     aliases: [trimmed],
     autoCreated: true,
+    vatRatePct: null,
     createdAt: now,
     updatedAt: now,
   }

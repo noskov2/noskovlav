@@ -55,6 +55,11 @@ export async function importPurchaseSheet(
     rowCount: lines.length,
     dateMin: null,
     dateMax: null,
+    fileHash: null,
+    duplicateRowCount: 0,
+    invalidRowCount: 0,
+    newProductCount: 0,
+    newCashierCount: 0,
   })
 
   return { importBatchId, rowCount: lines.length, skippedRows: skipped }

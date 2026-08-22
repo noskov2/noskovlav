@@ -46,6 +46,19 @@ class PecoDatabase extends Dexie {
       stockSnapshots: 'id, importBatchId, productId, asOf',
       settings: 'id',
     })
+    // v3: indexed `fingerprint` for O(log n) duplicate-import lookups instead
+    // of scanning every existing transaction on every import.
+    this.version(3).stores({
+      transactions:
+        'id, importBatchId, date, timestamp, cashierId, productId, receiptNo, shift, fingerprint',
+      products: 'id, name, category, active',
+      cashiers: 'id, name, active, teamId',
+      teams: 'id, name',
+      importBatches: 'id, importedAt, kind',
+      supplierReceipts: 'id, importBatchId, productId, supplier, date',
+      stockSnapshots: 'id, importBatchId, productId, asOf',
+      settings: 'id',
+    })
   }
 }
 

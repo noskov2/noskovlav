@@ -1,6 +1,6 @@
 import type { Cashier, Product, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts, receiptContainsProduct } from '@/kpi/receipts'
-import { fuelProductIds } from '@/kpi/productGroups'
+import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { NO_TEAM_ID, TEAM_ROW_PREFIX } from '@/kpi/teamRollup'
 import type { CrossSellReport } from '@/kpi/crossSell'
 
@@ -41,8 +41,9 @@ export function fuelReceiptLines(
   cashiersById: Map<string, Cashier>,
 ): TransactionLine[] {
   const fuelIds = fuelProductIds(products)
+  const excludedIds = productIdsInGroup(products, 'crossSellExcluded')
   const scoped = linesForCashier(transactions, cashierId, cashiersById)
-  const receipts = groupIntoReceipts(scoped, fuelIds)
+  const receipts = groupIntoReceipts(scoped, fuelIds, excludedIds)
   const matching = receipts.filter((r) => r.hasFuel && (!requireGoods || r.hasGoods))
   return matching.flatMap((r) => r.lines)
 }

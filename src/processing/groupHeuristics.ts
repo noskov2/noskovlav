@@ -36,6 +36,21 @@ const LEMONADE_KEYWORDS = ['limonada', 'ceai', 'lemonade', 'ice tea', 'icetea']
 const FUEL_KEYWORDS = ['motorina', 'benzina', 'diesel', 'euro95', 'euro 95', 'premium', 'gpl']
 const GPL_KEYWORDS = ['gpl']
 const PROMO_KEYWORDS = ['promotie', 'promotii', 'promo', 'pachet promo']
+// Lines that must never count as "marfă" for cross-sell purposes even
+// though they aren't fuel: deposits, discounts, technical/service lines.
+const CROSS_SELL_EXCLUDED_KEYWORDS = [
+  'sgr', // matches "Garanție SGR" / "Garanții SGR" category or product names alike
+  'garantie ambalaj',
+  'discount',
+  'reducere',
+  'taxa verde',
+  'timbru verde',
+  'ambalaj',
+  'retur',
+  'storno',
+  'comision',
+  'serviciu',
+]
 
 function matches(name: string, keywords: string[]): boolean {
   return keywords.some((k) => name.includes(k))
@@ -54,5 +69,6 @@ export function guessGroupsFromName(rawName: string, categoryRaw: string): Parti
     carburant: matches(haystack, FUEL_KEYWORDS),
     gpl: matches(haystack, GPL_KEYWORDS),
     promotii: matches(haystack, PROMO_KEYWORDS),
+    crossSellExcluded: matches(haystack, CROSS_SELL_EXCLUDED_KEYWORDS),
   }
 }

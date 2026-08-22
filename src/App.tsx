@@ -10,6 +10,7 @@ import { SuppliersPage } from '@/pages/SuppliersPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 import { NomenclaturePage } from '@/pages/NomenclaturePage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { DataQualityPage } from '@/pages/DataQualityPage'
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/cross-sell" element={<CrossSellPage />} />
           <Route path="/furnizori" element={<SuppliersPage />} />
           <Route path="/rapoarte" element={<ReportsPage />} />
+          <Route path="/calitate-date" element={<DataQualityPage />} />
           <Route path="/nomenclator" element={<NomenclaturePage />} />
           <Route path="/setari" element={<SettingsPage />} />
         </Route>

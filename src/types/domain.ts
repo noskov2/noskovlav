@@ -13,6 +13,11 @@ export interface ProductGroups {
   carburant: boolean
   gpl: boolean
   promotii: boolean
+  // True for lines that must NOT count as "marfă" for cross-sell purposes —
+  // SGR/garanție, discounturi, taxe, linii tehnice, retururi. Without this,
+  // any non-fuel line (including these) counted as cross-sell "marfă",
+  // inflating the cross-sell %.
+  crossSellExcluded: boolean
 }
 
 export const emptyGroups = (): ProductGroups => ({
@@ -23,6 +28,7 @@ export const emptyGroups = (): ProductGroups => ({
   carburant: false,
   gpl: false,
   promotii: false,
+  crossSellExcluded: false,
 })
 
 // Which raw Categorie values (as they appear in Product.category) belong to
@@ -39,6 +45,7 @@ export const emptyCategoryGroupRules = (): CategoryGroupRules => ({
   carburant: [],
   gpl: [],
   promotii: [],
+  crossSellExcluded: [],
 })
 
 export interface Product {
@@ -54,6 +61,7 @@ export interface Product {
   groups: ProductGroups
   aliases: string[] // raw product strings seen in imports, mapped to this product
   autoCreated: boolean // true if created implicitly during import, not yet reviewed
+  vatRatePct: number | null // per-product VAT override; null = use AppSettings.defaultVatRatePct
   createdAt: number
   updatedAt: number
 }
@@ -106,6 +114,8 @@ export interface TransactionLine {
   purchasePriceUnit: number | null // unit purchase price if present in the import
   shift: ShiftNumber | null
   promotionRaw: string | null // raw value from the mapped "promoție" column, if configured
+  hasReceiptNo: boolean // false when the source row had no usable bon number — this line could not be reliably grouped into a real multi-line receipt
+  fingerprint: string // dedup key: date+time+cashierRaw+receiptNo+productRaw+quantity+value
 }
 
 export type ImportKind = 'sales' | 'purchases' | 'stock'
@@ -118,6 +128,11 @@ export interface ImportBatch {
   rowCount: number
   dateMin: string | null
   dateMax: string | null
+  fileHash: string | null // SHA-256 of the parsed rows, to flag re-importing the exact same file
+  duplicateRowCount: number // rows skipped because an identical transaction already existed
+  invalidRowCount: number // rows skipped for missing/invalid required fields
+  newProductCount: number
+  newCashierCount: number
 }
 
 // Column mapping: maps a logical field to the header name found in the user's Excel file.
@@ -188,4 +203,5 @@ export interface AppSettings {
   stockMapping: StockColumnMapping | null
   categoryGroupRules: CategoryGroupRules
   reportsAcknowledged: string[] // "YYYY-MM" months whose report banner was dismissed/downloaded
+  defaultVatRatePct: number // used to derive ex-VAT sales value when the import has no "Valoare fără TVA" column and the product has no override
 }

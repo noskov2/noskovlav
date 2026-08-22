@@ -77,6 +77,11 @@ export async function importStockSheet(
     rowCount: lines.length,
     dateMin: asOfIso,
     dateMax: asOfIso,
+    fileHash: null,
+    duplicateRowCount: 0,
+    invalidRowCount: 0,
+    newProductCount: 0,
+    newCashierCount: 0,
   })
 
   // Keep each product's "live" currentStock/salePrice pointed at whichever

@@ -11,6 +11,7 @@ const defaultSettings: AppSettings = {
   stockMapping: null,
   categoryGroupRules: emptyCategoryGroupRules(),
   reportsAcknowledged: [],
+  defaultVatRatePct: 19,
 }
 
 export async function getSettings(): Promise<AppSettings> {

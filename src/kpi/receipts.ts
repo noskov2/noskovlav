@@ -24,10 +24,17 @@ export interface Receipt {
  * stored on each line at import time) so that changing a product's
  * "Carburant" group in the Nomenclator later re-classifies historical
  * receipts immediately, without needing to re-import.
+ *
+ * `excludedFromGoodsIds` (the "crossSellExcluded" group — SGR/garanție,
+ * discounturi, taxe, linii tehnice, retururi) keeps those lines from
+ * counting as "marfă" for cross-sell: without this, ANY non-fuel line
+ * flips `hasGoods` to true, inflating cross-sell% with bonuri that only
+ * ever had a returnable-bottle deposit alongside the fuel line.
  */
 export function groupIntoReceipts(
   transactions: TransactionLine[],
   fuelProductIds: Set<string>,
+  excludedFromGoodsIds: Set<string> = new Set(),
 ): Receipt[] {
   const map = new Map<string, Receipt>()
 
@@ -53,7 +60,7 @@ export function groupIntoReceipts(
     receipt.lines.push(t)
     receipt.totalValue += t.value
     if (fuelProductIds.has(t.productId)) receipt.hasFuel = true
-    else receipt.hasGoods = true
+    else if (!excludedFromGoodsIds.has(t.productId)) receipt.hasGoods = true
     if (t.timestamp < receipt.timestamp) {
       receipt.timestamp = t.timestamp
       receipt.time = t.time

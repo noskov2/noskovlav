@@ -153,9 +153,14 @@ export function ImportPage() {
         const settings = await getSettings()
         await updateSettings({ salesMapping })
         const result = await importSalesSheet(file.name, sheet, salesMapping, settings.shiftConfig)
+        const bits = [`${formatNumber(result.rowCount)} linii noi importate`]
+        if (result.duplicateRowCount > 0) bits.push(`${formatNumber(result.duplicateRowCount)} duplicate ignorate`)
+        if (result.invalidRowCount > 0) bits.push(`${formatNumber(result.invalidRowCount)} rânduri invalide excluse`)
+        if (result.skippedRows > 0) bits.push(`${formatNumber(result.skippedRows)} rânduri ignorate (fără produs/dată)`)
+        if (result.newProductCount > 0) bits.push(`${formatNumber(result.newProductCount)} produse noi`)
+        if (result.newCashierCount > 0) bits.push(`${formatNumber(result.newCashierCount)} casieri noi`)
         setStatus(
-          `Import finalizat: ${formatNumber(result.rowCount)} linii importate` +
-            (result.skippedRows > 0 ? `, ${formatNumber(result.skippedRows)} rânduri ignorate (fără produs/dată).` : '.') +
+          `Import finalizat: ${bits.join(', ')}.` +
             (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
         )
       } else if (kind === 'purchases') {
@@ -353,6 +358,7 @@ export function ImportPage() {
                   <th className="px-2 py-1.5">Importat la</th>
                   <th className="px-2 py-1.5 text-right">Rânduri</th>
                   <th className="px-2 py-1.5">Interval / Valabil la</th>
+                  <th className="px-2 py-1.5">Calitate</th>
                   <th className="px-2 py-1.5"></th>
                 </tr>
               </thead>
@@ -371,6 +377,24 @@ export function ImportPage() {
                           ? formatDateRo(b.dateMin)
                           : `${formatDateRo(b.dateMin)} – ${formatDateRo(b.dateMax)}`
                         : '—'}
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-slate-500">
+                      {b.duplicateRowCount === 0 && b.invalidRowCount === 0 ? (
+                        <span className="text-good">fără probleme</span>
+                      ) : (
+                        <span className="text-warn">
+                          {b.duplicateRowCount > 0 && `${formatNumber(b.duplicateRowCount)} duplicate`}
+                          {b.duplicateRowCount > 0 && b.invalidRowCount > 0 && ' · '}
+                          {b.invalidRowCount > 0 && `${formatNumber(b.invalidRowCount)} invalide`}
+                        </span>
+                      )}
+                      {(b.newProductCount > 0 || b.newCashierCount > 0) && (
+                        <div className="text-slate-400">
+                          {b.newProductCount > 0 && `+${formatNumber(b.newProductCount)} produse`}
+                          {b.newProductCount > 0 && b.newCashierCount > 0 && ' · '}
+                          {b.newCashierCount > 0 && `+${formatNumber(b.newCashierCount)} casieri`}
+                        </div>
+                      )}
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       {pendingDeleteId === b.id ? (
