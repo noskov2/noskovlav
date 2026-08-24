@@ -16,12 +16,7 @@ export interface ImportGap {
 // live check, recomputed every time the app is open, of what's currently
 // missing. The bell shows that check's result, not a scheduled alert.
 const STALE_STOCK_DAYS = 7
-const STALE_PURCHASES_DAYS = 7
 const MAX_REPORTED_RANGES = 5
-
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000)
-}
 
 function groupConsecutiveDates(dates: string[]): { start: string; end: string }[] {
   const sorted = [...dates].sort()
@@ -104,18 +99,19 @@ export function computeImportGaps(
     }
   }
 
-  // ---- Achiziții/Furnizori: fără import, sau învechit ----
+  // ---- Achiziții/Furnizori: fără import, sau coadă (de la ultima zi
+  // importată până ieri) — la fel ca la vânzări, fără prag de zile: dacă
+  // ultima achiziție e mai veche decât ieri, apare mesajul chiar a doua zi.
   if (supplierReceipts.length === 0) {
     gaps.push({ kind: 'purchases', icon: '🚚', severity: 'warn', text: 'Nu ai importat niciodată achiziții/furnizori.' })
   } else {
     const latestDate = supplierReceipts.reduce((a, b) => (a.date > b.date ? a : b)).date
-    const daysSince = daysBetween(latestDate, today)
-    if (daysSince > STALE_PURCHASES_DAYS) {
+    if (latestDate < yesterday) {
       gaps.push({
         kind: 'purchases',
         icon: '🚚',
         severity: 'warn',
-        text: `Nu ai mai importat achiziții/furnizori de ${daysSince} zile (ultimul: ${formatDateRo(latestDate)}).`,
+        text: `Trebuie să imporți achiziții/furnizori din ${rangeText(addDays(latestDate, 1), yesterday)}.`,
       })
     }
   }
