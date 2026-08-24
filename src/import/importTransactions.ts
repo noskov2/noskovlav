@@ -4,7 +4,7 @@ import { toDateString, toNumber, toTimeString } from '@/import/columnMapping'
 import { isInvalidDateToken, isInvalidNumericToken, computeLineFingerprint } from '@/import/validate'
 import { listCashiers, resolveOrCreateCashier } from '@/data/repo/cashiers'
 import { listProducts, resolveOrCreateProduct } from '@/data/repo/products'
-import { bulkInsertTransactions, listAllFingerprints } from '@/data/repo/transactions'
+import { bulkInsertTransactions, countAllFingerprints } from '@/data/repo/transactions'
 import { addImportBatch } from '@/data/repo/importBatches'
 import { determineShift } from '@/processing/shift'
 import type { SalesColumnMapping, ShiftConfig, TransactionLine } from '@/types/domain'
@@ -41,11 +41,19 @@ export async function importSalesSheet(
   let dateMin: string | null = null
   let dateMax: string | null = null
 
-  const existingFingerprints = await listAllFingerprints()
-  // Fingerprints seen so far *within this same import* — a file can itself
-  // contain the same line duplicated, which the "already in the database"
-  // check alone wouldn't catch on the row that gets inserted first.
-  const seenInThisImport = new Set<string>()
+  // Per-fingerprint COUNT already in the DB, not just presence — two
+  // genuinely different sales can share a fingerprint (e.g. the same
+  // product added as two separate lines in one receipt, same price, same
+  // second). A row is only a duplicate once this import has already seen
+  // at least as many occurrences of its fingerprint as already exist in the
+  // DB; anything beyond that count is a new, additional real sale, not a
+  // re-import of the same line. This was a real bug: re-exporting the same
+  // period could legitimately repeat a fingerprint several times a day
+  // (identical items scanned as separate lines), and the old presence-only
+  // check silently dropped every occurrence past the first, undercounting
+  // real daily revenue by hundreds of lei.
+  const existingFingerprintCounts = await countAllFingerprints()
+  const seenInThisImport = new Map<string, number>()
   const productsBefore = new Set((await listProducts()).map((p) => p.id))
   const cashiersBefore = new Set((await listCashiers()).map((c) => c.id))
 
@@ -105,11 +113,13 @@ export async function importSalesSheet(
     const receiptNo = hasReceiptNo ? rawReceiptNo : `no-bon-${date}-${i}`
 
     const fingerprint = computeLineFingerprint(date, time, cashierRaw, rawReceiptNo, productRaw, quantity, value)
-    if (existingFingerprints.has(fingerprint) || seenInThisImport.has(fingerprint)) {
+    const alreadyInDb = existingFingerprintCounts.get(fingerprint) ?? 0
+    const seenSoFar = seenInThisImport.get(fingerprint) ?? 0
+    seenInThisImport.set(fingerprint, seenSoFar + 1)
+    if (seenSoFar < alreadyInDb) {
       duplicateRowCount++
       continue
     }
-    seenInThisImport.add(fingerprint)
 
     const cashier = await resolveOrCreateCashier(cashierRaw)
     const product = await resolveOrCreateProduct(productRaw, categoryRaw, purchasePriceUnit)

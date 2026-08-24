@@ -26,9 +26,18 @@ export async function countTransactions(): Promise<number> {
 }
 
 /** Every existing line's dedup fingerprint, for checking new import rows against. */
-export async function listAllFingerprints(): Promise<Set<string>> {
+// A count per fingerprint, not just presence — two genuinely different sales
+// (e.g. the same product added as two separate lines in one receipt, at the
+// same price, printed in the same second) can legitimately share a
+// fingerprint. A plain Set would only ever "remember" one of them existing,
+// so re-importing a file that legitimately repeats that fingerprint N times
+// needs to know N, not just "seen it before", to tell a real re-import
+// (matching count already in the DB) apart from new, additional occurrences.
+export async function countAllFingerprints(): Promise<Map<string, number>> {
   const all = await db.transactions.toArray()
-  return new Set(all.map((t) => t.fingerprint))
+  const counts = new Map<string, number>()
+  for (const t of all) counts.set(t.fingerprint, (counts.get(t.fingerprint) ?? 0) + 1)
+  return counts
 }
 
 export async function getDateBounds(): Promise<{ min: string | null; max: string | null }> {
