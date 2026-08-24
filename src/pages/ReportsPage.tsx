@@ -104,14 +104,15 @@ export function ReportsPage() {
         await downloadProductAnalysisReport(data)
         await markGenerated('produse')
       } else {
-        const monthTargets = settings ? getMonthTargets(settings, selectedMonth.key).station : null
+        const monthTargets = settings ? getMonthTargets(settings, selectedMonth.key) : null
         const data = computeExecutiveReportData(
           year,
           month,
           transactions,
           products,
           supplierReceipts,
-          monthTargets,
+          monthTargets?.station ?? null,
+          monthTargets?.stationActual ?? null,
           settings?.defaultVatRatePct ?? 19,
         )
         await downloadExecutiveReport(data)

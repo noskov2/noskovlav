@@ -221,12 +221,25 @@ export const emptyTargetSet = (): TargetSet => ({
   avgReceiptValue: null,
 })
 
+// "Realizat până acum" as tracked in the Target page's own uploaded Excel
+// (team shift/bonus tracker) — a DIFFERENT data source than this app's
+// imported sales transactions. Synced here so the Dashboard's Forecast
+// panel can show the same "Actual" the station manager already trusts from
+// the Target page, instead of silently diverging whenever the transaction
+// import is incomplete (which it looks like from a computed number alone).
+export interface StationActual {
+  realizat: number | null
+  targetPana: number | null // target cumulat până azi, din Excel
+  savedAt: number | null // when this Target-page snapshot was last saved
+}
+
 export interface MonthTargets {
   station: TargetSet
   byTeam: Record<string, TargetSet> // teamId -> TargetSet
+  stationActual: StationActual | null
 }
 
-export const emptyMonthTargets = (): MonthTargets => ({ station: emptyTargetSet(), byTeam: {} })
+export const emptyMonthTargets = (): MonthTargets => ({ station: emptyTargetSet(), byTeam: {}, stationActual: null })
 
 // Weights used to combine each normalized cross-sell metric into the 0-100
 // cashier Performance Score (see kpi/cashierScore.ts). Values are relative

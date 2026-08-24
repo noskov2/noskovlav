@@ -1,4 +1,4 @@
-import type { Product, SupplierReceiptLine, TargetSet, TransactionLine } from '@/types/domain'
+import type { Product, StationActual, SupplierReceiptLine, TargetSet, TransactionLine } from '@/types/domain'
 import type { DateRange } from '@/kpi/dateRanges'
 import { addDays, monthLabel } from '@/kpi/dateRanges'
 import { computePeriodSummary, type PeriodSummary } from '@/kpi/summary'
@@ -95,6 +95,7 @@ export function computeExecutiveReportData(
   products: Product[],
   supplierReceipts: SupplierReceiptLine[],
   stationTarget: TargetSet | null,
+  stationActual: StationActual | null,
   defaultVatRatePct: number,
 ): ExecutiveReportData {
   const monthKey = `${year}-${pad(month)}`
@@ -135,9 +136,14 @@ export function computeExecutiveReportData(
   // Targetul e definit ca marfă + GPL, fără motorină/benzină (vezi și
   // DashboardPage) — comparăm cu aceeași bază, nu cu vânzările totale ale
   // stației, altfel targetul ar părea mereu "depășit" din cauza volumului
-  // mult mai mare de la motorină/benzină.
+  // mult mai mare de la motorină/benzină. Preferă "Realizat până acum"
+  // sincronizat din pagina Target (Excel-ul echipei) în locul celui
+  // calculat din tranzacțiile importate, pentru aceleași motive ca pe
+  // Dashboard — un import incomplet ar face cifra calculată să rămână în
+  // urmă față de ce arată pagina Target.
   const fuelBreakdown = computeFuelBreakdown(monthTx, products)
-  const targetRelevantActual = summary.totalSales - fuelBreakdown.motorina.value - fuelBreakdown.benzina.value
+  const transactionsBasedActual = summary.totalSales - fuelBreakdown.motorina.value - fuelBreakdown.benzina.value
+  const targetRelevantActual = stationActual?.realizat ?? transactionsBasedActual
   if (stationTarget?.totalSales != null && targetRelevantActual < stationTarget.totalSales) {
     const gap = stationTarget.totalSales - targetRelevantActual
     problems.push(`Vânzările lunii pe marfă + GPL (${fmt(targetRelevantActual)} lei) sunt sub targetul de ${fmt(stationTarget.totalSales)} lei — diferență de ${fmt(gap)} lei.`)

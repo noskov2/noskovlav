@@ -744,7 +744,18 @@ function sortedMonthKeys(store: Record<string, DashboardData>): string[] {
 }
 
 // ---------- bridge into the app's own AppSettings.monthlyTargets ----------
-async function syncStationTargetToApp(storeKey: string, monthlyTotal: number | null) {
+// Syncs both the target AND the "Realizat până acum" this page itself
+// computed from the uploaded Excel — the Dashboard's Forecast panel reads
+// stationActual.realizat as its "Actual" so the two pages can never show
+// different numbers for the same thing (station managers trust this page's
+// Excel-tracked total over a figure recomputed from imported transactions,
+// which can lag behind if an import is incomplete).
+async function syncStationTargetToApp(
+  storeKey: string,
+  monthlyTotal: number | null,
+  realizat: number | null,
+  targetPana: number | null,
+) {
   const m = storeKey.match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
   if (!m) return
   const monIdx = MONTH_ORDER[m[1].toUpperCase()]
@@ -755,7 +766,11 @@ async function syncStationTargetToApp(storeKey: string, monthlyTotal: number | n
   await updateSettings({
     monthlyTargets: {
       ...settings.monthlyTargets,
-      [appMonthKey]: { ...current, station: { ...current.station, totalSales: monthlyTotal } },
+      [appMonthKey]: {
+        ...current,
+        station: { ...current.station, totalSales: monthlyTotal },
+        stationActual: { realizat, targetPana, savedAt: Date.now() },
+      },
     },
   })
 }
@@ -1088,8 +1103,11 @@ export function TargetsPage() {
       const d = new Date(data.savedAt)
       els.updatedLabel.textContent = 'actualizat ' + d.toLocaleDateString('ro-RO') + ' ' + d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
       if (currentKey) {
-        const monthlyTotal = data.rezumat?.monthlyTotal ?? data.situatie?.totals?.targetLunar ?? null
-        syncStationTargetToApp(currentKey, monthlyTotal).catch(() => {})
+        const totals = data.situatie?.totals
+        const monthlyTotal = data.rezumat?.monthlyTotal ?? totals?.targetLunar ?? null
+        const realizat = totals?.realizat ?? data.zilnic?.total?.realizat ?? null
+        const targetPana = totals?.targetPana ?? null
+        syncStationTargetToApp(currentKey, monthlyTotal, realizat, targetPana).catch(() => {})
       }
     }
 

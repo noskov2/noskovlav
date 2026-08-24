@@ -142,10 +142,12 @@ export function DashboardPage() {
   // comparațiile din KPI-urile principale, cât și pentru panoul Forecast/Ritm,
   // indiferent de filtrul de perioadă activ pe Dashboard.
   const currentMonthKey = todayStr().slice(0, 7)
-  const stationTarget = useMemo(
-    () => (settings ? getMonthTargets(settings, currentMonthKey).station : emptyMonthTargets().station),
+  const monthTargets = useMemo(
+    () => (settings ? getMonthTargets(settings, currentMonthKey) : emptyMonthTargets()),
     [settings, currentMonthKey],
   )
+  const stationTarget = monthTargets.station
+  const stationActual = monthTargets.stationActual
 
   const monthRange = useMemo(() => ({ start: `${currentMonthKey}-01`, end: todayStr() }), [currentMonthKey])
   const monthTx = useMemo(() => filterByRange(dimFiltered, monthRange.start, monthRange.end), [dimFiltered, monthRange])
@@ -160,7 +162,16 @@ export function DashboardPage() {
   // stației (care ar include motorină+benzină și ar face targetul să pară
   // "deja atins" din prima săptămână, indiferent de ritmul real la marfă+GPL).
   const monthFuelBreakdown = useMemo(() => computeFuelBreakdown(monthTx, products), [monthTx, products])
-  const targetRelevantActual = monthSummary.totalSales - monthFuelBreakdown.motorina.value - monthFuelBreakdown.benzina.value
+  const transactionsBasedActual = monthSummary.totalSales - monthFuelBreakdown.motorina.value - monthFuelBreakdown.benzina.value
+  // Preferă "Realizat până acum" sincronizat din pagina Target (calculat din
+  // Excel-ul de target al echipei) în locul celui calculat aici din
+  // tranzacțiile importate — sunt două surse de date diferite, iar dacă un
+  // import e incomplet, cifra calculată din tranzacții rămâne în urmă și nu
+  // mai bate cu ce arată pagina Target, în care managerul are mai multă
+  // încredere. Cade pe varianta din tranzacții doar dacă nu s-a încărcat
+  // încă niciun fișier de target.
+  const targetRelevantActual = stationActual?.realizat ?? transactionsBasedActual
+  const actualSource = stationActual?.realizat != null ? 'target' : 'transactions'
   const operationalDaysSoFar = useMemo(() => new Set(monthTx.map((t) => t.date)).size, [monthTx])
   const daysInCurrentMonth = useMemo(() => {
     const [y, m] = currentMonthKey.split('-').map(Number)
@@ -367,6 +378,11 @@ export function DashboardPage() {
               <p>
                 Target: <span className="font-medium text-slate-900">{formatLei(salesForecast.target ?? 0)}</span> · Actual:{' '}
                 <span className="font-medium text-slate-900">{formatLei(salesForecast.actual)}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                {actualSource === 'target'
+                  ? 'Actual = „Realizat până acum" din pagina Target (sincronizat din Excel-ul încărcat acolo).'
+                  : 'Actual calculat din vânzările importate — încarcă un fișier pe pagina Target pentru o cifră mai exactă.'}
               </p>
               <p className="mt-1">
                 Forecast (estimare sfârșit de lună):{' '}
