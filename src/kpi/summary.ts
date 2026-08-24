@@ -21,6 +21,7 @@ export interface PeriodSummary {
   fuelReceiptCount: number
   grossProfitEstimate: number
   grossProfitKnownShare: number // fraction of goods sales for which a purchase price was available
+  salesNoVatKnown: number // ex-VAT sales for the cost-known slice — the correct denominator for margin %, never totalSales (VAT-inclusive)
   totalLiters: number // fuelLiters + gplLiters
   promoValue: number
   promoCount: number // number of promotional lines (not receipts)
@@ -56,6 +57,7 @@ export function computePeriodSummary(
   let costKnown = 0
   let costUnknownSalesValue = 0
   let grossProfit = 0
+  let salesNoVatKnown = 0
   let promoValue = 0
   let promoCount = 0
 
@@ -82,6 +84,7 @@ export function computePeriodSummary(
     if (purchaseUnit != null) {
       const salesNoVat = exVatValue(t, product, defaultVatRatePct)
       grossProfit += salesNoVat - purchaseUnit * t.quantity
+      salesNoVatKnown += salesNoVat
       costKnown += t.value
     } else {
       costUnknownSalesValue += t.value
@@ -114,6 +117,7 @@ export function computePeriodSummary(
     fuelReceiptCount: fuelReceipts.length,
     grossProfitEstimate: grossProfit,
     grossProfitKnownShare: knownShare,
+    salesNoVatKnown,
     totalLiters: fuelLiters + gplLiters,
     promoValue,
     promoCount,

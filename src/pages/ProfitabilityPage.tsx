@@ -132,6 +132,13 @@ export function ProfitabilityPage() {
     { key: 'qty', header: 'Cantitate', align: 'right', render: (r) => formatNumber(r.quantity, 2), sortValue: (r) => r.quantity },
     { key: 'sales', header: 'Vânzări', align: 'right', render: (r) => formatLei(r.salesValue), sortValue: (r) => r.salesValue },
     {
+      key: 'salesNoVat',
+      header: 'Vânzări fără TVA',
+      align: 'right',
+      render: (r) => (r.salesValueNoVat != null ? formatLei(r.salesValueNoVat) : '—'),
+      sortValue: (r) => r.salesValueNoVat ?? -1,
+    },
+    {
       key: 'cost',
       header: 'Cost marfă',
       align: 'right',

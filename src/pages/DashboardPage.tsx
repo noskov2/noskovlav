@@ -320,7 +320,7 @@ export function DashboardPage() {
         <div className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
           <p
             className="text-xs font-medium uppercase tracking-wide text-slate-500"
-            title="Profit brut = Vânzări fără TVA − Cost (pe partea cu cost cunoscut). Marjă % = Profit brut / Vânzări totale. Coverage = % din vânzări cu cost de achiziție cunoscut."
+            title="Profit brut = Vânzări fără TVA − Cost (pe partea cu cost cunoscut). Marjă % = Profit brut / Vânzări fără TVA (pe aceeași parte cu cost cunoscut). Coverage = % din vânzări cu cost de achiziție cunoscut."
           >
             Profit brut
           </p>
@@ -333,7 +333,7 @@ export function DashboardPage() {
             {formatLei(summary.grossProfitEstimate)}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-            <span>Marjă: {summary.totalSales > 0 ? formatPct((summary.grossProfitEstimate / summary.totalSales) * 100) : '—'}</span>
+            <span>Marjă: {summary.salesNoVatKnown > 0 ? formatPct((summary.grossProfitEstimate / summary.salesNoVatKnown) * 100) : '—'}</span>
             <span>Coverage: {formatPct(summary.grossProfitKnownShare * 100, 0)}</span>
           </div>
         </div>

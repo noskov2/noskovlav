@@ -56,10 +56,12 @@ export function buildHistoricalCostResolver(
 export interface CategoryProfitRow {
   category: string
   quantity: number
-  salesValue: number
+  salesValue: number // VAT-inclusive, all sales — what customers actually paid
+  salesValueNoVat: number | null // ex-VAT, cost-known slice only — the true basis for margin
   costValue: number | null
   grossProfit: number | null
   marginPct: number | null
+  costCoverage: number // 0..1 — share of this category's sold quantity for which a cost was found
   shareOfSales: number
   shareOfProfit: number | null
   productCount: number
@@ -147,36 +149,50 @@ export function computeProductProfitability(
   return rows.sort((a, b) => b.salesValue - a.salesValue)
 }
 
+// Aggregates the already-VAT-correct per-product rows into per-category
+// totals. This used to sum row.salesValue (VAT-inclusive) against
+// row.costValue (ex-VAT) to get "profit" — exactly the mixing bug already
+// fixed once at the product level (see buildHistoricalCostResolver's
+// caller), reintroduced here because the category rollup summed the wrong
+// sales field. Margin must always come out of the ex-VAT sales
+// (salesValueNoVat) of the cost-known slice, matched against the ex-VAT
+// cost of that same slice — collected VAT is never profit.
 export function computeCategoryProfitability(productRows: ProductProfitRow[]): CategoryProfitRow[] {
   const totalSales = productRows.reduce((s, r) => s + r.salesValue, 0)
   const totalProfit = productRows.reduce((s, r) => s + (r.grossProfit ?? 0), 0)
 
   const byCategory = new Map<
     string,
-    { qty: number; sales: number; cost: number; hasCost: boolean; count: number }
+    { qty: number; costQty: number; sales: number; salesNoVatKnown: number; cost: number; count: number }
   >()
 
   for (const row of productRows) {
     const cat = row.product.category || 'Necategorizat'
-    const acc = byCategory.get(cat) ?? { qty: 0, sales: 0, cost: 0, hasCost: true, count: 0 }
+    const acc = byCategory.get(cat) ?? { qty: 0, costQty: 0, sales: 0, salesNoVatKnown: 0, cost: 0, count: 0 }
     acc.qty += row.quantity
     acc.sales += row.salesValue
     acc.count += 1
-    if (row.costValue != null) acc.cost += row.costValue
-    else acc.hasCost = false
+    if (row.costValue != null && row.salesValueNoVat != null) {
+      acc.costQty += row.quantity * row.costCoverage
+      acc.cost += row.costValue
+      acc.salesNoVatKnown += row.salesValueNoVat
+    }
     byCategory.set(cat, acc)
   }
 
   return Array.from(byCategory.entries())
     .map(([category, agg]) => {
-      const grossProfit = agg.hasCost ? agg.sales - agg.cost : null
+      const hasCost = agg.salesNoVatKnown > 0 || agg.cost > 0
+      const grossProfit = hasCost ? agg.salesNoVatKnown - agg.cost : null
       return {
         category,
         quantity: agg.qty,
         salesValue: agg.sales,
-        costValue: agg.hasCost ? agg.cost : null,
+        salesValueNoVat: hasCost ? agg.salesNoVatKnown : null,
+        costValue: hasCost ? agg.cost : null,
         grossProfit,
-        marginPct: grossProfit != null && agg.sales > 0 ? (grossProfit / agg.sales) * 100 : null,
+        marginPct: grossProfit != null && agg.salesNoVatKnown > 0 ? (grossProfit / agg.salesNoVatKnown) * 100 : null,
+        costCoverage: agg.qty > 0 ? agg.costQty / agg.qty : 0,
         shareOfSales: totalSales > 0 ? (agg.sales / totalSales) * 100 : 0,
         shareOfProfit: grossProfit != null && totalProfit !== 0 ? (grossProfit / totalProfit) * 100 : null,
         productCount: agg.count,

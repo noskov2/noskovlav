@@ -74,11 +74,14 @@ export async function buildExecutiveReportWorkbook(data: ExecutiveReportData): P
   if (data.target?.totalSales != null) kpiRow(ws, row++, 'Target vânzări', data.target.totalSales, LEI_FMT)
   kpiRow(ws, row++, 'Marfă', data.summary.goodsSales, LEI_FMT)
   kpiRow(ws, row++, 'Profit brut estimat', data.summary.grossProfitEstimate, LEI_FMT)
+  // Marja se calculează pe vânzările fără TVA ale feliei cu cost cunoscut
+  // (salesNoVatKnown), niciodată pe vânzările totale cu TVA inclus —
+  // altfel TVA-ul colectat ar apărea contabilizat ca reducere de marjă.
   kpiRow(
     ws,
     row++,
     'Marjă %',
-    data.summary.totalSales > 0 ? (data.summary.grossProfitEstimate / data.summary.totalSales) * 100 : 0,
+    data.summary.salesNoVatKnown > 0 ? (data.summary.grossProfitEstimate / data.summary.salesNoVatKnown) * 100 : 0,
     PCT_FMT,
   )
   kpiRow(ws, row++, 'Bonuri', data.summary.receiptCount, INT_FMT)

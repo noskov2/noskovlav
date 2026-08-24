@@ -151,7 +151,10 @@ export function ClosingPage() {
         goodsSales: summary.goodsSales,
         fuelSales: summary.fuelSales,
         grossProfitEstimate: summary.grossProfitEstimate,
-        marginPct: summary.totalSales > 0 ? (summary.grossProfitEstimate / summary.totalSales) * 100 : null,
+        // Marja folosește vânzările fără TVA ale feliei cu cost cunoscut
+        // (salesNoVatKnown), nu totalSales (cu TVA inclus) — TVA-ul colectat
+        // nu e profit.
+        marginPct: summary.salesNoVatKnown > 0 ? (summary.grossProfitEstimate / summary.salesNoVatKnown) * 100 : null,
         receiptCount: summary.receiptCount,
         avgReceiptValue: summary.avgReceiptValue,
         totalLiters: summary.totalLiters,
