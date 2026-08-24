@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable'
 import { Badge } from '@/components/ui/Badge'
+import { Modal } from '@/components/ui/Modal'
 import { useDataStore } from '@/store/dataStore'
 import { useDrillFilterStore } from '@/store/drillFilterStore'
 import {
@@ -11,10 +12,22 @@ import {
   type StockRiskClass,
   type StockRotationRow,
 } from '@/kpi/stockRotation'
+import { computeProductProfitability } from '@/kpi/profitability'
+import { filterByRange } from '@/kpi/applyFilters'
 import { getSettings, updateSettings } from '@/data/repo/settings'
-import { defaultStockThresholds, type StockThresholds } from '@/types/domain'
+import { defaultStockThresholds, type Product, type StockThresholds } from '@/types/domain'
 import { addDays, todayStr, type DateRange } from '@/kpi/dateRanges'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
+
+interface CompareRow {
+  product: Product
+  currentStock: number | null
+  stockValue: number | null
+  qty7: number
+  profit7: number | null
+  qty30: number
+  profit30: number | null
+}
 
 type WindowPreset = 14 | 30 | 60 | 90
 
@@ -33,7 +46,7 @@ function formatDays(value: number | null): string {
 }
 
 export function StockPage() {
-  const { transactions, products } = useDataStore()
+  const { transactions, products, supplierReceipts, settings } = useDataStore()
   const [windowPreset, setWindowPreset] = useState<WindowPreset>(30)
   const [thresholds, setThresholds] = useState<StockThresholds>(defaultStockThresholds)
   const [thresholdsByCategory, setThresholdsByCategory] = useState<Record<string, StockThresholds>>({})
@@ -42,6 +55,8 @@ export function StockPage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [productQuery, setProductQuery] = useState('')
   const [presetIds, setPresetIds] = useState<string[] | null>(() => useDrillFilterStore.getState().consume('/stoc'))
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [compareOpen, setCompareOpen] = useState(false)
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -79,6 +94,46 @@ export function StockPage() {
   const overstockCount = rows.filter((r) => r.riskClass === 'suprastoc').length
   const noSale90Count = rows.filter((r) => r.noSaleDays === 90).length
 
+  const defaultVatRatePct = settings?.defaultVatRatePct ?? 19
+  const compareRows: CompareRow[] = useMemo(() => {
+    if (selectedIds.size === 0) return []
+    const today = todayStr()
+    const tx7 = filterByRange(transactions, addDays(today, -6), today)
+    const tx30 = filterByRange(transactions, addDays(today, -29), today)
+    const profit7ById = new Map(
+      computeProductProfitability(tx7, products, supplierReceipts, defaultVatRatePct).map((r) => [r.product.id, r]),
+    )
+    const profit30ById = new Map(
+      computeProductProfitability(tx30, products, supplierReceipts, defaultVatRatePct).map((r) => [r.product.id, r]),
+    )
+    const stockById = new Map(rows.map((r) => [r.product.id, r]))
+    const result: CompareRow[] = []
+    for (const id of selectedIds) {
+      const stockRow = stockById.get(id)
+      const product = stockRow?.product ?? products.find((p) => p.id === id)
+      if (!product) continue
+      result.push({
+        product,
+        currentStock: stockRow?.currentStock ?? null,
+        stockValue: stockRow?.stockValue ?? null,
+        qty7: profit7ById.get(id)?.quantity ?? 0,
+        profit7: profit7ById.get(id)?.grossProfit ?? null,
+        qty30: profit30ById.get(id)?.quantity ?? 0,
+        profit30: profit30ById.get(id)?.grossProfit ?? null,
+      })
+    }
+    return result.sort((a, b) => a.product.name.localeCompare(b.product.name))
+  }, [selectedIds, transactions, products, supplierReceipts, defaultVatRatePct, rows])
+
+  function toggleSelected(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
   async function saveThresholds() {
     await updateSettings({ stockThresholds: thresholds, stockThresholdsByCategory: thresholdsByCategory })
     setThresholdsSaved(true)
@@ -105,6 +160,17 @@ export function StockPage() {
   }
 
   const columns: DataTableColumn<StockRotationRow>[] = [
+    {
+      key: 'select',
+      header: '',
+      render: (r) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(r.product.id)}
+          onChange={(e) => toggleSelected(r.product.id, e.target.checked)}
+        />
+      ),
+    },
     { key: 'name', header: 'Produs', render: (r) => r.product.name, sortValue: (r) => r.product.name },
     { key: 'category', header: 'Categorie', render: (r) => r.product.category, sortValue: (r) => r.product.category },
     {
@@ -326,8 +392,91 @@ export function StockPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-slate-500">
+            {selectedIds.size > 0 ? `${formatNumber(selectedIds.size)} produse selectate` : 'Bifează produse pentru a le compara'}
+          </span>
+          <button
+            onClick={() => setSelectedIds(new Set(filteredRows.map((r) => r.product.id)))}
+            className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            Selectează tot ({formatNumber(filteredRows.length)})
+          </button>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            >
+              Golește selecția
+            </button>
+          )}
+          <button
+            onClick={() => setCompareOpen(true)}
+            disabled={selectedIds.size === 0}
+            className="ml-auto rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Aplică — vezi detalii produse selectate
+          </button>
+        </div>
         <DataTable columns={columns} rows={filteredRows} rowKey={(r) => r.product.id} searchable={false} defaultSortKey="dos" pageSize={30} />
       </div>
+
+      <Modal
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        title="Produse selectate"
+        subtitle={`${formatNumber(compareRows.length)} produse — stoc curent și performanță pe ultimele 7 și 30 de zile`}
+        wide
+      >
+        {compareRows.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-400">Nimic selectat.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-slate-100 scrollbar-thin">
+            <table className="min-w-full divide-y divide-slate-100 text-sm">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2">Produs</th>
+                  <th className="px-3 py-2">Categorie</th>
+                  <th className="px-3 py-2 text-right">Stoc actual</th>
+                  <th className="px-3 py-2 text-right">Cant. 7 zile</th>
+                  <th className="px-3 py-2 text-right">Profit 7 zile</th>
+                  <th className="px-3 py-2 text-right">Cant. 30 zile</th>
+                  <th className="px-3 py-2 text-right">Profit 30 zile</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {compareRows.map((r) => (
+                  <tr key={r.product.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-1.5 font-medium text-slate-800">{r.product.name}</td>
+                    <td className="px-3 py-1.5 text-slate-600">{r.product.category}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">
+                      {r.currentStock != null ? formatNumber(r.currentStock, 2) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">{formatNumber(r.qty7, 2)}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">
+                      {r.profit7 != null ? formatLei(r.profit7) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">{formatNumber(r.qty30, 2)}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">
+                      {r.profit30 != null ? formatLei(r.profit30) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-right">
+                      <button
+                        onClick={() => toggleSelected(r.product.id, false)}
+                        className="text-xs text-slate-400 hover:text-bad"
+                        title="Scoate din selecție"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
