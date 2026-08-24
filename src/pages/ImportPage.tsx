@@ -55,9 +55,27 @@ const KIND_LABELS: Record<ImportKind, string> = {
   stock: 'Stoc',
 }
 
-function sameHeaders(mapping: object, headers: string[]): boolean {
-  const values = Object.values(mapping).filter((v): v is string => typeof v === 'string' && !!v)
-  return values.every((v) => headers.includes(v))
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase()
+}
+
+// Reuses a saved mapping when this file's headers are the "same" allowing
+// for trivial case/whitespace differences a POS export can introduce
+// between runs (e.g. "Valoare fara TVA" vs "Valoare fara tva") — remapping
+// each field to the header string as it actually appears in THIS file,
+// rather than requiring an exact match and silently falling back to a
+// fresh guess (which can be much worse — e.g. missing the real date column
+// entirely) just because one column's capitalization changed.
+function reconcileMapping<M extends object>(mapping: M, headers: string[]): M | null {
+  const byNormalized = new Map(headers.map((h) => [normalizeHeader(h), h]))
+  const result = { ...mapping } as Record<string, unknown>
+  for (const [key, value] of Object.entries(mapping)) {
+    if (typeof value !== 'string' || !value) continue
+    const match = byNormalized.get(normalizeHeader(value))
+    if (!match) return null
+    result[key] = match
+  }
+  return result as M
 }
 
 function pad(n: number): string {
@@ -119,23 +137,14 @@ export function ImportPage() {
       setSheet(parsed)
       const settings = await getSettings()
       if (kind === 'sales') {
-        setSalesMapping(
-          settings.salesMapping && sameHeaders(settings.salesMapping, parsed.headers)
-            ? settings.salesMapping
-            : guessSalesMapping(parsed.headers),
-        )
+        const reconciled = settings.salesMapping && reconcileMapping(settings.salesMapping, parsed.headers)
+        setSalesMapping(reconciled ?? guessSalesMapping(parsed.headers))
       } else if (kind === 'purchases') {
-        setPurchaseMapping(
-          settings.purchaseMapping && sameHeaders(settings.purchaseMapping, parsed.headers)
-            ? settings.purchaseMapping
-            : guessPurchaseMapping(parsed.headers),
-        )
+        const reconciled = settings.purchaseMapping && reconcileMapping(settings.purchaseMapping, parsed.headers)
+        setPurchaseMapping(reconciled ?? guessPurchaseMapping(parsed.headers))
       } else {
-        setStockMapping(
-          settings.stockMapping && sameHeaders(settings.stockMapping, parsed.headers)
-            ? settings.stockMapping
-            : guessStockMapping(parsed.headers),
-        )
+        const reconciled = settings.stockMapping && reconcileMapping(settings.stockMapping, parsed.headers)
+        setStockMapping(reconciled ?? guessStockMapping(parsed.headers))
         setAsOfDate(nowDate())
         setAsOfTime(nowTime())
       }
@@ -148,6 +157,7 @@ export function ImportPage() {
     if (!file || !sheet) return
     setBusy(true)
     setError(null)
+    let keepMappingForRetry = false
     try {
       if (kind === 'sales') {
         if (!salesMapping || !isSalesMappingComplete(salesMapping)) {
@@ -164,10 +174,21 @@ export function ImportPage() {
         if (result.skippedRows > 0) bits.push(`${formatNumber(result.skippedRows)} rânduri ignorate (fără produs/dată)`)
         if (result.newProductCount > 0) bits.push(`${formatNumber(result.newProductCount)} produse noi`)
         if (result.newCashierCount > 0) bits.push(`${formatNumber(result.newCashierCount)} casieri noi`)
-        setStatus(
-          `Import finalizat: ${bits.join(', ')}.` +
-            (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
-        )
+        // Aproape toate rândurile ignorate, cu 0 linii importate, aproape
+        // sigur înseamnă că maparea de dată (sau produs) e greșită, nu că
+        // fișierul chiar n-are date de importat — un mesaj verde neutru
+        // ("Import finalizat") ar ascunde exact ce trebuie verificat.
+        if (result.rowCount === 0 && result.skippedRows > sheet.rows.length * 0.5) {
+          keepMappingForRetry = true
+          setError(
+            `Niciun rând nu a putut fi importat — ${formatNumber(result.skippedRows)} din ${formatNumber(sheet.rows.length)} rânduri nu au produs sau dată recunoscute. Verifică maparea coloanelor „Data + Ora" / „Data" mai sus — probabil coloana selectată nu conține o dată validă.`,
+          )
+        } else {
+          setStatus(
+            `Import finalizat: ${bits.join(', ')}.` +
+              (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
+          )
+        }
       } else if (kind === 'purchases') {
         if (!purchaseMapping || !isPurchaseMappingComplete(purchaseMapping)) {
           setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
@@ -200,9 +221,11 @@ export function ImportPage() {
         )
       }
       await refresh()
-      setFile(null)
-      setSheet(null)
-      if (inputRef.current) inputRef.current.value = ''
+      if (!keepMappingForRetry) {
+        setFile(null)
+        setSheet(null)
+        if (inputRef.current) inputRef.current.value = ''
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Eroare la import.')
     } finally {
