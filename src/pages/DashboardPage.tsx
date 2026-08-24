@@ -14,7 +14,7 @@ import { filterByDimensions, filterByRange } from '@/kpi/applyFilters'
 import { computePeriodSummary } from '@/kpi/summary'
 import { computeDailySeries } from '@/kpi/dailySeries'
 import { computeInsights } from '@/kpi/insights'
-import { addDays, dayCountInRange, monthLabel, todayStr } from '@/kpi/dateRanges'
+import { addDays, dayCountInRange, monthLabel, reportingEndStr, todayStr } from '@/kpi/dateRanges'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
@@ -149,7 +149,17 @@ export function DashboardPage() {
   const stationTarget = monthTargets.station
   const stationActual = monthTargets.stationActual
 
-  const monthRange = useMemo(() => ({ start: `${currentMonthKey}-01`, end: todayStr() }), [currentMonthKey])
+  // Se oprește la ultima zi completă (ieri), nu la azi — vânzările de azi
+  // sunt mereu parțiale cât timp ziua e în desfășurare, ceea ce ar scădea
+  // artificial media/zi și ar face graficele de evoluție să pară că se
+  // prăbușesc spre sfârșit. Pe 1 ale lunii nu există nicio zi completă
+  // încă în luna curentă, deci arătăm azi (parțial) ca să nu fie interval gol.
+  const monthStart = `${currentMonthKey}-01`
+  const reportingEnd = reportingEndStr()
+  const monthRange = useMemo(
+    () => ({ start: monthStart, end: reportingEnd >= monthStart ? reportingEnd : todayStr() }),
+    [monthStart, reportingEnd],
+  )
   const monthTx = useMemo(() => filterByRange(dimFiltered, monthRange.start, monthRange.end), [dimFiltered, monthRange])
   const monthSummary = useMemo(
     () => computePeriodSummary(monthTx, products, defaultVatRatePct),
@@ -177,9 +187,13 @@ export function DashboardPage() {
     const [y, m] = currentMonthKey.split('-').map(Number)
     return new Date(y, m, 0).getDate()
   }, [currentMonthKey])
-  const daysElapsedInMonth = new Date(`${todayStr()}T00:00:00`).getDate()
+  // Zilele "scurse" trebuie să corespundă exact cu ce e inclus în
+  // monthRange (până ieri) — altfel forecast-ul ar proiecta ritmul pe un
+  // număr de zile rămase greșit (ar trata azi ca deja "acoperit" de actual,
+  // deși actual se oprește ieri).
+  const daysElapsedInMonth = new Date(`${monthRange.end}T00:00:00`).getDate()
 
-  const recentRange = useMemo(() => ({ start: addDays(todayStr(), -6), end: todayStr() }), [])
+  const recentRange = useMemo(() => ({ start: addDays(reportingEnd, -6), end: reportingEnd }), [reportingEnd])
   const recentTx = useMemo(() => filterByRange(dimFiltered, recentRange.start, recentRange.end), [dimFiltered, recentRange])
   const recentFuelBreakdown = useMemo(() => computeFuelBreakdown(recentTx, products), [recentTx, products])
   const recentAvgPerDay = useMemo(() => {

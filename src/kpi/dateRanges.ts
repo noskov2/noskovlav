@@ -31,6 +31,18 @@ export function todayStr(): string {
   return fmt(new Date())
 }
 
+// The last COMPLETE day — today's own data is always partial while the day
+// is still in progress (a few hours of sales can look like a crash at the
+// tail of a trend chart, and drags down any "average per day" figure), so
+// every rolling reporting window (last 7/30 days, this month/year to date,
+// Dashboard forecast, stock rotation averages) ends here instead of at
+// todayStr(). The explicit "Astăzi"/"Ieri" single-day presets are
+// deliberately NOT built from this — those ask for a specific day on
+// purpose, partial or not.
+export function reportingEndStr(): string {
+  return addDays(todayStr(), -1)
+}
+
 export const PERIOD_LABELS: Record<PeriodPreset, string> = {
   today: 'Astăzi',
   yesterday: 'Ieri',
@@ -45,6 +57,7 @@ export const PERIOD_LABELS: Record<PeriodPreset, string> = {
 export function resolvePreset(preset: PeriodPreset, custom?: DateRange): DateRange {
   const now = new Date()
   const today = fmt(now)
+  const reportingEnd = addDays(today, -1)
 
   switch (preset) {
     case 'today':
@@ -54,12 +67,15 @@ export function resolvePreset(preset: PeriodPreset, custom?: DateRange): DateRan
       return { start: y, end: y }
     }
     case 'last7':
-      return { start: addDays(today, -6), end: today }
+      return { start: addDays(today, -7), end: reportingEnd }
     case 'last30':
-      return { start: addDays(today, -29), end: today }
+      return { start: addDays(today, -30), end: reportingEnd }
     case 'thisMonth': {
       const start = fmt(new Date(now.getFullYear(), now.getMonth(), 1))
-      return { start, end: today }
+      // On the 1st of the month there's no complete prior day within this
+      // month to fall back to — show today's (partial) figure rather than
+      // an empty/inverted range.
+      return { start, end: reportingEnd >= start ? reportingEnd : today }
     }
     case 'lastMonth': {
       const start = fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1))
@@ -68,10 +84,10 @@ export function resolvePreset(preset: PeriodPreset, custom?: DateRange): DateRan
     }
     case 'thisYear': {
       const start = fmt(new Date(now.getFullYear(), 0, 1))
-      return { start, end: today }
+      return { start, end: reportingEnd >= start ? reportingEnd : today }
     }
     case 'custom':
-      return custom ?? { start: addDays(today, -6), end: today }
+      return custom ?? { start: addDays(today, -7), end: reportingEnd }
   }
 }
 

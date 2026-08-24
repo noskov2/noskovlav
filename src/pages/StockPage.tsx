@@ -16,7 +16,7 @@ import { computeProductProfitability } from '@/kpi/profitability'
 import { filterByRange } from '@/kpi/applyFilters'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { defaultStockThresholds, type Product, type StockThresholds } from '@/types/domain'
-import { addDays, todayStr, type DateRange } from '@/kpi/dateRanges'
+import { addDays, reportingEndStr, type DateRange } from '@/kpi/dateRanges'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
 
 interface CompareRow {
@@ -65,7 +65,12 @@ export function StockPage() {
     })
   }, [])
 
-  const range: DateRange = useMemo(() => ({ start: addDays(todayStr(), -(windowPreset - 1)), end: todayStr() }), [windowPreset])
+  // Se oprește ieri, nu azi — altfel media de vânzare/zi și "days of stock"
+  // ar fi calculate incluzând o zi parțială, umflând artificial rezervele.
+  const range: DateRange = useMemo(() => {
+    const end = reportingEndStr()
+    return { start: addDays(end, -(windowPreset - 1)), end }
+  }, [windowPreset])
 
   const categories = useMemo(() => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort(), [products])
 
@@ -97,9 +102,9 @@ export function StockPage() {
   const defaultVatRatePct = settings?.defaultVatRatePct ?? 19
   const compareRows: CompareRow[] = useMemo(() => {
     if (selectedIds.size === 0) return []
-    const today = todayStr()
-    const tx7 = filterByRange(transactions, addDays(today, -6), today)
-    const tx30 = filterByRange(transactions, addDays(today, -29), today)
+    const end = reportingEndStr()
+    const tx7 = filterByRange(transactions, addDays(end, -6), end)
+    const tx30 = filterByRange(transactions, addDays(end, -29), end)
     const profit7ById = new Map(
       computeProductProfitability(tx7, products, supplierReceipts, defaultVatRatePct).map((r) => [r.product.id, r]),
     )

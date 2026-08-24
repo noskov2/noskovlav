@@ -8,7 +8,7 @@ import { DeltaBadge } from '@/components/ui/DeltaBadge'
 import { useDataStore } from '@/store/dataStore'
 import { useDrillFilterStore } from '@/store/drillFilterStore'
 import { computeSlowMovers, MOVEMENT_LABELS, type MovementClass, type SlowMoverRow } from '@/kpi/slowMovers'
-import { addDays, todayStr, type DateRange } from '@/kpi/dateRanges'
+import { addDays, reportingEndStr, type DateRange } from '@/kpi/dateRanges'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
 
@@ -24,7 +24,7 @@ const CLASS_TONE: Record<MovementClass, 'good' | 'warn' | 'bad' | 'neutral'> = {
 export function SlowMoversPage() {
   const { transactions, products, stockSnapshots } = useDataStore()
   const [windowPreset, setWindowPreset] = useState<WindowPreset>(30)
-  const [customRange, setCustomRange] = useState<DateRange>({ start: addDays(todayStr(), -30), end: todayStr() })
+  const [customRange, setCustomRange] = useState<DateRange>({ start: addDays(reportingEndStr(), -29), end: reportingEndStr() })
   const [category, setCategory] = useState('all')
   const [productQuery, setProductQuery] = useState('')
   const [classFilter, setClassFilter] = useState<MovementClass | 'all'>('all')
@@ -32,8 +32,10 @@ export function SlowMoversPage() {
 
   const range: DateRange = useMemo(() => {
     if (windowPreset === 'custom') return customRange
-    const today = todayStr()
-    return { start: addDays(today, -(windowPreset - 1)), end: today }
+    // Se oprește ieri, nu azi — o zi parțială ar umfla artificial rata de
+    // vânzare/zi și ar clasifica greșit produse ca "lente".
+    const end = reportingEndStr()
+    return { start: addDays(end, -(windowPreset - 1)), end }
   }, [windowPreset, customRange])
 
   const categories = useMemo(
