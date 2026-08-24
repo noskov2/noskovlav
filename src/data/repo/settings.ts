@@ -35,7 +35,21 @@ export function getStockThresholdsForCategory(settings: AppSettings, category: s
 
 export async function getSettings(): Promise<AppSettings> {
   const existing = await db.settings.get(SETTINGS_ID)
-  return existing ? { ...defaultSettings, ...existing } : defaultSettings
+  if (!existing) return defaultSettings
+  // categoryGroupRules gets a new key whenever a new product group is added
+  // (e.g. 'promotii', 'crossSellExcluded' were added after this feature
+  // shipped) — a settings row saved before that key existed is missing it
+  // entirely. The shallow spread below would otherwise overwrite the
+  // complete defaults with that incomplete object wholesale, so every
+  // caller that reads settings.categoryGroupRules[group] without a
+  // fallback (import's group-guessing, Nomenclator's Grupuri pe categorie)
+  // would crash on "Cannot read properties of undefined (reading 'length')"
+  // for any group added after the user's settings were first saved.
+  return {
+    ...defaultSettings,
+    ...existing,
+    categoryGroupRules: { ...emptyCategoryGroupRules(), ...existing.categoryGroupRules },
+  }
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
