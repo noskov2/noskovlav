@@ -131,17 +131,41 @@ function ProductsTab({
   onDelete: (id: string) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [groupFilter, setGroupFilter] = useState<Set<keyof ProductGroups>>(new Set())
   const [draft, setDraft] = useState<Record<string, Partial<Product>>>({})
   const [newName, setNewName] = useState('')
   const [newCategory, setNewCategory] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
+  const categories = useMemo(
+    () => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [products],
+  )
+
+  function toggleGroupFilter(g: keyof ProductGroups) {
+    setGroupFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(g)) next.delete(g)
+      else next.add(g)
+      return next
+    })
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const list = q ? products.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)) : products
+    const list = products.filter((p) => {
+      if (q && !p.name.toLowerCase().includes(q) && !p.category.toLowerCase().includes(q)) return false
+      if (categoryFilter !== 'all' && p.category !== categoryFilter) return false
+      // A product matches if it belongs to ANY of the selected groups —
+      // most useful for "show me everything tagged Cafea sau Sandwich",
+      // not "only products in every one of these groups at once".
+      if (groupFilter.size > 0 && !Array.from(groupFilter).some((g) => p.groups[g])) return false
+      return true
+    })
     return [...list].sort((a, b) => a.name.localeCompare(b.name))
-  }, [products, query])
+  }, [products, query, categoryFilter, groupFilter])
 
   // How many sales lines reference each product — shown in the delete
   // confirmation so removing a product from Nomenclator is never a surprise
@@ -214,12 +238,48 @@ function ProductsTab({
         </div>
       </div>
 
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Caută produs sau categorie..."
-        className="mb-3 w-full max-w-xs rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
-      />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Caută produs sau categorie..."
+          className="w-full max-w-xs rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
+        />
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-700"
+        >
+          <option value="all">Toate categoriile</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        {groupFilter.size > 0 && (
+          <button
+            onClick={() => setGroupFilter(new Set())}
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            Golește filtrul de grupuri
+          </button>
+        )}
+        <span className="text-xs text-slate-400">{formatNumber(filtered.length)} produse</span>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {(Object.keys(GROUP_LABELS) as (keyof ProductGroups)[]).map((g) => (
+          <button
+            key={g}
+            onClick={() => toggleGroupFilter(g)}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+              groupFilter.has(g) ? 'border-brand-400 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            {GROUP_LABELS[g]}
+          </button>
+        ))}
+      </div>
       <div className="overflow-x-auto rounded-lg border border-slate-100 scrollbar-thin">
         <table className="min-w-full divide-y divide-slate-100 text-sm">
           <thead className="bg-slate-50">
