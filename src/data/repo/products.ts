@@ -14,7 +14,13 @@ export async function listProducts(): Promise<Product[]> {
 // one real IndexedDB scan per row of a multi-thousand-row file is minutes
 // of dead time with zero feedback, so that path pre-loads every product
 // into memory once and only needs this pure builder, never the DB itself.
-export function buildNewProduct(rawName: string, categoryRaw: string, purchasePriceUnit: number | null, settings: AppSettings): Product {
+export function buildNewProduct(
+  rawName: string,
+  categoryRaw: string,
+  purchasePriceUnit: number | null,
+  settings: AppSettings,
+  supplierRaw = '',
+): Product {
   const trimmed = rawName.trim()
   const now = Date.now()
   const category = categoryRaw || 'Necategorizat'
@@ -33,15 +39,40 @@ export function buildNewProduct(rawName: string, categoryRaw: string, purchasePr
     id: slugify(trimmed) || `product-${now}`,
     name: trimmed,
     category,
-    subcategory: '',
     purchasePrice: purchasePriceUnit,
     salePrice: null,
     currentStock: null,
-    supplier: '',
+    supplier: supplierRaw,
     active: true,
     groups,
     aliases: [trimmed],
     autoCreated: true,
+    vatRatePct: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+// A product added by hand in Nomenclator, not seen in any import yet — same
+// shape as an auto-created one (so it behaves identically everywhere else)
+// but starts with no aliases, since there's no raw import string to match
+// against; the id-slug from the name still lets a later import with the
+// exact same name attach to it instead of creating a duplicate.
+export function buildManualProduct(name: string, category: string): Product {
+  const trimmed = name.trim()
+  const now = Date.now()
+  return {
+    id: slugify(trimmed) || `product-${now}`,
+    name: trimmed,
+    category: category.trim() || 'Necategorizat',
+    purchasePrice: null,
+    salePrice: null,
+    currentStock: null,
+    supplier: '',
+    active: true,
+    groups: emptyGroups(),
+    aliases: [],
+    autoCreated: false,
     vatRatePct: null,
     createdAt: now,
     updatedAt: now,
@@ -70,12 +101,23 @@ export async function resolveOrCreateProduct(
   rawName: string,
   categoryRaw: string,
   purchasePriceUnit: number | null,
+  supplierRaw?: string,
 ): Promise<Product> {
   const trimmed = rawName.trim()
   const existingByAlias = await db.products
     .filter((p) => p.aliases.includes(trimmed))
     .first()
-  if (existingByAlias) return existingByAlias
+  if (existingByAlias) {
+    // A supplier receipt import is the one place with a real "Furnizor" —
+    // back-fill it onto the product once, only if nobody has set one yet,
+    // so a manual correction in Nomenclator is never silently overwritten.
+    if (supplierRaw && !existingByAlias.supplier) {
+      const updated = { ...existingByAlias, supplier: supplierRaw }
+      await db.products.put(updated)
+      return updated
+    }
+    return existingByAlias
+  }
 
   const id = slugify(trimmed) || `product-${Date.now()}`
   const existingById = await db.products.get(id)
@@ -85,7 +127,13 @@ export async function resolveOrCreateProduct(
         ...existingById,
         aliases: [...existingById.aliases, trimmed],
         purchasePrice: existingById.purchasePrice ?? purchasePriceUnit,
+        supplier: existingById.supplier || supplierRaw || '',
       }
+      await db.products.put(updated)
+      return updated
+    }
+    if (supplierRaw && !existingById.supplier) {
+      const updated = { ...existingById, supplier: supplierRaw }
       await db.products.put(updated)
       return updated
     }
@@ -93,7 +141,7 @@ export async function resolveOrCreateProduct(
   }
 
   const settings = await getSettings()
-  const product = buildNewProduct(rawName, categoryRaw, purchasePriceUnit, settings)
+  const product = buildNewProduct(rawName, categoryRaw, purchasePriceUnit, settings, supplierRaw)
   await db.products.put(product)
   return product
 }

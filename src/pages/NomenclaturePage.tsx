@@ -3,12 +3,27 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Tabs } from '@/components/ui/Tabs'
 import { useDataStore } from '@/store/dataStore'
-import { resyncAllGroupsFromCategoryRules, setGroupForCategory, upsertProduct } from '@/data/repo/products'
+import {
+  resyncAllGroupsFromCategoryRules,
+  setGroupForCategory,
+  upsertProduct,
+  deleteProduct,
+  buildManualProduct,
+} from '@/data/repo/products'
 import { mergeCashiers, upsertCashier } from '@/data/repo/cashiers'
 import { deleteTeam, upsertTeam } from '@/data/repo/teams'
 import { updateSettings } from '@/data/repo/settings'
 import { slugify, uid } from '@/lib/id'
-import { emptyCategoryGroupRules, type Cashier, type CategoryGroupRules, type Product, type ProductGroups, type Team } from '@/types/domain'
+import { formatNumber } from '@/lib/format'
+import {
+  emptyCategoryGroupRules,
+  type Cashier,
+  type CategoryGroupRules,
+  type Product,
+  type ProductGroups,
+  type Team,
+  type TransactionLine,
+} from '@/types/domain'
 
 const GROUP_LABELS: Record<keyof ProductGroups, string> = {
   cafea: 'Cafea',
@@ -52,7 +67,13 @@ export function NomenclaturePage() {
         />
         <div className="mt-4">
           {tab === 'produse' && (
-            <ProductsTab products={products} onSave={async (p) => { await upsertProduct(p); await refresh() }} />
+            <ProductsTab
+              products={products}
+              transactions={transactions}
+              onSave={async (p) => { await upsertProduct(p); await refresh() }}
+              onAdd={async (name, category) => { await upsertProduct(buildManualProduct(name, category)); await refresh() }}
+              onDelete={async (id) => { await deleteProduct(id); await refresh() }}
+            />
           )}
           {tab === 'grupuri' && (
             <GroupsByCategoryTab
@@ -96,15 +117,41 @@ export function NomenclaturePage() {
   )
 }
 
-function ProductsTab({ products, onSave }: { products: Product[]; onSave: (p: Product) => Promise<void> }) {
+function ProductsTab({
+  products,
+  transactions,
+  onSave,
+  onAdd,
+  onDelete,
+}: {
+  products: Product[]
+  transactions: TransactionLine[]
+  onSave: (p: Product) => Promise<void>
+  onAdd: (name: string, category: string) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+}) {
   const [query, setQuery] = useState('')
   const [draft, setDraft] = useState<Record<string, Partial<Product>>>({})
+  const [newName, setNewName] = useState('')
+  const [newCategory, setNewCategory] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const list = q ? products.filter((p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)) : products
     return [...list].sort((a, b) => a.name.localeCompare(b.name))
   }, [products, query])
+
+  // How many sales lines reference each product — shown in the delete
+  // confirmation so removing a product from Nomenclator is never a surprise
+  // for the historical sales it's tied to (deleting the catalog entry
+  // doesn't delete those transactions; it just stops appearing here).
+  const salesCountByProduct = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const t of transactions) m.set(t.productId, (m.get(t.productId) ?? 0) + 1)
+    return m
+  }, [transactions])
 
   function fieldValue<K extends keyof Product>(p: Product, key: K): Product[K] {
     return (draft[p.id]?.[key] as Product[K]) ?? p[key]
@@ -125,8 +172,48 @@ function ProductsTab({ products, onSave }: { products: Product[]; onSave: (p: Pr
     })
   }
 
+  async function handleAdd() {
+    const name = newName.trim()
+    if (!name) return
+    const id = slugify(name) || name.toLowerCase()
+    if (products.some((p) => slugify(p.name) === id || p.name.toLowerCase() === name.toLowerCase())) {
+      setAddError('Există deja un produs cu acest nume.')
+      return
+    }
+    setAddError(null)
+    await onAdd(name, newCategory.trim())
+    setNewName('')
+    setNewCategory('')
+  }
+
   return (
     <div>
+      <div className="mb-4 rounded-lg bg-slate-50 p-3">
+        <p className="mb-2 text-xs font-medium text-slate-600">Adaugă produs nou</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={newName}
+            onChange={(e) => { setNewName(e.target.value); setAddError(null) }}
+            placeholder="Nume produs"
+            className="rounded border border-slate-200 px-2 py-1 text-sm"
+          />
+          <input
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            placeholder="Categorie (opțional)"
+            className="rounded border border-slate-200 px-2 py-1 text-sm"
+          />
+          <button
+            disabled={!newName.trim()}
+            onClick={handleAdd}
+            className="rounded bg-brand-500 px-3 py-1 text-sm font-medium text-white disabled:opacity-40"
+          >
+            Adaugă produs
+          </button>
+          {addError && <span className="text-xs text-bad">{addError}</span>}
+        </div>
+      </div>
+
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -139,7 +226,6 @@ function ProductsTab({ products, onSave }: { products: Product[]; onSave: (p: Pr
             <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
               <th className="px-3 py-2">Produs</th>
               <th className="px-3 py-2">Categorie</th>
-              <th className="px-3 py-2">Subcategorie</th>
               <th className="px-3 py-2">Furnizor</th>
               <th className="px-3 py-2 text-right">Preț achiziție</th>
               <th className="px-3 py-2 text-right">Preț vânzare</th>
@@ -163,14 +249,6 @@ function ProductsTab({ products, onSave }: { products: Product[]; onSave: (p: Pr
                       className="w-28 rounded border border-slate-200 px-1.5 py-0.5"
                       value={fieldValue(p, 'category')}
                       onChange={(e) => setField(p, { category: e.target.value })}
-                      onBlur={() => commit(p)}
-                    />
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <input
-                      className="w-28 rounded border border-slate-200 px-1.5 py-0.5"
-                      value={fieldValue(p, 'subcategory')}
-                      onChange={(e) => setField(p, { subcategory: e.target.value })}
                       onBlur={() => commit(p)}
                     />
                   </td>
@@ -249,11 +327,42 @@ function ProductsTab({ products, onSave }: { products: Product[]; onSave: (p: Pr
                     />
                   </td>
                   <td className="px-3 py-1.5">
-                    {hasDraft && (
-                      <button onClick={() => commit(p)} className="rounded bg-brand-500 px-2 py-0.5 text-xs text-white">
-                        Salvează
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      {hasDraft && (
+                        <button onClick={() => commit(p)} className="rounded bg-brand-500 px-2 py-0.5 text-xs text-white">
+                          Salvează
+                        </button>
+                      )}
+                      {confirmDeleteId === p.id ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-xs text-slate-500">
+                            {salesCountByProduct.has(p.id)
+                              ? `Are ${formatNumber(salesCountByProduct.get(p.id)!)} vânzări — sigur?`
+                              : 'Sigur?'}
+                          </span>
+                          <button
+                            onClick={async () => { await onDelete(p.id); setConfirmDeleteId(null) }}
+                            className="rounded bg-bad px-2 py-0.5 text-xs font-medium text-white"
+                          >
+                            Da, șterge
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600"
+                          >
+                            Anulează
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(p.id)}
+                          title="Șterge produsul din Nomenclator"
+                          className="rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-bad/10 hover:text-bad"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

@@ -29,10 +29,15 @@ export async function importPurchaseSheet(
       skipped++
       continue
     }
-    const supplier = String(row[mapping.supplier] ?? '').trim() || 'Necunoscut'
+    const supplierRaw = String(row[mapping.supplier] ?? '').trim()
+    const supplier = supplierRaw || 'Necunoscut'
     const quantity = toNumber(row[mapping.quantity])
 
-    const product = await resolveOrCreateProduct(productRaw, '', price)
+    // Only a real supplier name from the file should ever land on the
+    // product's own "Furnizor" field in Nomenclator — the "Necunoscut"
+    // placeholder is fine on the receipt line itself, but it must never
+    // fill in the product record as if it were a real answer.
+    const product = await resolveOrCreateProduct(productRaw, '', price, supplierRaw)
 
     lines.push({
       id: uid('sup'),

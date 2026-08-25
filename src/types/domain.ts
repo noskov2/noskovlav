@@ -52,7 +52,6 @@ export interface Product {
   id: string // stable slug derived from name, or uuid
   name: string
   category: string
-  subcategory: string
   purchasePrice: number | null
   salePrice: number | null
   currentStock: number | null
