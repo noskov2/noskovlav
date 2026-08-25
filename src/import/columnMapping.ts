@@ -8,18 +8,42 @@ const HINTS: Record<string, string[]> = {
   datetime: ['data ora', 'data/ora', 'datetime', 'data si ora'],
   date: ['data', 'zi', 'date'],
   time: ['ora', 'time', 'oră'],
-  receiptNo: ['bon', 'nr bon', 'numar bon', 'chitanta', 'receipt', 'document'],
+  receiptNo: ['bon', 'nr bon', 'numar bon', 'chitanta', 'receipt', 'document', 'id vanzare'],
   product: ['produs', 'articol', 'denumire', 'product', 'item'],
   category: ['categorie', 'grupa', 'family', 'departament'],
   quantity: ['cantitate', 'cant', 'qty', 'buc'],
-  value: ['valoare', 'suma', 'total', 'incasare', 'value', 'pret vanzare total'],
-  valueNoVat: ['fara tva', 'net', 'valoare neta'],
-  purchasePrice: ['pret achizitie', 'cost achizitie', 'pret intrare', 'cost unitar', 'pret cumparare'],
+  // 'valoare totala' first: real exports often also have a "Discount
+  // (Valoare Totală)" column, which also contains the generic 'valoare'
+  // keyword — the exclude list below keeps discount columns out of the
+  // candidate pool entirely, but keeping the specific phrase first here
+  // means the intended "Valoare Totală" column wins even without it.
+  value: ['valoare totala', 'valoare', 'suma', 'total', 'incasare', 'value', 'pret vanzare total'],
+  // 'valoare fara tva' (the per-line TOTAL ex-VAT value) must be tried
+  // before the generic 'fara tva', which would otherwise just as happily
+  // match a per-UNIT column like "Preț Fără TVA" — silently turning every
+  // multi-quantity line's margin math into unit-price-only, understated by
+  // a factor of quantity.
+  valueNoVat: ['valoare fara tva', 'fara tva', 'net', 'valoare neta'],
+  purchasePrice: ['pret achizitie', 'cost achizitie', 'pret intrare', 'cost unitar', 'pret cumparare', 'cmp'],
   promotion: ['promotie', 'promotii', 'promo'],
   supplier: ['furnizor', 'supplier'],
   price: ['pret', 'price', 'cost'],
   stockQty: ['stoc', 'stock'],
   salePrice: ['pret vanzare', 'pret de vanzare', 'sale price'],
+}
+
+// A column whose header contains any of these must never be auto-picked for
+// a monetary/quantity field — a "Discount ..." (or "Reducere ...") column
+// routinely contains the exact same substrings ("valoare", "pret", "total")
+// as the real target column, e.g. "Discount (Valoare Totală)" sitting right
+// next to the real "Valoare Totală" and matching the very same keyword.
+const EXCLUDE_FOR_FIELD: Partial<Record<keyof typeof HINTS, string[]>> = {
+  value: ['discount', 'reducere'],
+  valueNoVat: ['discount', 'reducere'],
+  purchasePrice: ['discount', 'reducere'],
+  price: ['discount', 'reducere'],
+  salePrice: ['discount', 'reducere'],
+  quantity: ['discount', 'reducere'],
 }
 
 function norm(s: string): string {
@@ -32,7 +56,10 @@ function norm(s: string): string {
 
 function guessColumn(headers: string[], field: keyof typeof HINTS): string | null {
   const keywords = HINTS[field]
-  const normalizedHeaders = headers.map((h) => ({ raw: h, norm: norm(h) }))
+  const excludes = EXCLUDE_FOR_FIELD[field] ?? []
+  const normalizedHeaders = headers
+    .map((h) => ({ raw: h, norm: norm(h) }))
+    .filter((h) => !excludes.some((ex) => h.norm.includes(ex)))
   for (const kw of keywords) {
     const found = normalizedHeaders.find((h) => h.norm.includes(kw))
     if (found) return found.raw

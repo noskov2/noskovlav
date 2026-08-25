@@ -19,6 +19,25 @@ export async function deleteCashier(id: string): Promise<void> {
   await db.cashiers.delete(id)
 }
 
+export async function bulkSetCashiers(cashiers: Cashier[]): Promise<void> {
+  await db.cashiers.bulkPut(cashiers)
+}
+
+// Pure "brand-new cashier" construction, shared by resolveOrCreateCashier
+// (single DB-backed lookup) and the in-memory batch resolver a large sales
+// import uses — see buildNewProduct in repo/products.ts for why.
+export function buildNewCashier(rawName: string): Cashier {
+  const trimmed = rawName.trim() || 'Necunoscut'
+  return {
+    id: slugify(trimmed) || `cashier-${Date.now()}`,
+    name: trimmed,
+    aliases: [trimmed],
+    active: true,
+    teamId: null,
+    createdAt: Date.now(),
+  }
+}
+
 /**
  * Resolves a raw cashier name from an import to a canonical Cashier record,
  * creating one on first sight. This is what lets "Razvan P.", "razvan" and
@@ -41,14 +60,7 @@ export async function resolveOrCreateCashier(rawName: string): Promise<Cashier> 
     return existingById
   }
 
-  const cashier: Cashier = {
-    id,
-    name: trimmed,
-    aliases: [trimmed],
-    active: true,
-    teamId: null,
-    createdAt: Date.now(),
-  }
+  const cashier = buildNewCashier(rawName)
   await db.cashiers.put(cashier)
   return cashier
 }

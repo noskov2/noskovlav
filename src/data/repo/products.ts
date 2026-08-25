@@ -1,11 +1,51 @@
 import { db } from '@/data/db'
 import { slugify } from '@/lib/id'
-import { emptyGroups, type CategoryGroupRules, type Product, type ProductGroups } from '@/types/domain'
+import { emptyGroups, type AppSettings, type CategoryGroupRules, type Product, type ProductGroups } from '@/types/domain'
 import { guessGroupsFromName } from '@/processing/groupHeuristics'
 import { getSettings } from '@/data/repo/settings'
 
 export async function listProducts(): Promise<Product[]> {
   return db.products.toArray()
+}
+
+// The actual "brand-new product" construction logic, shared by
+// resolveOrCreateProduct (single DB-backed lookup) and by the in-memory
+// batch resolver a large sales import uses (import/importTransactions.ts) —
+// one real IndexedDB scan per row of a multi-thousand-row file is minutes
+// of dead time with zero feedback, so that path pre-loads every product
+// into memory once and only needs this pure builder, never the DB itself.
+export function buildNewProduct(rawName: string, categoryRaw: string, purchasePriceUnit: number | null, settings: AppSettings): Product {
+  const trimmed = rawName.trim()
+  const now = Date.now()
+  const category = categoryRaw || 'Necategorizat'
+  // Once a group has at least one category mapped in Nomenclator -> Grupuri
+  // pe categorie, that mapping is authoritative for the group (true only if
+  // this product's category is in the list, false otherwise) — the
+  // name-keyword heuristic only fills in groups nobody has configured yet.
+  const guessed = { ...emptyGroups(), ...guessGroupsFromName(trimmed, categoryRaw) }
+  const groups = emptyGroups()
+  for (const key of Object.keys(groups) as (keyof ProductGroups)[]) {
+    const rule = settings.categoryGroupRules[key]
+    groups[key] = rule.length > 0 ? rule.includes(category) : guessed[key]
+  }
+
+  return {
+    id: slugify(trimmed) || `product-${now}`,
+    name: trimmed,
+    category,
+    subcategory: '',
+    purchasePrice: purchasePriceUnit,
+    salePrice: null,
+    currentStock: null,
+    supplier: '',
+    active: true,
+    groups,
+    aliases: [trimmed],
+    autoCreated: true,
+    vatRatePct: null,
+    createdAt: now,
+    updatedAt: now,
+  }
 }
 
 export async function getProduct(id: string): Promise<Product | undefined> {
@@ -52,37 +92,8 @@ export async function resolveOrCreateProduct(
     return existingById
   }
 
-  const now = Date.now()
   const settings = await getSettings()
-  const category = categoryRaw || 'Necategorizat'
-  // Once a group has at least one category mapped in Nomenclator -> Grupuri
-  // pe categorie, that mapping is authoritative for the group (true only if
-  // this product's category is in the list, false otherwise) — the
-  // name-keyword heuristic only fills in groups nobody has configured yet.
-  const guessed = { ...emptyGroups(), ...guessGroupsFromName(trimmed, categoryRaw) }
-  const groups = emptyGroups()
-  for (const key of Object.keys(groups) as (keyof ProductGroups)[]) {
-    const rule = settings.categoryGroupRules[key]
-    groups[key] = rule.length > 0 ? rule.includes(category) : guessed[key]
-  }
-
-  const product: Product = {
-    id,
-    name: trimmed,
-    category,
-    subcategory: '',
-    purchasePrice: purchasePriceUnit,
-    salePrice: null,
-    currentStock: null,
-    supplier: '',
-    active: true,
-    groups,
-    aliases: [trimmed],
-    autoCreated: true,
-    vatRatePct: null,
-    createdAt: now,
-    updatedAt: now,
-  }
+  const product = buildNewProduct(rawName, categoryRaw, purchasePriceUnit, settings)
   await db.products.put(product)
   return product
 }

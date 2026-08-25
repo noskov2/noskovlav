@@ -1,13 +1,14 @@
-import { uid } from '@/lib/id'
+import { uid, slugify } from '@/lib/id'
 import type { ParsedSheet } from '@/import/excelParser'
 import { toDateString, toNumber, toTimeString } from '@/import/columnMapping'
 import { isInvalidDateToken, isInvalidNumericToken, computeLineFingerprint } from '@/import/validate'
-import { listCashiers, resolveOrCreateCashier } from '@/data/repo/cashiers'
-import { listProducts, resolveOrCreateProduct } from '@/data/repo/products'
+import { listCashiers, bulkSetCashiers, buildNewCashier } from '@/data/repo/cashiers'
+import { listProducts, bulkSetProducts, buildNewProduct } from '@/data/repo/products'
 import { bulkInsertTransactions, countAllFingerprints } from '@/data/repo/transactions'
 import { addImportBatch } from '@/data/repo/importBatches'
+import { getSettings } from '@/data/repo/settings'
 import { determineShift } from '@/processing/shift'
-import type { SalesColumnMapping, ShiftConfig, TransactionLine } from '@/types/domain'
+import type { Cashier, Product, SalesColumnMapping, ShiftConfig, TransactionLine } from '@/types/domain'
 
 export interface ImportProgress {
   processed: number
@@ -54,8 +55,89 @@ export async function importSalesSheet(
   // real daily revenue by hundreds of lei.
   const existingFingerprintCounts = await countAllFingerprints()
   const seenInThisImport = new Map<string, number>()
-  const productsBefore = new Set((await listProducts()).map((p) => p.id))
-  const cashiersBefore = new Set((await listCashiers()).map((c) => c.id))
+
+  // Product/cashier resolution used to be one IndexedDB scan PER ROW
+  // (resolveOrCreateProduct/resolveOrCreateCashier each ran a full-table
+  // `.filter().first()`), which is fine for a handful of rows but turns a
+  // real multi-thousand-row file into minutes of silent, unresponsive work.
+  // Everything is loaded into memory once instead, resolved/created
+  // in-memory for the whole file, and only the products/cashiers that are
+  // actually new or gained an alias get written back — in one bulk write
+  // at the end, not one `put` per row.
+  const allProducts = await listProducts()
+  const allCashiers = await listCashiers()
+  const settings = await getSettings()
+  const productsBefore = new Set(allProducts.map((p) => p.id))
+  const cashiersBefore = new Set(allCashiers.map((c) => c.id))
+
+  const productByAlias = new Map<string, Product>()
+  const productById = new Map<string, Product>()
+  for (const p of allProducts) {
+    productById.set(p.id, p)
+    for (const alias of p.aliases) productByAlias.set(alias, p)
+  }
+  const cashierByAlias = new Map<string, Cashier>()
+  const cashierById = new Map<string, Cashier>()
+  for (const c of allCashiers) {
+    cashierById.set(c.id, c)
+    for (const alias of c.aliases) cashierByAlias.set(alias, c)
+  }
+  const dirtyProducts = new Map<string, Product>()
+  const dirtyCashiers = new Map<string, Cashier>()
+
+  function resolveProduct(rawName: string, categoryRaw: string, purchasePriceUnit: number | null): Product {
+    const trimmed = rawName.trim()
+    const existingByAlias = productByAlias.get(trimmed)
+    if (existingByAlias) return existingByAlias
+
+    const id = slugify(trimmed) || `product-${Date.now()}`
+    const existingById = productById.get(id)
+    if (existingById) {
+      if (!existingById.aliases.includes(trimmed)) {
+        const updated: Product = {
+          ...existingById,
+          aliases: [...existingById.aliases, trimmed],
+          purchasePrice: existingById.purchasePrice ?? purchasePriceUnit,
+        }
+        productById.set(id, updated)
+        productByAlias.set(trimmed, updated)
+        dirtyProducts.set(id, updated)
+        return updated
+      }
+      return existingById
+    }
+
+    const product = buildNewProduct(rawName, categoryRaw, purchasePriceUnit, settings)
+    productById.set(product.id, product)
+    productByAlias.set(trimmed, product)
+    dirtyProducts.set(product.id, product)
+    return product
+  }
+
+  function resolveCashier(rawName: string): Cashier {
+    const trimmed = rawName.trim() || 'Necunoscut'
+    const existingByAlias = cashierByAlias.get(trimmed)
+    if (existingByAlias) return existingByAlias
+
+    const id = slugify(trimmed) || `cashier-${Date.now()}`
+    const existingById = cashierById.get(id)
+    if (existingById) {
+      if (!existingById.aliases.includes(trimmed)) {
+        const updated: Cashier = { ...existingById, aliases: [...existingById.aliases, trimmed] }
+        cashierById.set(id, updated)
+        cashierByAlias.set(trimmed, updated)
+        dirtyCashiers.set(id, updated)
+        return updated
+      }
+      return existingById
+    }
+
+    const cashier = buildNewCashier(rawName)
+    cashierById.set(cashier.id, cashier)
+    cashierByAlias.set(trimmed, cashier)
+    dirtyCashiers.set(cashier.id, cashier)
+    return cashier
+  }
 
   const total = sheet.rows.length
   for (let i = 0; i < total; i++) {
@@ -121,8 +203,8 @@ export async function importSalesSheet(
       continue
     }
 
-    const cashier = await resolveOrCreateCashier(cashierRaw)
-    const product = await resolveOrCreateProduct(productRaw, categoryRaw, purchasePriceUnit)
+    const cashier = resolveCashier(cashierRaw)
+    const product = resolveProduct(productRaw, categoryRaw, purchasePriceUnit)
 
     const timestamp = new Date(`${date}T${time}`).getTime()
     const shift = determineShift(time, shiftConfig)
@@ -158,6 +240,8 @@ export async function importSalesSheet(
   const newProductIds = new Set(lines.map((l) => l.productId).filter((id) => !productsBefore.has(id)))
   const newCashierIds = new Set(lines.map((l) => l.cashierId).filter((id) => !cashiersBefore.has(id)))
 
+  if (dirtyProducts.size > 0) await bulkSetProducts(Array.from(dirtyProducts.values()))
+  if (dirtyCashiers.size > 0) await bulkSetCashiers(Array.from(dirtyCashiers.values()))
   await bulkInsertTransactions(lines)
   await addImportBatch({
     id: importBatchId,
