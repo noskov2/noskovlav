@@ -135,6 +135,7 @@ function ProductsTab({
 }) {
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [supplierFilter, setSupplierFilter] = useState('all')
   const [groupFilter, setGroupFilter] = useState<Set<keyof ProductGroups>>(new Set())
   const [draft, setDraft] = useState<Record<string, Partial<Product>>>({})
   const [newName, setNewName] = useState('')
@@ -144,6 +145,11 @@ function ProductsTab({
 
   const categories = useMemo(
     () => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [products],
+  )
+
+  const suppliersInUse = useMemo(
+    () => Array.from(new Set(products.map((p) => p.supplier).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [products],
   )
 
@@ -172,6 +178,7 @@ function ProductsTab({
     const list = products.filter((p) => {
       if (q && !p.name.toLowerCase().includes(q) && !p.category.toLowerCase().includes(q)) return false
       if (categoryFilter !== 'all' && p.category !== categoryFilter) return false
+      if (supplierFilter === '(none)' ? !!p.supplier : supplierFilter !== 'all' && p.supplier !== supplierFilter) return false
       // A product matches if it belongs to ANY of the selected groups —
       // most useful for "show me everything tagged Cafea sau Sandwich",
       // not "only products in every one of these groups at once".
@@ -179,7 +186,7 @@ function ProductsTab({
       return true
     })
     return [...list].sort((a, b) => a.name.localeCompare(b.name))
-  }, [products, query, categoryFilter, groupFilter])
+  }, [products, query, categoryFilter, supplierFilter, groupFilter])
 
   // How many sales lines reference each product — shown in the delete
   // confirmation so removing a product from Nomenclator is never a surprise
@@ -274,6 +281,19 @@ function ProductsTab({
           {categories.map((c) => (
             <option key={c} value={c}>
               {c}
+            </option>
+          ))}
+        </select>
+        <select
+          value={supplierFilter}
+          onChange={(e) => setSupplierFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-700"
+        >
+          <option value="all">Toți furnizorii</option>
+          <option value="(none)">(fără furnizor)</option>
+          {suppliersInUse.map((s) => (
+            <option key={s} value={s}>
+              {s}
             </option>
           ))}
         </select>
