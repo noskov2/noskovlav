@@ -107,9 +107,21 @@ export function toDateString(value: unknown): string {
     const d = new Date(excelEpoch.getTime() + value * 86400000)
     return formatDate(d)
   }
-  const str = String(value).trim()
+  // Some exports suffix the "Zi" value with a shift/batch marker (e.g.
+  // "2026.08.20_1") that has nothing to do with the date itself — everything
+  // from the first underscore on is discarded before parsing.
+  let str = String(value).trim()
+  const underscoreIdx = str.indexOf('_')
+  if (underscoreIdx >= 0) str = str.slice(0, underscoreIdx).trim()
+
   const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`
+  // Year-first with dot/slash separators (e.g. "2026.08.20")
+  const ymdMatch = str.match(/^(\d{4})[./](\d{1,2})[./](\d{1,2})/)
+  if (ymdMatch) {
+    const [, y, m, d] = ymdMatch
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
   const dmyMatch = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/)
   if (dmyMatch) {
     const [, d, m, y] = dmyMatch

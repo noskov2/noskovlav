@@ -1,3 +1,5 @@
+import { toDateString } from '@/import/columnMapping'
+
 // Validation helpers shared between the real import (importTransactions.ts)
 // and the pre-import preview (importPreview.ts) — kept separate from
 // columnMapping.ts's `toNumber`/`toDateString` coercion helpers (those stay
@@ -16,16 +18,19 @@ export function isInvalidNumericToken(value: unknown): boolean {
   return !Number.isFinite(parseFloat(cleaned)) || cleaned === ''
 }
 
+// Delegates to the same toDateString() used to actually parse the value
+// once a row is accepted — this used to duplicate its own copy of the
+// date-format regexes, which drifted out of sync (it didn't know about the
+// "_1" shift-suffix or YYYY.MM.DD dates that toDateString was later taught
+// to handle), silently rejecting every row of a real file before
+// toDateString ever got a chance to parse them correctly.
 export function isInvalidDateToken(value: unknown): boolean {
   if (value == null || value === '') return true
   if (value instanceof Date) return Number.isNaN(value.getTime())
   if (typeof value === 'number') return !Number.isFinite(value)
   const str = String(value).trim()
   if (!str) return true
-  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  const dmyMatch = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/)
-  if (isoMatch || dmyMatch) return false
-  return Number.isNaN(new Date(str).getTime())
+  return toDateString(value) === ''
 }
 
 // Builds a stable per-line fingerprint for duplicate detection. Deliberately
