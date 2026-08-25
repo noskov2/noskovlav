@@ -70,6 +70,7 @@ export function NomenclaturePage() {
             <ProductsTab
               products={products}
               transactions={transactions}
+              knownSuppliers={settings?.knownSuppliers ?? []}
               onSave={async (p) => { await upsertProduct(p); await refresh() }}
               onAdd={async (name, category) => { await upsertProduct(buildManualProduct(name, category)); await refresh() }}
               onDelete={async (id) => { await deleteProduct(id); await refresh() }}
@@ -120,12 +121,14 @@ export function NomenclaturePage() {
 function ProductsTab({
   products,
   transactions,
+  knownSuppliers,
   onSave,
   onAdd,
   onDelete,
 }: {
   products: Product[]
   transactions: TransactionLine[]
+  knownSuppliers: string[]
   onSave: (p: Product) => Promise<void>
   onAdd: (name: string, category: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
@@ -143,6 +146,17 @@ function ProductsTab({
     () => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
     [products],
   )
+
+  // Suggestions offered while typing a supplier by hand: the station's own
+  // master list (Furnizori & Prețuri -> Listă furnizori cunoscuți) plus
+  // whatever supplier names are already in use on other products, so a
+  // name typed once shows up as a suggestion everywhere else too, even
+  // before it's added to the master list.
+  const supplierSuggestions = useMemo(() => {
+    const set = new Set(knownSuppliers)
+    for (const p of products) if (p.supplier) set.add(p.supplier)
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [knownSuppliers, products])
 
   function toggleGroupFilter(g: keyof ProductGroups) {
     setGroupFilter((prev) => {
@@ -212,6 +226,12 @@ function ProductsTab({
 
   return (
     <div>
+      <datalist id="nomenclator-supplier-suggestions">
+        {supplierSuggestions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+
       <div className="mb-4 rounded-lg bg-slate-50 p-3">
         <p className="mb-2 text-xs font-medium text-slate-600">Adaugă produs nou</p>
         <div className="flex flex-wrap items-center gap-2">
@@ -314,7 +334,8 @@ function ProductsTab({
                   </td>
                   <td className="px-3 py-1.5">
                     <input
-                      className="w-24 rounded border border-slate-200 px-1.5 py-0.5"
+                      list="nomenclator-supplier-suggestions"
+                      className="w-36 rounded border border-slate-200 px-1.5 py-0.5"
                       value={fieldValue(p, 'supplier')}
                       onChange={(e) => setField(p, { supplier: e.target.value })}
                       onBlur={() => commit(p)}

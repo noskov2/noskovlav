@@ -27,6 +27,7 @@ const defaultSettings: AppSettings = {
   scoreWeights: defaultScoreWeights,
   stockThresholds: defaultStockThresholds,
   stockThresholdsByCategory: {},
+  knownSuppliers: [],
 }
 
 export function getStockThresholdsForCategory(settings: AppSettings, category: string): StockThresholds {

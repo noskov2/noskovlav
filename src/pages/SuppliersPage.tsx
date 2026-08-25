@@ -11,10 +11,11 @@ import { computeProductPriceSummaries, type ProductPriceSummary } from '@/kpi/su
 import { computeSupplierImpact } from '@/kpi/supplierImpact'
 import { computeSupplierRanking, type SupplierRankingRow } from '@/kpi/supplierRanking'
 import { todayStr } from '@/kpi/dateRanges'
+import { updateSettings } from '@/data/repo/settings'
 import { formatDateRo, formatLei, formatNumber, formatSignedLei, formatSignedPct } from '@/lib/format'
 
 export function SuppliersPage() {
-  const { supplierReceipts, products, transactions } = useDataStore()
+  const { supplierReceipts, products, transactions, settings, refresh } = useDataStore()
   const [selected, setSelected] = useState<ProductPriceSummary | null>(null)
   const [presetIds, setPresetIds] = useState<string[] | null>(() => useDrillFilterStore.getState().consume('/furnizori'))
 
@@ -52,10 +53,21 @@ export function SuppliersPage() {
     [impactRows],
   )
 
+  const knownSuppliersPanel = (
+    <KnownSuppliersPanel
+      knownSuppliers={settings?.knownSuppliers ?? []}
+      onSave={async (list) => {
+        await updateSettings({ knownSuppliers: list })
+        await refresh()
+      }}
+    />
+  )
+
   if (supplierReceipts.length === 0) {
     return (
       <div>
         <PageHeader title="Furnizori și evoluția prețurilor" />
+        {knownSuppliersPanel}
         <EmptyState
           icon="🚚"
           title="Nicio achiziție încărcată încă"
@@ -167,6 +179,8 @@ export function SuppliersPage() {
         title="Furnizori și evoluția prețurilor"
         description="Evoluția prețului de achiziție per produs, comparație între furnizori și scumpiri semnalate vizual."
       />
+
+      {knownSuppliersPanel}
 
       {presetIds && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
@@ -385,6 +399,122 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-slate-100 p-3">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-0.5 text-base font-semibold text-slate-800">{value}</p>
+    </div>
+  )
+}
+
+// The station's own master list of supplier names — independent of what
+// shows up from achiziții imports, so it can be set up before any receipt
+// is ever imported. This is what Nomenclator's "Furnizor" field suggests
+// from when typing by hand (via a datalist), so the same real supplier
+// never ends up spelled three different ways across products.
+function KnownSuppliersPanel({
+  knownSuppliers,
+  onSave,
+}: {
+  knownSuppliers: string[]
+  onSave: (list: string[]) => Promise<void>
+}) {
+  const [bulkText, setBulkText] = useState('')
+  const [query, setQuery] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [addedCount, setAddedCount] = useState<number | null>(null)
+
+  const sorted = useMemo(() => [...knownSuppliers].sort((a, b) => a.localeCompare(b)), [knownSuppliers])
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return q ? sorted.filter((s) => s.toLowerCase().includes(q)) : sorted
+  }, [sorted, query])
+
+  async function handleBulkAdd() {
+    const lines = bulkText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+    if (lines.length === 0) return
+    const existingLower = new Set(knownSuppliers.map((s) => s.toLowerCase()))
+    const toAdd: string[] = []
+    for (const name of lines) {
+      const key = name.toLowerCase()
+      if (existingLower.has(key)) continue
+      existingLower.add(key)
+      toAdd.push(name)
+    }
+    setSaving(true)
+    try {
+      await onSave([...knownSuppliers, ...toAdd])
+      setBulkText('')
+      setAddedCount(toAdd.length)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemove(name: string) {
+    await onSave(knownSuppliers.filter((s) => s !== name))
+  }
+
+  return (
+    <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-1 text-sm font-semibold text-slate-700">Listă furnizori cunoscuți</h3>
+      <p className="mb-3 text-xs text-slate-500">
+        Lipește aici o listă de furnizori (câte un nume pe rând) — apare apoi ca sugestie când scrii un furnizor de
+        mână în Nomenclator, dar poți oricând tasta și unul nou care nu e în listă.
+      </p>
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start">
+        <textarea
+          value={bulkText}
+          onChange={(e) => { setBulkText(e.target.value); setAddedCount(null) }}
+          placeholder={'Un furnizor pe rând, ex:\nACROPOLIS ACTIV SRL\nAIC MOLDOVA SRL\n...'}
+          rows={4}
+          className="w-full flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+        />
+        <button
+          disabled={!bulkText.trim() || saving}
+          onClick={handleBulkAdd}
+          className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? 'Adaug...' : 'Adaugă în listă'}
+        </button>
+      </div>
+      {addedCount != null && (
+        <p className="mb-3 text-xs text-slate-500">
+          {addedCount === 0 ? 'Toți furnizorii din text erau deja în listă.' : `${addedCount} furnizori noi adăugați.`}
+        </p>
+      )}
+
+      {knownSuppliers.length > 0 && (
+        <>
+          <div className="mb-2 flex items-center gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Caută în listă..."
+              className="w-full max-w-xs rounded-lg border border-slate-200 px-2 py-1 text-xs"
+            />
+            <span className="text-xs text-slate-400">{formatNumber(knownSuppliers.length)} furnizori</span>
+          </div>
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-100 p-2 scrollbar-thin">
+            <div className="flex flex-wrap gap-1.5">
+              {filtered.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1.5 text-xs text-slate-700"
+                >
+                  {s}
+                  <button
+                    onClick={() => handleRemove(s)}
+                    title="Scoate din listă"
+                    className="rounded-full px-1 text-slate-400 hover:bg-bad/10 hover:text-bad"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

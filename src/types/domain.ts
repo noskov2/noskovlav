@@ -319,4 +319,9 @@ export interface AppSettings {
   scoreWeights: ScoreWeights
   stockThresholds: StockThresholds // global default
   stockThresholdsByCategory: Record<string, StockThresholds> // per-category override, only for categories explicitly customized
+  // The station's own master list of supplier names (independent of what's
+  // seen in achiziții imports) — used to suggest known suppliers when
+  // typing one by hand in Nomenclator, via a datalist, so the same
+  // supplier never ends up spelled three different ways across products.
+  knownSuppliers: string[]
 }
