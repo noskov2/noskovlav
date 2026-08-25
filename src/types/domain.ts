@@ -178,6 +178,10 @@ export interface StockColumnMapping {
   // whatever a sales import or heuristic had guessed), since this file is
   // typically the station's real product master list.
   category: string | null
+  // "Furnizor implicit" — the file's own default-supplier column, if
+  // present. Only back-fills a product's supplier when it's still empty;
+  // see resolveOrCreateProduct.
+  supplier: string | null
 }
 
 // A snapshot row: "this product had this much stock, at this sale price,

@@ -41,8 +41,9 @@ export async function importStockSheet(
     const quantity = toNumber(row[mapping.quantity])
     const salePrice = mapping.salePrice ? toNumber(row[mapping.salePrice]) || null : null
     const categoryRaw = mapping.category ? String(row[mapping.category] ?? '').trim() : ''
+    const supplierRaw = mapping.supplier ? String(row[mapping.supplier] ?? '').trim() : ''
 
-    const product = await resolveOrCreateProduct(productRaw, categoryRaw, null)
+    const product = await resolveOrCreateProduct(productRaw, categoryRaw, null, supplierRaw)
     if (categoryRaw) categoryEntries.push({ productId: product.id, category: categoryRaw })
 
     lines.push({
