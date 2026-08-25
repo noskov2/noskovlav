@@ -65,12 +65,25 @@ export interface Product {
   updatedAt: number
 }
 
+// One entry means "since `from`, this cashier has been on `teamId`" — the
+// entry with the latest `from` on or before a given date is that cashier's
+// team as of that date. Sales/receipts stay attributed to whichever team
+// was current on their own date even after a later team change, instead of
+// a team switch today silently rewriting past team performance.
+export interface TeamMembershipEntry {
+  teamId: string | null // null = no team, from this date on
+  from: string // YYYY-MM-DD
+}
+
 export interface Cashier {
   id: string
   name: string
   aliases: string[]
   active: boolean
-  teamId: string | null
+  teamId: string | null // current team — always kept equal to the latest entry in teamHistory (or null)
+  teamHistory: TeamMembershipEntry[]
+  resignedAt: string | null // YYYY-MM-DD — when set, this person has left; active is also set false alongside it
+  resignedNote: string | null
   createdAt: number
 }
 

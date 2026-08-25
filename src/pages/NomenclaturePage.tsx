@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Tabs } from '@/components/ui/Tabs'
@@ -10,7 +10,13 @@ import {
   deleteProduct,
   buildManualProduct,
 } from '@/data/repo/products'
-import { mergeCashiers, upsertCashier } from '@/data/repo/cashiers'
+import {
+  mergeCashiers,
+  upsertCashier,
+  changeCashierTeam,
+  removeTeamHistoryEntry,
+  setCashierResignation,
+} from '@/data/repo/cashiers'
 import { deleteTeam, upsertTeam } from '@/data/repo/teams'
 import { updateSettings } from '@/data/repo/settings'
 import { slugify, uid } from '@/lib/id'
@@ -110,6 +116,9 @@ export function NomenclaturePage() {
               }}
               onRenameTeam={async (team) => { await upsertTeam(team); await refresh() }}
               onDeleteTeam={async (id) => { await deleteTeam(id); await refresh() }}
+              onChangeTeam={async (cashierId, teamId, from) => { await changeCashierTeam(cashierId, teamId, from); await refresh() }}
+              onRemoveHistoryEntry={async (cashierId, from) => { await removeTeamHistoryEntry(cashierId, from); await refresh() }}
+              onSetResignation={async (cashierId, resignedAt, note) => { await setCashierResignation(cashierId, resignedAt, note); await refresh() }}
             />
           )}
         </div>
@@ -585,6 +594,15 @@ function GroupsByCategoryTab({
   )
 }
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function formatIsoDateRo(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}.${m}.${y}`
+}
+
 function CashiersTab({
   cashiers,
   teams,
@@ -593,6 +611,9 @@ function CashiersTab({
   onAddTeam,
   onRenameTeam,
   onDeleteTeam,
+  onChangeTeam,
+  onRemoveHistoryEntry,
+  onSetResignation,
 }: {
   cashiers: Cashier[]
   teams: Team[]
@@ -601,10 +622,16 @@ function CashiersTab({
   onAddTeam: (name: string) => Promise<void>
   onRenameTeam: (team: Team) => Promise<void>
   onDeleteTeam: (id: string) => Promise<void>
+  onChangeTeam: (cashierId: string, teamId: string | null, from: string) => Promise<void>
+  onRemoveHistoryEntry: (cashierId: string, from: string) => Promise<void>
+  onSetResignation: (cashierId: string, resignedAt: string | null, note: string | null) => Promise<void>
 }) {
   const [mergeSource, setMergeSource] = useState('')
   const [mergeTarget, setMergeTarget] = useState('')
   const [newTeamName, setNewTeamName] = useState('')
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null)
+  const [pendingTeamChange, setPendingTeamChange] = useState<{ cashierId: string; teamId: string | null; from: string } | null>(null)
+  const [pendingResign, setPendingResign] = useState<{ cashierId: string; at: string; note: string } | null>(null)
 
   const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams])
   const memberCount = useMemo(() => {
@@ -709,46 +736,172 @@ function CashiersTab({
             <th className="px-2 py-1.5">Denumiri văzute în import</th>
             <th className="px-2 py-1.5">Echipă</th>
             <th className="px-2 py-1.5 text-center">Activ</th>
+            <th className="px-2 py-1.5">Angajare</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
           {cashiers
             .slice()
             .sort((a, b) => a.name.localeCompare(b.name))
-            .map((c) => (
-              <tr key={c.id}>
-                <td className="px-2 py-1.5">
-                  <input
-                    defaultValue={c.name}
-                    onBlur={(e) => {
-                      if (e.target.value !== c.name) onSave({ ...c, name: e.target.value })
-                    }}
-                    className="rounded border border-slate-200 px-2 py-0.5"
-                  />
-                </td>
-                <td className="px-2 py-1.5 text-slate-500">{c.aliases.join(', ')}</td>
-                <td className="px-2 py-1.5">
-                  <select
-                    value={c.teamId ?? ''}
-                    onChange={(e) => onSave({ ...c, teamId: e.target.value || null })}
-                    className="rounded border border-slate-200 px-2 py-0.5"
-                  >
-                    <option value="">Fără echipă</option>
-                    {teams.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                  {c.teamId && !teamsById.has(c.teamId) && (
-                    <span className="ml-1 text-[10px] text-warn">echipă ștearsă</span>
+            .map((c) => {
+              const isHistoryOpen = historyOpenId === c.id
+              const teamChangePending = pendingTeamChange?.cashierId === c.id ? pendingTeamChange : null
+              const resignPending = pendingResign?.cashierId === c.id ? pendingResign : null
+              const sortedHistory = [...c.teamHistory].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0))
+              return (
+                <Fragment key={c.id}>
+                  <tr>
+                    <td className="px-2 py-1.5">
+                      <input
+                        defaultValue={c.name}
+                        onBlur={(e) => {
+                          if (e.target.value !== c.name) onSave({ ...c, name: e.target.value })
+                        }}
+                        className="rounded border border-slate-200 px-2 py-0.5"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-500">{c.aliases.join(', ')}</td>
+                    <td className="px-2 py-1.5">
+                      {teamChangePending ? (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          <span className="text-xs text-slate-500">efectiv din</span>
+                          <input
+                            type="date"
+                            value={teamChangePending.from}
+                            onChange={(e) => setPendingTeamChange({ ...teamChangePending, from: e.target.value })}
+                            className="rounded border border-slate-200 px-1.5 py-0.5 text-xs"
+                          />
+                          <button
+                            onClick={async () => {
+                              await onChangeTeam(teamChangePending.cashierId, teamChangePending.teamId, teamChangePending.from)
+                              setPendingTeamChange(null)
+                            }}
+                            className="rounded bg-brand-500 px-2 py-0.5 text-xs font-medium text-white"
+                          >
+                            Confirmă
+                          </button>
+                          <button
+                            onClick={() => setPendingTeamChange(null)}
+                            className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600"
+                          >
+                            Anulează
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          <select
+                            value={c.teamId ?? ''}
+                            onChange={(e) =>
+                              setPendingTeamChange({ cashierId: c.id, teamId: e.target.value || null, from: todayIso() })
+                            }
+                            className="rounded border border-slate-200 px-2 py-0.5"
+                          >
+                            <option value="">Fără echipă</option>
+                            {teams.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                          </select>
+                          {c.teamId && !teamsById.has(c.teamId) && (
+                            <span className="text-[10px] text-warn">echipă ștearsă</span>
+                          )}
+                          {sortedHistory.length > 0 && (
+                            <button
+                              onClick={() => setHistoryOpenId(isHistoryOpen ? null : c.id)}
+                              className="text-[11px] text-brand-600 hover:underline"
+                            >
+                              {isHistoryOpen ? 'ascunde istoric' : `istoric (${sortedHistory.length})`}
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      <input type="checkbox" checked={c.active} onChange={(e) => onSave({ ...c, active: e.target.checked })} />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {resignPending ? (
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          <input
+                            type="date"
+                            value={resignPending.at}
+                            onChange={(e) => setPendingResign({ ...resignPending, at: e.target.value })}
+                            className="rounded border border-slate-200 px-1.5 py-0.5 text-xs"
+                          />
+                          <input
+                            value={resignPending.note}
+                            onChange={(e) => setPendingResign({ ...resignPending, note: e.target.value })}
+                            placeholder="Motiv (opțional)"
+                            className="w-28 rounded border border-slate-200 px-1.5 py-0.5 text-xs"
+                          />
+                          <button
+                            onClick={async () => {
+                              await onSetResignation(resignPending.cashierId, resignPending.at, resignPending.note.trim() || null)
+                              setPendingResign(null)
+                            }}
+                            className="rounded bg-bad px-2 py-0.5 text-xs font-medium text-white"
+                          >
+                            Confirmă
+                          </button>
+                          <button
+                            onClick={() => setPendingResign(null)}
+                            className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600"
+                          >
+                            Anulează
+                          </button>
+                        </span>
+                      ) : c.resignedAt ? (
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
+                          <span className="rounded-full bg-bad/10 px-2 py-0.5 font-medium text-bad">
+                            Demisionat pe {formatIsoDateRo(c.resignedAt)}
+                          </span>
+                          {c.resignedNote && <span className="text-slate-400">({c.resignedNote})</span>}
+                          <button
+                            onClick={() => onSetResignation(c.id, null, null)}
+                            className="text-slate-400 hover:text-slate-600 hover:underline"
+                          >
+                            anulează
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setPendingResign({ cashierId: c.id, at: todayIso(), note: '' })}
+                          className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
+                        >
+                          Marchează demisie
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {isHistoryOpen && sortedHistory.length > 0 && (
+                    <tr>
+                      <td colSpan={5} className="bg-slate-50 px-2 py-2">
+                        <p className="mb-1.5 text-[11px] font-medium text-slate-500">Istoric echipă — {c.name}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {sortedHistory.map((entry) => (
+                            <span
+                              key={entry.from}
+                              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white py-1 pl-2.5 pr-1.5 text-xs text-slate-700"
+                            >
+                              {entry.teamId ? (teamsById.get(entry.teamId)?.name ?? entry.teamId) : 'Fără echipă'} — din{' '}
+                              {formatIsoDateRo(entry.from)}
+                              <button
+                                onClick={() => onRemoveHistoryEntry(c.id, entry.from)}
+                                title="Șterge această înregistrare din istoric"
+                                className="rounded-full px-1 text-slate-400 hover:bg-bad/10 hover:text-bad"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                </td>
-                <td className="px-2 py-1.5 text-center">
-                  <input type="checkbox" checked={c.active} onChange={(e) => onSave({ ...c, active: e.target.checked })} />
-                </td>
-              </tr>
-            ))}
+                </Fragment>
+              )
+            })}
         </tbody>
       </table>
     </div>

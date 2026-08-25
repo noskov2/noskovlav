@@ -282,6 +282,9 @@ export function computeCrossSellReport(
     aliases: [],
     active: true,
     teamId: null,
+    teamHistory: [],
+    resignedAt: null,
+    resignedNote: null,
     createdAt: 0,
   }
   const stationTotal = buildCashierRow(stationCashier, receipts, products, fuelIds, excludedIds)

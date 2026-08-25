@@ -31,6 +31,9 @@ export async function ensureDefaultTeamsSeeded(): Promise<void> {
             aliases: [memberName],
             active: true,
             teamId: team.id,
+            teamHistory: [],
+            resignedAt: null,
+            resignedNote: null,
             createdAt: Date.now(),
           }
       await upsertCashier(cashier)

@@ -4,6 +4,7 @@ import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { idsOf, resolveCoffeeVariants, resolveSandwichVariants, SANDWICH_VARIANT_LABELS, type SandwichVariants } from '@/kpi/namedVariants'
 import { monthLabel } from '@/kpi/dateRanges'
 import { NO_TEAM_ID } from '@/kpi/teamRollup'
+import { buildTeamAsOfResolver } from '@/kpi/teamHistory'
 
 // "Analiza Produse" — inspired by the station's own "Analiza produse" workbook
 // (TURE / SANDWICH / CAFEA sections, per-team rows), extended per the
@@ -108,13 +109,16 @@ export function computeProductAnalysisData(
   const monthPrefix = `${year}-${pad(month)}`
   const monthTx = allTransactions.filter((t) => t.date.startsWith(monthPrefix))
 
-  const cashierTeam = new Map<string, string>()
-  for (const c of cashiers) cashierTeam.set(c.id, c.teamId ?? NO_TEAM_ID)
+  // Resolved per transaction/receipt date, not from each cashier's CURRENT
+  // team — a team change recorded after this month must not retroactively
+  // move that month's sales into the new team.
+  const teamAsOf = buildTeamAsOfResolver(cashiers)
+  const cashierTeamOn = (cashierId: string, date: string) => teamAsOf(cashierId, date) ?? NO_TEAM_ID
   const teamName = new Map<string, string>(teams.map((t) => [t.id, t.name]))
   teamName.set(NO_TEAM_ID, 'Fără echipă')
 
   const teamIds = [...teams.map((t) => t.id)]
-  if (monthTx.some((t) => (cashierTeam.get(t.cashierId) ?? NO_TEAM_ID) === NO_TEAM_ID)) teamIds.push(NO_TEAM_ID)
+  if (monthTx.some((t) => cashierTeamOn(t.cashierId, t.date) === NO_TEAM_ID)) teamIds.push(NO_TEAM_ID)
 
   const fuelIds = fuelProductIds(products)
   const receipts = groupIntoReceipts(monthTx, fuelIds)
@@ -126,11 +130,11 @@ export function computeProductAnalysisData(
     receiptsByTeam.set(id, [])
   }
   for (const t of monthTx) {
-    const id = cashierTeam.get(t.cashierId) ?? NO_TEAM_ID
+    const id = cashierTeamOn(t.cashierId, t.date)
     linesByTeam.get(id)?.push(t)
   }
   for (const r of receipts) {
-    const id = cashierTeam.get(r.cashierId) ?? NO_TEAM_ID
+    const id = cashierTeamOn(r.cashierId, r.date)
     receiptsByTeam.get(id)?.push(r)
   }
 

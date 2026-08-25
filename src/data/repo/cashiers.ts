@@ -34,8 +34,53 @@ export function buildNewCashier(rawName: string): Cashier {
     aliases: [trimmed],
     active: true,
     teamId: null,
+    teamHistory: [],
+    resignedAt: null,
+    resignedNote: null,
     createdAt: Date.now(),
   }
+}
+
+// Records a team change effective on `from` — appends to the history rather
+// than overwriting it, so past sales stay attributed to whichever team was
+// actually current on their own date (see buildTeamAsOfResolver). `teamId`
+// (the "current team" convenience field) is recomputed from the full
+// history so a past-dated correction never wrongly becomes "current" over a
+// more recent entry.
+export async function changeCashierTeam(cashierId: string, teamId: string | null, from: string): Promise<void> {
+  const cashier = await db.cashiers.get(cashierId)
+  if (!cashier) return
+  // Replacing any existing entry for the exact same date lets a mistaken
+  // entry be corrected by just re-applying the change with the same date,
+  // instead of piling up duplicate entries for one real event.
+  const history = [...cashier.teamHistory.filter((e) => e.from !== from), { teamId, from }].sort((a, b) =>
+    a.from < b.from ? -1 : a.from > b.from ? 1 : 0,
+  )
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const currentEntry = [...history].reverse().find((e) => e.from <= todayStr)
+  await db.cashiers.put({ ...cashier, teamHistory: history, teamId: currentEntry?.teamId ?? teamId })
+}
+
+// Deletes one team-history entry (e.g. a wrongly-dated correction) and
+// recomputes the current-team convenience field from what's left.
+export async function removeTeamHistoryEntry(cashierId: string, from: string): Promise<void> {
+  const cashier = await db.cashiers.get(cashierId)
+  if (!cashier) return
+  const history = cashier.teamHistory.filter((e) => e.from !== from)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const currentEntry = [...history].reverse().find((e) => e.from <= todayStr)
+  await db.cashiers.put({ ...cashier, teamHistory: history, teamId: currentEntry?.teamId ?? null })
+}
+
+export async function setCashierResignation(cashierId: string, resignedAt: string | null, note: string | null): Promise<void> {
+  const cashier = await db.cashiers.get(cashierId)
+  if (!cashier) return
+  await db.cashiers.put({
+    ...cashier,
+    resignedAt,
+    resignedNote: resignedAt ? note : null,
+    active: resignedAt ? false : cashier.active,
+  })
 }
 
 /**

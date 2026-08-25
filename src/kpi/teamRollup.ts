@@ -66,7 +66,17 @@ export function computeTeamRollup(
     const promoReceipts = sum((r) => r.promo.receiptsWithPromo)
 
     result.push({
-      cashier: { id: `${TEAM_ROW_PREFIX}${teamId}`, name: teamName, aliases: [], active: true, teamId: null, createdAt: 0 },
+      cashier: {
+        id: `${TEAM_ROW_PREFIX}${teamId}`,
+        name: teamName,
+        aliases: [],
+        active: true,
+        teamId: null,
+        teamHistory: [],
+        resignedAt: null,
+        resignedNote: null,
+        createdAt: 0,
+      },
       totalReceipts,
       totalSales,
       avgReceiptValue: totalReceipts > 0 ? totalSales / totalReceipts : 0,
