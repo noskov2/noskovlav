@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { DrillValue } from '@/components/ui/DrillValue'
+import { Modal } from '@/components/ui/Modal'
 import { TrendChart } from '@/components/charts/TrendChart'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { useDataStore } from '@/store/dataStore'
@@ -12,9 +13,11 @@ import { computeDayDetail, computeDayComparisons, COMPARISON_METRIC_LABELS, type
 import { computeDailySeries } from '@/kpi/dailySeries'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
+import { BAKERY_WATCHLIST, matchWatchlistItem, computeWatchlistRows } from '@/kpi/watchlist'
+import { filterByRange } from '@/kpi/applyFilters'
 import { HourlyHeatmap } from '@/components/charts/Heatmap'
 import { formatDateRo, formatLei, formatNumber, formatPct, formatSignedLei, formatSignedPct } from '@/lib/format'
-import { weekdayName } from '@/kpi/dateRanges'
+import { addDays, weekdayName } from '@/kpi/dateRanges'
 
 const METRICS: ComparisonMetricKey[] = [
   'totalSales',
@@ -95,6 +98,50 @@ export function DailyPerformancePage() {
   )
 
   const dailySeries = useMemo(() => computeDailySeries(transactions, products, range), [transactions, products, range])
+
+  // Fixed patiserie/cafenea watchlist — coffees come from the trusted
+  // Nomenclator 'cafea' group tag; everything else is matched by name
+  // against the real product list (never invented — unmatched or ambiguous
+  // items are left for the user to resolve via the dropdown).
+  const productsById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
+  const productsSortedByName = useMemo(() => products.slice().sort((a, b) => a.name.localeCompare(b.name)), [products])
+  const coffeeProducts = useMemo(
+    () => products.filter((p) => coffeeIds.has(p.id)).sort((a, b) => a.name.localeCompare(b.name)),
+    [products, coffeeIds],
+  )
+  const watchlistItemInputs = useMemo(() => {
+    const coffeeItems = coffeeProducts.map((p) => ({ key: `cafea-${p.id}`, label: p.name, autoProductId: p.id as string | null }))
+    const bakeryItems = BAKERY_WATCHLIST.map((item) => ({
+      key: item.id,
+      label: item.label,
+      autoProductId: matchWatchlistItem(products, item),
+    }))
+    return [...coffeeItems, ...bakeryItems]
+  }, [coffeeProducts, products])
+
+  const [watchlistOverrides, setWatchlistOverrides] = useState<Record<string, string>>({})
+  const [watchlistOpen, setWatchlistOpen] = useState(false)
+
+  const watchlistRowInputs = useMemo(
+    () =>
+      watchlistItemInputs.map(({ key, label, autoProductId }) => {
+        const overrideId = watchlistOverrides[key]
+        const productId = overrideId !== undefined ? overrideId || null : autoProductId
+        return { key, label, product: productId ? (productsById.get(productId) ?? null) : null }
+      }),
+    [watchlistItemInputs, watchlistOverrides, productsById],
+  )
+
+  const watchlistLast7Start = date ? addDays(date, -7) : ''
+  const watchlistLast7End = date ? addDays(date, -1) : ''
+  const watchlistWindowTx = useMemo(
+    () => (date ? filterByRange(transactions, watchlistLast7Start, date) : []),
+    [transactions, watchlistLast7Start, date],
+  )
+  const watchlistRows = useMemo(
+    () => computeWatchlistRows(watchlistWindowTx, watchlistRowInputs, date, watchlistLast7Start, watchlistLast7End),
+    [watchlistWindowTx, watchlistRowInputs, date, watchlistLast7Start, watchlistLast7End],
+  )
 
   if (transactions.length === 0) {
     return (
@@ -302,6 +349,97 @@ export function DailyPerformancePage() {
           )}
         </>
       )}
+
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">Patiserie & cafenea</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {watchlistRows.length} produse urmărite — cât s-a vândut din fiecare
+              {date ? ` pe ${formatDateRo(date)}` : ''} față de media ultimelor 7 zile (
+              {watchlistLast7Start && formatDateRo(watchlistLast7Start)} – {watchlistLast7End && formatDateRo(watchlistLast7End)}).
+            </p>
+          </div>
+          <button
+            onClick={() => setWatchlistOpen(true)}
+            disabled={!date}
+            className="rounded-lg bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Deschide
+          </button>
+        </div>
+      </div>
+
+      <Modal
+        open={watchlistOpen}
+        onClose={() => setWatchlistOpen(false)}
+        title="Patiserie & cafenea — comparație cu ultimele 7 zile"
+        subtitle={
+          date
+            ? `${formatDateRo(date)} vs. media ${formatDateRo(watchlistLast7Start)} – ${formatDateRo(watchlistLast7End)}`
+            : undefined
+        }
+        wide
+      >
+        <div className="overflow-x-auto rounded-lg border border-slate-100 scrollbar-thin">
+          <table className="min-w-full divide-y divide-slate-100 text-sm">
+            <thead className="bg-slate-50">
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-3 py-2">Produs urmărit</th>
+                <th className="px-3 py-2">Produs în Nomenclator</th>
+                <th className="px-3 py-2 text-right">Azi</th>
+                <th className="px-3 py-2 text-right">Ultimele 7 zile</th>
+                <th className="px-3 py-2 text-right">Medie/zi (7 zile)</th>
+                <th className="px-3 py-2 text-right">Diferență</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {watchlistRows.map((r) => {
+                const product = r.product
+                return (
+                  <tr key={r.key} className="hover:bg-slate-50">
+                    <td className="px-3 py-1.5 font-medium text-slate-800">{r.label}</td>
+                    <td className="px-3 py-1.5">
+                      <select
+                        value={product?.id ?? ''}
+                        onChange={(e) => setWatchlistOverrides((prev) => ({ ...prev, [r.key]: e.target.value }))}
+                        className={`rounded-md border px-2 py-1 text-xs ${
+                          product ? 'border-slate-200 text-slate-700' : 'border-bad/50 text-bad'
+                        }`}
+                      >
+                        <option value="">— negăsit, alege manual —</option>
+                        {productsSortedByName.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">
+                      {product ? (
+                        <DrillValue title={`${r.label} — azi`} lines={dayTransactions.filter((t) => t.productId === product.id)}>
+                          {formatNumber(r.todayQty, 2)}
+                        </DrillValue>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">{product ? formatNumber(r.last7Qty, 2) : '—'}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-700">{product ? formatNumber(r.last7AvgQty, 2) : '—'}</td>
+                    <td className="px-3 py-1.5 text-right">
+                      {r.diffPct != null ? (
+                        <span className={`font-medium ${r.diffPct >= 0 ? 'text-good' : 'text-bad'}`}>{formatSignedPct(r.diffPct)}</span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
