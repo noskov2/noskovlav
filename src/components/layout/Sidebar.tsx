@@ -21,6 +21,7 @@ const items: NavItem[] = [
   { to: '/rapoarte', label: 'Rapoarte', icon: '🧾' },
   { to: '/inchidere-luna', label: 'Închidere lună', icon: '🔒' },
   { to: '/targeturi', label: 'Target', icon: '🎯' },
+  { to: '/condica-pv', label: 'Condică PV-uri', icon: '📋' },
   { to: '/calitate-date', label: 'Calitatea datelor', icon: '✅' },
   { to: '/nomenclator', label: 'Nomenclator', icon: '🗂️' },
   { to: '/setari', label: 'Setări', icon: '⚙️' },
