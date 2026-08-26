@@ -64,3 +64,9 @@ export async function reassignCashier(fromCashierId: string, toCashierId: string
   await db.transactions.bulkPut(rows.map((r) => ({ ...r, cashierId: toCashierId })))
   return rows.length
 }
+
+export async function reassignProduct(fromProductId: string, toProductId: string): Promise<number> {
+  const rows = await db.transactions.where('productId').equals(fromProductId).toArray()
+  await db.transactions.bulkPut(rows.map((r) => ({ ...r, productId: toProductId })))
+  return rows.length
+}

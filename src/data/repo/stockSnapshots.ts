@@ -28,3 +28,9 @@ export async function getLatestSnapshotForProduct(productId: string): Promise<St
   if (rows.length === 0) return undefined
   return rows.reduce((latest, row) => (row.asOf > latest.asOf ? row : latest))
 }
+
+export async function reassignProductInSnapshots(fromProductId: string, toProductId: string): Promise<number> {
+  const rows = await db.stockSnapshots.where('productId').equals(fromProductId).toArray()
+  await db.stockSnapshots.bulkPut(rows.map((r) => ({ ...r, productId: toProductId })))
+  return rows.length
+}

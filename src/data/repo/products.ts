@@ -3,6 +3,9 @@ import { slugify } from '@/lib/id'
 import { emptyGroups, type AppSettings, type CategoryGroupRules, type Product, type ProductGroups } from '@/types/domain'
 import { guessGroupsFromName } from '@/processing/groupHeuristics'
 import { getSettings } from '@/data/repo/settings'
+import { reassignProduct } from '@/data/repo/transactions'
+import { reassignProductInReceipts } from '@/data/repo/suppliers'
+import { reassignProductInSnapshots } from '@/data/repo/stockSnapshots'
 
 export async function listProducts(): Promise<Product[]> {
   return db.products.toArray()
@@ -230,4 +233,37 @@ export async function resyncAllGroupsFromCategoryRules(rules: CategoryGroupRules
   }
   if (toUpdate.length > 0) await db.products.bulkPut(toUpdate)
   return toUpdate.length
+}
+
+/**
+ * Merges `sourceId` into `targetId`: reassigns every transaction, supplier
+ * receipt and stock snapshot line, folds the alias lists together, and
+ * deletes the source record. Mirrors mergeCashiers — this is the fix for a
+ * raw name variant across imports resolving to two separate Product records
+ * instead of one, which splits one real item's sales/stock between them and
+ * can make the "ghost" record wrongly show up as never-sold/stock-0 even
+ * though the item is actively selling under the other record.
+ */
+export async function mergeProducts(sourceId: string, targetId: string): Promise<void> {
+  if (sourceId === targetId) return
+  const [source, target] = await Promise.all([db.products.get(sourceId), db.products.get(targetId)])
+  if (!source || !target) return
+
+  await Promise.all([
+    reassignProduct(sourceId, targetId),
+    reassignProductInReceipts(sourceId, targetId),
+    reassignProductInSnapshots(sourceId, targetId),
+  ])
+
+  const mergedAliases = Array.from(new Set([...target.aliases, ...source.aliases, source.name]))
+  await db.products.put({
+    ...target,
+    aliases: mergedAliases,
+    purchasePrice: target.purchasePrice ?? source.purchasePrice,
+    salePrice: target.salePrice ?? source.salePrice,
+    currentStock: target.currentStock ?? source.currentStock,
+    supplier: target.supplier || source.supplier,
+    updatedAt: Date.now(),
+  })
+  await db.products.delete(sourceId)
 }

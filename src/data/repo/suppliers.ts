@@ -12,3 +12,9 @@ export async function listAllSupplierReceipts(): Promise<SupplierReceiptLine[]> 
 export async function deleteImportBatchSupplierReceipts(importBatchId: string): Promise<void> {
   await db.supplierReceipts.where('importBatchId').equals(importBatchId).delete()
 }
+
+export async function reassignProductInReceipts(fromProductId: string, toProductId: string): Promise<number> {
+  const rows = await db.supplierReceipts.where('productId').equals(fromProductId).toArray()
+  await db.supplierReceipts.bulkPut(rows.map((r) => ({ ...r, productId: toProductId })))
+  return rows.length
+}

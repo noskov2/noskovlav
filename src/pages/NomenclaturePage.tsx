@@ -9,7 +9,9 @@ import {
   upsertProduct,
   deleteProduct,
   buildManualProduct,
+  mergeProducts,
 } from '@/data/repo/products'
+import { findPossibleDuplicateProducts, type DuplicateCandidatePair } from '@/kpi/duplicateProducts'
 import {
   mergeCashiers,
   upsertCashier,
@@ -81,6 +83,7 @@ export function NomenclaturePage() {
               onSave={async (p) => { await upsertProduct(p); await refresh() }}
               onAdd={async (name, category) => { await upsertProduct(buildManualProduct(name, category)); await refresh() }}
               onDelete={async (id) => { await deleteProduct(id); await refresh() }}
+              onMerge={async (source, target) => { await mergeProducts(source, target); await refresh() }}
             />
           )}
           {tab === 'grupuri' && (
@@ -135,6 +138,7 @@ function ProductsTab({
   onSave,
   onAdd,
   onDelete,
+  onMerge,
 }: {
   products: Product[]
   transactions: TransactionLine[]
@@ -142,6 +146,7 @@ function ProductsTab({
   onSave: (p: Product) => Promise<void>
   onAdd: (name: string, category: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onMerge: (sourceId: string, targetId: string) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -274,6 +279,8 @@ function ProductsTab({
           {addError && <span className="text-xs text-bad">{addError}</span>}
         </div>
       </div>
+
+      <DuplicateProductsPanel products={products} transactions={transactions} onMerge={onMerge} />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
@@ -484,6 +491,158 @@ function ProductsTab({
       {filtered.length > 300 && (
         <p className="mt-2 text-xs text-slate-400">Se afișează primele 300 din {filtered.length} produse — rafinează căutarea.</p>
       )}
+    </div>
+  )
+}
+
+function duplicatePairKey(id1: string, id2: string): string {
+  return id1 < id2 ? `${id1}|${id2}` : `${id2}|${id1}`
+}
+
+// Surfaces products whose names look like the same real item recorded twice
+// under slightly different spellings (a common side effect of Excel exports
+// with inconsistent punctuation/plural forms across import runs) — the
+// "ghost" record ends up with its own stock/sales split off from the real
+// one, which is what makes an actively-selling product wrongly show up as
+// "no sale in 90 days" or "stock 0" in the slow-mover alerts.
+function DuplicateProductsPanel({
+  products,
+  transactions,
+  onMerge,
+}: {
+  products: Product[]
+  transactions: TransactionLine[]
+  onMerge: (sourceId: string, targetId: string) => Promise<void>
+}) {
+  const [scanned, setScanned] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [pairs, setPairs] = useState<DuplicateCandidatePair[]>([])
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
+  const [mergingKey, setMergingKey] = useState<string | null>(null)
+
+  const lastSaleByProduct = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of transactions) {
+      const current = m.get(t.productId)
+      if (!current || t.date > current) m.set(t.productId, t.date)
+    }
+    return m
+  }, [transactions])
+
+  async function scan() {
+    setScanning(true)
+    // Let the "Scanez..." state paint before the (synchronous) scan runs —
+    // several hundred products' worth of pairwise comparisons can take long
+    // enough to otherwise freeze the button with no feedback.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    setPairs(findPossibleDuplicateProducts(products))
+    setScanned(true)
+    setScanning(false)
+  }
+
+  async function handleMerge(pair: DuplicateCandidatePair, keep: 'a' | 'b') {
+    const key = duplicatePairKey(pair.a.id, pair.b.id)
+    const sourceId = keep === 'a' ? pair.b.id : pair.a.id
+    const targetId = keep === 'a' ? pair.a.id : pair.b.id
+    setMergingKey(key)
+    await onMerge(sourceId, targetId)
+    setPairs((prev) => prev.filter((p) => p.a.id !== sourceId && p.b.id !== sourceId))
+    setMergingKey(null)
+  }
+
+  const visiblePairs = pairs.filter((p) => !dismissed.has(duplicatePairKey(p.a.id, p.b.id)))
+
+  return (
+    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-amber-800">Produse posibil duplicate</p>
+          <p className="text-xs text-amber-700">
+            Caută produse cu nume aproape identic (variante de scriere din import) care ar trebui unificate — altfel
+            vânzările/stocul unui produs "fantomă" nu se adună la produsul real, iar acesta poate apărea greșit ca
+            „fără vânzare".
+          </p>
+        </div>
+        <button
+          onClick={scan}
+          disabled={scanning}
+          className="whitespace-nowrap rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-40"
+        >
+          {scanning ? 'Scanez...' : scanned ? 'Rescanează' : 'Caută duplicate'}
+        </button>
+      </div>
+
+      {scanned && visiblePairs.length === 0 && (
+        <p className="mt-2 text-xs text-amber-700">Niciun produs posibil duplicat găsit.</p>
+      )}
+
+      {visiblePairs.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {visiblePairs.map((pair) => {
+            const key = duplicatePairKey(pair.a.id, pair.b.id)
+            const merging = mergingKey === key
+            return (
+              <div key={key} className="rounded-lg border border-amber-200 bg-white p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600">
+                    Potrivire {Math.round(pair.score * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setDismissed((d) => new Set(d).add(key))}
+                    className="text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    Nu sunt duplicate
+                  </button>
+                </div>
+                <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <DuplicateCandidateCard
+                    product={pair.a}
+                    lastSaleDate={lastSaleByProduct.get(pair.a.id) ?? null}
+                    disabled={merging}
+                    onKeepThis={() => handleMerge(pair, 'a')}
+                  />
+                  <DuplicateCandidateCard
+                    product={pair.b}
+                    lastSaleDate={lastSaleByProduct.get(pair.b.id) ?? null}
+                    disabled={merging}
+                    onKeepThis={() => handleMerge(pair, 'b')}
+                  />
+                </div>
+                {merging && <p className="mt-1.5 text-xs text-amber-700">Unific...</p>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DuplicateCandidateCard({
+  product,
+  lastSaleDate,
+  disabled,
+  onKeepThis,
+}: {
+  product: Product
+  lastSaleDate: string | null
+  disabled: boolean
+  onKeepThis: () => void
+}) {
+  return (
+    <div className="rounded border border-slate-200 p-2">
+      <p className="text-sm font-medium text-slate-800">{product.name}</p>
+      <p className="mt-0.5 text-xs text-slate-500">
+        {product.category || 'Necategorizat'} · Stoc: {product.currentStock ?? '—'} · Ultima vânzare:{' '}
+        {lastSaleDate ? formatIsoDateRo(lastSaleDate) : 'niciodată'}
+      </p>
+      <button
+        onClick={onKeepThis}
+        disabled={disabled}
+        className="mt-1.5 rounded bg-brand-500 px-2 py-1 text-xs font-medium text-white disabled:opacity-40"
+      >
+        Păstrează acesta, unifică celălalt aici
+      </button>
     </div>
   )
 }
