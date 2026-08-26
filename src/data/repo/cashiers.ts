@@ -3,12 +3,31 @@ import { slugify } from '@/lib/id'
 import type { Cashier } from '@/types/domain'
 import { reassignCashier } from '@/data/repo/transactions'
 
+// Backfills fields added to Cashier after real records were already saved
+// (teamHistory, resignedAt, resignedNote) — a cashier stored before this
+// feature shipped simply doesn't have these keys in IndexedDB at all, so
+// every read must normalize them to safe defaults right here, once, rather
+// than every caller guessing whether `.teamHistory` might be undefined.
+// Without this, `cashier.teamHistory.length`/`.filter`/spreads throw on
+// any pre-existing real cashier the moment a page tries to filter/resolve
+// their team — which broke the whole app on first load for real data.
+function normalizeCashier(c: Cashier): Cashier {
+  return {
+    ...c,
+    teamHistory: c.teamHistory ?? [],
+    resignedAt: c.resignedAt ?? null,
+    resignedNote: c.resignedNote ?? null,
+  }
+}
+
 export async function listCashiers(): Promise<Cashier[]> {
-  return db.cashiers.toArray()
+  const all = await db.cashiers.toArray()
+  return all.map(normalizeCashier)
 }
 
 export async function getCashier(id: string): Promise<Cashier | undefined> {
-  return db.cashiers.get(id)
+  const c = await db.cashiers.get(id)
+  return c ? normalizeCashier(c) : undefined
 }
 
 export async function upsertCashier(cashier: Cashier): Promise<void> {
@@ -48,8 +67,9 @@ export function buildNewCashier(rawName: string): Cashier {
 // history so a past-dated correction never wrongly becomes "current" over a
 // more recent entry.
 export async function changeCashierTeam(cashierId: string, teamId: string | null, from: string): Promise<void> {
-  const cashier = await db.cashiers.get(cashierId)
-  if (!cashier) return
+  const raw = await db.cashiers.get(cashierId)
+  if (!raw) return
+  const cashier = normalizeCashier(raw)
   // Replacing any existing entry for the exact same date lets a mistaken
   // entry be corrected by just re-applying the change with the same date,
   // instead of piling up duplicate entries for one real event.
@@ -64,8 +84,9 @@ export async function changeCashierTeam(cashierId: string, teamId: string | null
 // Deletes one team-history entry (e.g. a wrongly-dated correction) and
 // recomputes the current-team convenience field from what's left.
 export async function removeTeamHistoryEntry(cashierId: string, from: string): Promise<void> {
-  const cashier = await db.cashiers.get(cashierId)
-  if (!cashier) return
+  const raw = await db.cashiers.get(cashierId)
+  if (!raw) return
+  const cashier = normalizeCashier(raw)
   const history = cashier.teamHistory.filter((e) => e.from !== from)
   const todayStr = new Date().toISOString().slice(0, 10)
   const currentEntry = [...history].reverse().find((e) => e.from <= todayStr)
