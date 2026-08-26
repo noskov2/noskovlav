@@ -18,6 +18,12 @@ export interface ProductGroups {
   // any non-fuel line (including these) counted as cross-sell "marfă",
   // inflating the cross-sell %.
   crossSellExcluded: boolean
+  // True for products that are never meant to be sold on their own — materii
+  // prime, ambalaje, consumabile interne. These naturally have zero/near-zero
+  // direct sales, so they must be excluded from every "fără vânzare"/slow-mover
+  // alert and rotation-risk calculation; otherwise they permanently show up as
+  // false-positive "no sale" candidates.
+  neVandabil: boolean
 }
 
 export const emptyGroups = (): ProductGroups => ({
@@ -29,6 +35,7 @@ export const emptyGroups = (): ProductGroups => ({
   gpl: false,
   promotii: false,
   crossSellExcluded: false,
+  neVandabil: false,
 })
 
 // Which raw Categorie values (as they appear in Product.category) belong to
@@ -46,6 +53,7 @@ export const emptyCategoryGroupRules = (): CategoryGroupRules => ({
   gpl: [],
   promotii: [],
   crossSellExcluded: [],
+  neVandabil: [],
 })
 
 export interface Product {

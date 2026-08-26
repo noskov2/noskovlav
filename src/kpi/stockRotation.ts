@@ -56,7 +56,7 @@ export function computeStockRotation(
   const asOf = range.end
 
   return products
-    .filter((p) => p.active)
+    .filter((p) => p.active && !p.groups.neVandabil)
     .map((product) => {
       const qty = qtyByProduct.get(product.id) ?? 0
       const avgPerDay = qty / days

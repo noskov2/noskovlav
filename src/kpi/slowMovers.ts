@@ -52,7 +52,7 @@ export function computeSlowMovers(
   const asOf = range.end
 
   return products
-    .filter((p) => p.active)
+    .filter((p) => p.active && !p.groups.neVandabil)
     .map((product) => {
       const agg = byProductInRange.get(product.id) ?? { qty: 0, value: 0 }
       const lastSaleDate = lastSaleByProduct.get(product.id) ?? null

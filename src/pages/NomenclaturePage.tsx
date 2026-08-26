@@ -40,6 +40,7 @@ const GROUP_LABELS: Record<keyof ProductGroups, string> = {
   gpl: 'GPL',
   promotii: 'Promoții',
   crossSellExcluded: 'Exclus din Cross-sell',
+  neVandabil: 'Nu se vinde (materii prime etc.)',
 }
 
 export function NomenclaturePage() {
