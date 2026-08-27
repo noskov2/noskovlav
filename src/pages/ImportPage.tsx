@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { parseExcelFile, type ParsedSheet } from '@/import/excelParser'
@@ -17,8 +17,15 @@ import { deleteImportBatchData } from '@/import/deleteImport'
 import { backfillPurchaseBatchDates } from '@/data/repo/importBatches'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { useDataStore } from '@/store/dataStore'
-import { formatDateRo, formatNumber } from '@/lib/format'
-import type { ImportKind, PurchaseColumnMapping, SalesColumnMapping, StockColumnMapping } from '@/types/domain'
+import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
+import type {
+  ImportKind,
+  PurchaseColumnMapping,
+  SalesColumnMapping,
+  StockColumnMapping,
+  SupplierReceiptLine,
+  StockSnapshotLine,
+} from '@/types/domain'
 
 const SALES_FIELDS: { key: keyof SalesColumnMapping; label: string; required: boolean }[] = [
   { key: 'cashier', label: 'Casier', required: true },
@@ -95,7 +102,7 @@ function nowTime(): string {
 }
 
 export function ImportPage() {
-  const { refresh, importBatches } = useDataStore()
+  const { refresh, importBatches, supplierReceipts, stockSnapshots } = useDataStore()
   const [searchParams] = useSearchParams()
   const [kind, setKind] = useState<ImportKind>(() => {
     const requested = searchParams.get('kind')
@@ -113,6 +120,7 @@ export function ImportPage() {
   const [busy, setBusy] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // One-time self-heal for Achiziții batches imported before dateMin/dateMax
@@ -404,75 +412,173 @@ export function ImportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {importBatches.map((b) => (
-                  <tr key={b.id}>
-                    <td className="px-2 py-1.5">{b.filename}</td>
-                    <td className="px-2 py-1.5">{KIND_LABELS[b.kind]}</td>
-                    <td className="px-2 py-1.5 text-slate-500">
-                      {new Date(b.importedAt).toLocaleString('ro-RO')}
-                    </td>
-                    <td className="px-2 py-1.5 text-right">{formatNumber(b.rowCount)}</td>
-                    <td className="px-2 py-1.5 text-slate-500">
-                      {b.dateMin && b.dateMax
-                        ? b.kind === 'stock'
-                          ? formatDateRo(b.dateMin)
-                          : `${formatDateRo(b.dateMin)} – ${formatDateRo(b.dateMax)}`
-                        : '—'}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs text-slate-500">
-                      {b.duplicateRowCount === 0 && b.invalidRowCount === 0 ? (
-                        <span className="text-good">fără probleme</span>
-                      ) : (
-                        <span className="text-warn">
-                          {b.duplicateRowCount > 0 && `${formatNumber(b.duplicateRowCount)} duplicate`}
-                          {b.duplicateRowCount > 0 && b.invalidRowCount > 0 && ' · '}
-                          {b.invalidRowCount > 0 && `${formatNumber(b.invalidRowCount)} invalide`}
-                        </span>
+                {importBatches.map((b) => {
+                  const canExpand = b.kind === 'purchases' || b.kind === 'stock'
+                  const expanded = expandedBatchId === b.id
+                  return (
+                    <Fragment key={b.id}>
+                      <tr>
+                        <td className="px-2 py-1.5">{b.filename}</td>
+                        <td className="px-2 py-1.5">{KIND_LABELS[b.kind]}</td>
+                        <td className="px-2 py-1.5 text-slate-500">
+                          {new Date(b.importedAt).toLocaleString('ro-RO')}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          {canExpand ? (
+                            <button
+                              onClick={() => setExpandedBatchId(expanded ? null : b.id)}
+                              className="text-brand-700 hover:underline"
+                              title="Vezi exact ce rânduri a adus acest import"
+                            >
+                              {formatNumber(b.rowCount)} {expanded ? '▲' : '▼'}
+                            </button>
+                          ) : (
+                            formatNumber(b.rowCount)
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-slate-500">
+                          {b.dateMin && b.dateMax
+                            ? b.kind === 'stock'
+                              ? formatDateRo(b.dateMin)
+                              : `${formatDateRo(b.dateMin)} – ${formatDateRo(b.dateMax)}`
+                            : '—'}
+                        </td>
+                        <td className="px-2 py-1.5 text-xs text-slate-500">
+                          {b.duplicateRowCount === 0 && b.invalidRowCount === 0 ? (
+                            <span className="text-good">fără probleme</span>
+                          ) : (
+                            <span className="text-warn">
+                              {b.duplicateRowCount > 0 && `${formatNumber(b.duplicateRowCount)} duplicate`}
+                              {b.duplicateRowCount > 0 && b.invalidRowCount > 0 && ' · '}
+                              {b.invalidRowCount > 0 && `${formatNumber(b.invalidRowCount)} invalide`}
+                            </span>
+                          )}
+                          {(b.newProductCount > 0 || b.newCashierCount > 0) && (
+                            <div className="text-slate-400">
+                              {b.newProductCount > 0 && `+${formatNumber(b.newProductCount)} produse`}
+                              {b.newProductCount > 0 && b.newCashierCount > 0 && ' · '}
+                              {b.newCashierCount > 0 && `+${formatNumber(b.newCashierCount)} casieri`}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          {pendingDeleteId === b.id ? (
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <span className="text-xs text-slate-500">Sigur?</span>
+                              <button
+                                onClick={() => handleDelete(b)}
+                                disabled={deletingId === b.id}
+                                className="rounded bg-bad px-2 py-0.5 text-xs font-medium text-white disabled:opacity-50"
+                              >
+                                {deletingId === b.id ? 'Se șterge...' : 'Da, șterge'}
+                              </button>
+                              <button
+                                onClick={() => setPendingDeleteId(null)}
+                                disabled={deletingId === b.id}
+                                className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600"
+                              >
+                                Anulează
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setPendingDeleteId(b.id)}
+                              className="rounded px-2 py-0.5 text-xs text-bad hover:bg-bad/10"
+                              title="Șterge toate datele aduse de acest import"
+                            >
+                              Șterge
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {expanded && b.kind === 'purchases' && (
+                        <tr>
+                          <td colSpan={7} className="bg-slate-50 px-2 py-2">
+                            <PurchaseBatchRows rows={supplierReceipts.filter((r) => r.importBatchId === b.id)} />
+                          </td>
+                        </tr>
                       )}
-                      {(b.newProductCount > 0 || b.newCashierCount > 0) && (
-                        <div className="text-slate-400">
-                          {b.newProductCount > 0 && `+${formatNumber(b.newProductCount)} produse`}
-                          {b.newProductCount > 0 && b.newCashierCount > 0 && ' · '}
-                          {b.newCashierCount > 0 && `+${formatNumber(b.newCashierCount)} casieri`}
-                        </div>
+                      {expanded && b.kind === 'stock' && (
+                        <tr>
+                          <td colSpan={7} className="bg-slate-50 px-2 py-2">
+                            <StockBatchRows rows={stockSnapshots.filter((s) => s.importBatchId === b.id)} />
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="px-2 py-1.5 text-right">
-                      {pendingDeleteId === b.id ? (
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                          <span className="text-xs text-slate-500">Sigur?</span>
-                          <button
-                            onClick={() => handleDelete(b)}
-                            disabled={deletingId === b.id}
-                            className="rounded bg-bad px-2 py-0.5 text-xs font-medium text-white disabled:opacity-50"
-                          >
-                            {deletingId === b.id ? 'Se șterge...' : 'Da, șterge'}
-                          </button>
-                          <button
-                            onClick={() => setPendingDeleteId(null)}
-                            disabled={deletingId === b.id}
-                            className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600"
-                          >
-                            Anulează
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setPendingDeleteId(b.id)}
-                          className="rounded px-2 py-0.5 text-xs text-bad hover:bg-bad/10"
-                          title="Șterge toate datele aduse de acest import"
-                        >
-                          Șterge
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Shows exactly which raw rows one Achiziții import brought in — the
+// interval column alone only says the batch's earliest/latest date, not
+// whether every receipt in between actually got imported (there can be
+// gaps, or a supplier's last delivery might just not be in there yet).
+// Sorted most-recent-first so "what was the last receipt I imported"
+// is the very first row, without hunting through hundreds of lines.
+function PurchaseBatchRows({ rows }: { rows: SupplierReceiptLine[] }) {
+  const sorted = [...rows].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  if (sorted.length === 0) return <p className="text-xs text-slate-400">Niciun rând găsit pentru acest import.</p>
+  return (
+    <div className="max-h-80 overflow-y-auto rounded border border-slate-200 bg-white scrollbar-thin">
+      <table className="min-w-full divide-y divide-slate-100 text-xs">
+        <thead className="sticky top-0 bg-slate-50">
+          <tr className="text-left uppercase tracking-wide text-slate-400">
+            <th className="px-2 py-1">Dată</th>
+            <th className="px-2 py-1">Produs (cum a fost scris în fișier)</th>
+            <th className="px-2 py-1">Furnizor</th>
+            <th className="px-2 py-1 text-right">Cantitate</th>
+            <th className="px-2 py-1 text-right">Preț achiziție</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {sorted.map((r) => (
+            <tr key={r.id}>
+              <td className="px-2 py-1 whitespace-nowrap text-slate-500">{formatDateRo(r.date)}</td>
+              <td className="px-2 py-1">{r.productRaw}</td>
+              <td className="px-2 py-1 text-slate-500">{r.supplier}</td>
+              <td className="px-2 py-1 text-right">{formatNumber(r.quantity, 2)}</td>
+              <td className="px-2 py-1 text-right">{formatLei(r.price)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Same idea for a Stoc import — one snapshot date, so sorted alphabetically
+// by product for easy scanning/searching instead of by date.
+function StockBatchRows({ rows }: { rows: StockSnapshotLine[] }) {
+  const sorted = [...rows].sort((a, b) => a.productRaw.localeCompare(b.productRaw))
+  if (sorted.length === 0) return <p className="text-xs text-slate-400">Niciun rând găsit pentru acest import.</p>
+  return (
+    <div className="max-h-80 overflow-y-auto rounded border border-slate-200 bg-white scrollbar-thin">
+      <table className="min-w-full divide-y divide-slate-100 text-xs">
+        <thead className="sticky top-0 bg-slate-50">
+          <tr className="text-left uppercase tracking-wide text-slate-400">
+            <th className="px-2 py-1">Produs (cum a fost scris în fișier)</th>
+            <th className="px-2 py-1 text-right">Stoc</th>
+            <th className="px-2 py-1 text-right">Preț vânzare</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {sorted.map((r) => (
+            <tr key={r.id}>
+              <td className="px-2 py-1">{r.productRaw}</td>
+              <td className="px-2 py-1 text-right">{formatNumber(r.quantity, 2)}</td>
+              <td className="px-2 py-1 text-right">{r.salePrice != null ? formatLei(r.salePrice) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
