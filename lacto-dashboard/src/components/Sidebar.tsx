@@ -61,7 +61,7 @@ export function Sidebar() {
     },
     {
       title: 'SISTEM',
-      items: [{ label: 'Backup' }, { label: 'Setări' }],
+      items: [{ label: 'Backup', path: '/backup' }, { label: 'Setări' }],
     },
   ]
 
