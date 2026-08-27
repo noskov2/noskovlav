@@ -11,7 +11,8 @@
     "fixtures:gen": "node scripts/dev/gen-fixtures.mjs scripts/dev/fixtures",
     "test:smoke": "node scripts/dev/smoke-test.mjs",
     "test:client-matching": "node scripts/dev/test-client-matching.mjs",
-    "test:dashboard": "node scripts/dev/test-dashboard.mjs"
+    "test:dashboard": "node scripts/dev/test-dashboard.mjs",
+    "test:reports": "node scripts/dev/test-reports.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

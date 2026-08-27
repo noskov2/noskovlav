@@ -1,5 +1,3 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -11,22 +9,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { db } from '../db/db'
-import { computeAggregate } from '../analytics/aggregate'
 import type { AggregateResult } from '../analytics/aggregate'
-import { defaultFilters } from '../analytics/filters'
-import type { GlobalFilters } from '../analytics/filters'
+import { FilterBar } from '../components/FilterBar'
 import { KpiCard } from '../components/KpiCard'
-import { MultiSelectFilter } from '../components/MultiSelectFilter'
-import { PeriodSelector } from '../components/PeriodSelector'
+import { useReportData } from '../hooks/useReportData'
 import { growthPercent } from '../lib/kpi'
 import { formatCurrency, formatNumber, formatQuantity } from '../lib/ro-format'
-
-const CHANNEL_OPTIONS = [
-  { value: 'RETELE', label: 'Rețele' },
-  { value: 'MAGAZINE PROPRII', label: 'Magazine proprii' },
-  { value: 'DISTRIBUTIE', label: 'Distribuție' },
-]
 
 const MONTH_NAMES = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec']
 
@@ -35,39 +23,7 @@ function monthLabel(year: number, month: number): string {
 }
 
 export function DashboardPage() {
-  const [filters, setFilters] = useState<GlobalFilters>(() => defaultFilters())
-  const [result, setResult] = useState<AggregateResult | null>(null)
-  const [comparison, setComparison] = useState<AggregateResult | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  const totalTransactions = useLiveQuery(() => db.transactions.count(), [])
-  const clients = useLiveQuery(() => db.clients.toArray(), [])
-  const products = useLiveQuery(() => db.products.toArray(), [])
-  const categories = useLiveQuery(() => db.categories.toArray(), [])
-
-  const filtersKey = JSON.stringify(filters)
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    Promise.all([
-      computeAggregate(filters),
-      filters.comparisonPeriod ? computeAggregate({ ...filters, period: filters.comparisonPeriod }) : Promise.resolve(null),
-    ]).then(([r, cr]) => {
-      if (cancelled) return
-      setResult(r)
-      setComparison(cr)
-      setLoading(false)
-    })
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersKey])
-
-  function patchFilters(patch: Partial<GlobalFilters>) {
-    setFilters((f) => ({ ...f, ...patch }))
-  }
+  const { filters, patchFilters, result, comparison, loading, totalTransactions, clients, products, categories } = useReportData()
 
   if (totalTransactions === 0) {
     return (
@@ -86,38 +42,7 @@ export function DashboardPage() {
     <div>
       <h1 className="text-xl font-semibold mb-4">Dashboard</h1>
 
-      <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-6 flex flex-wrap gap-4">
-        <PeriodSelector
-          period={filters.period}
-          comparisonMode={filters.comparisonMode}
-          comparisonPeriod={filters.comparisonPeriod}
-          onChange={patchFilters}
-        />
-        <MultiSelectFilter
-          label="Canal"
-          options={CHANNEL_OPTIONS}
-          selected={filters.channels}
-          onChange={(v) => patchFilters({ channels: v as GlobalFilters['channels'] })}
-        />
-        <MultiSelectFilter
-          label="Client"
-          options={(clients ?? []).map((c) => ({ value: String(c.id), label: c.canonicalName }))}
-          selected={filters.clientIds.map(String)}
-          onChange={(v) => patchFilters({ clientIds: v.map(Number) })}
-        />
-        <MultiSelectFilter
-          label="Produs"
-          options={(products ?? []).map((p) => ({ value: String(p.id), label: p.canonicalName }))}
-          selected={filters.productIds.map(String)}
-          onChange={(v) => patchFilters({ productIds: v.map(Number) })}
-        />
-        <MultiSelectFilter
-          label="Categorie"
-          options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
-          selected={filters.categoryIds.map(String)}
-          onChange={(v) => patchFilters({ categoryIds: v.map(Number) })}
-        />
-      </div>
+      <FilterBar filters={filters} patchFilters={patchFilters} clients={clients} products={products} categories={categories} />
 
       {loading || !result ? (
         <div className="text-sm text-slate-500">Se calculează…</div>

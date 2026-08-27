@@ -38,7 +38,7 @@ async function main() {
 
   // setam o perioada personalizata care acopera tot intervalul fixture-ului (2025-01-01 .. 2026-07-31);
   // implicit ("luna curenta") nu ar gasi nimic, fixture-ul nu are date in luna curenta reala
-  await page.selectOption('select:near(:text("Perioadă"))', 'custom')
+  await page.selectOption("select[aria-label='Selector perioadă']", 'custom')
   const dateInputs = page.locator('input[type=date]')
   await dateInputs.nth(0).fill('2025-01-01')
   await dateInputs.nth(1).fill('2026-12-31')

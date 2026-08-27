@@ -3,12 +3,13 @@
 Aplicație de analiză managerială și raportare pentru Lacto Solomonescu — locală,
 în browser, fără backend. Datele sunt stocate persistent în IndexedDB (Dexie.js).
 
-Acest folder conține **Etapele 1-3** din planul de implementare al specificației
+Acest folder conține **Etapele 1-4** din planul de implementare al specificației
 complete: fundația (import Excel, validare, salvare), nomenclatoarele de
-clienți/produse cu fuzzy matching, și motorul de analiză (perioade, filtre,
-agregări) cu un Dashboard funcțional. Etapele următoare (restul rapoartelor,
-report builder, export Excel, backup) urmează în iterații separate — vezi
-„Ce urmează" mai jos.
+clienți/produse cu fuzzy matching, motorul de analiză (perioade, filtre,
+agregări) cu un Dashboard funcțional, și rapoartele principale pe dimensiune
+(Canale, Categorii, Clienți, Produse, Analiză lunară, Sezonalitate, Prețuri).
+Etapele următoare (analytics avansat, report builder, export Excel, backup)
+urmează în iterații separate — vezi „Ce urmează" mai jos.
 
 ## Rulare
 
@@ -79,9 +80,22 @@ editare cod Mentor/CUI.
 Mentor, categorie (creabilă din mers), unitate de măsură, activ/inactiv,
 aliasuri.
 
-Restul paginilor din sidebar (Alerte, Analize, Rapoarte, Calitatea datelor
-etc.) sunt marcate „curând" — intenționat nefuncționale încă, pentru a nu
-avea butoane decorative.
+**Rapoartele pe dimensiune** (spec §16), toate cu filtre globale, comparație
+și tabel sortabil/filtrabil:
+- **Canale** (`/canale`), **Categorii** (`/categorii`), **Clienți** (`/clienti`),
+  **Produse** (`/produse`, cu coloană Categorie): valoare, cantitate,
+  tranzacții, clienți/produse distincte, preț mediu, pondere, diferență %
+  față de perioada de comparație.
+- **Analiză lunară** (`/analiza-lunara`): evoluție lună de lună cu diferență
+  față de luna precedentă din interval.
+- **Sezonalitate** (`/sezonalitate`): pivot lună × categorie/produs/canal
+  (alegere), cu coeficient de variație și trend (crescător/descrescător/stabil).
+- **Prețuri** (`/preturi`): preț mediu ponderat pe canal/client/categorie/produs
+  și modificarea lui față de perioada de comparație.
+
+Restul paginilor din sidebar (Vânzări, Alerte, Cross-sell, Rapoarte, Calitatea
+datelor etc.) sunt marcate „curând" — intenționat nefuncționale încă, pentru
+a nu avea butoane decorative.
 
 ### Fuzzy matching — cum funcționează
 
@@ -106,6 +120,7 @@ npm run dev                    # intr-un terminal separat, pe portul implicit al
 npm run test:smoke             # fluxul complet de import (Etapa 1) intr-un Chromium headless
 npm run test:client-matching   # scenariul din spec §41: variante ANABELLA nu se unesc automat
 npm run test:dashboard         # Etapa 3: KPI-urile Dashboard-ului corespund exact datelor importate
+npm run test:reports           # Etapa 4: sumele din Canale/Categorii/Clienți/Produse corespund cu Dashboard-ul
 ```
 
 ## Arhitectură
@@ -118,11 +133,15 @@ src/
   import/            fields.ts, matching.ts (motor identificare), importEngine.ts, stages.ts
   workers/           importWorker.ts — parsare + validare + normalizare + identificare
   nomenclature/      clientService.ts, productService.ts — CRUD Dexie pentru nomenclatoare
-  analytics/         filters.ts (model filtre globale), aggregate.ts (motor de agregare)
+  analytics/         filters.ts, filterRows.ts (predicat comun de filtrare), aggregate.ts
+                     (motor de agregare), compare.ts (diff vs. comparație), seasonality.ts
+  hooks/             useReportData.ts — stare comună (filtre + rezultat) pentru orice pagină de raport
   components/        Sidebar, Layout, FileDropZone, ColumnMappingModal, DuplicateFileDialog,
-                     PeriodSelector, MultiSelectFilter, KpiCard
-  pages/             DashboardPage, ImportPage, ImportHistoryPage, ClientMatchQueuePage,
-                     ClientNomenclaturePage, ProductNomenclaturePage
+                     PeriodSelector, MultiSelectFilter, FilterBar, KpiCard, BreakdownTable, ReportShell
+  pages/             DashboardPage, ChannelsPage, CategoriesPage, ClientsPage, ProductsPage,
+                     MonthlyAnalysisPage, SeasonalityPage, PricesPage, ImportPage,
+                     ImportHistoryPage, ClientMatchQueuePage, ClientNomenclaturePage,
+                     ProductNomenclaturePage
 ```
 
 Identificarea la import e în doi timpi, ca lucrul greu să rămână în worker
@@ -145,8 +164,12 @@ lent decât o mașină obișnuită). Agregările precompute zilnice/lunare cerut
 de spec §34 pentru scala de milioane de rânduri **nu sunt construite încă** —
 rămân de adăugat quando volumul real o cere.
 
-## Ce urmează (Etapele 4-6 din specificație)
+Toate paginile de raport împart aceeași stare (`hooks/useReportData.ts`) și
+aceeași bară de filtre (`components/FilterBar.tsx`), ca „aplicația să
+recalculeze instant raportul" la orice schimbare de filtru (spec §14), fără
+cod duplicat între pagini.
 
-4. Restul rapoartelor principale (Canale, Categorii, Clienți, Produse, Lunar, Preț, Sezonalitate) — Dashboard-ul din Etapa 3 acoperă deja partea de KPI-uri/top-uri.
-5. Analytics avansat (Client 360°, Produs 360°, Pareto, ABC, clienți noi/pierduți, cross-sell, matrice creștere, alerte).
+## Ce urmează (Etapele 5-6 din specificație)
+
+5. Analytics avansat (Client 360°, Produs 360°, Pareto, ABC, clienți noi/pierduți, cross-sell, matrice creștere, analiza avansată a prețurilor, alerte).
 6. Report builder, export Excel, backup/restore, calitatea datelor.

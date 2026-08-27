@@ -46,6 +46,7 @@ export function PeriodSelector({ period, comparisonMode, comparisonPeriod, onCha
       <div>
         <label className="text-xs font-medium text-slate-500 block mb-1">Perioadă</label>
         <select
+          aria-label="Selector perioadă"
           className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
           value={preset}
           onChange={(e) => handlePresetChange(e.target.value as PeriodPreset)}
