@@ -3,15 +3,16 @@
 Aplicație de analiză managerială și raportare pentru Lacto Solomonescu — locală,
 în browser, fără backend. Datele sunt stocate persistent în IndexedDB (Dexie.js).
 
-Acest folder conține **Etapele 1-5** din planul de implementare al specificației
+Acest folder conține **Etapele 1-6** din planul de implementare al specificației
 complete: fundația (import Excel, validare, salvare), nomenclatoarele de
 clienți/produse cu fuzzy matching, motorul de analiză (perioade, filtre,
 agregări) cu un Dashboard funcțional, rapoartele principale pe dimensiune
 (Canale, Categorii, Clienți, Produse, Analiză lunară, Sezonalitate, Prețuri),
-și analytics avansat (Client 360°, Produs 360°, Pareto/ABC, dinamica
-clienților, matrice creștere, cross-sell, risc de concentrare, alerte).
-Etapele următoare (report builder, export Excel, backup, calitatea datelor)
-urmează în iterații separate — vezi „Ce urmează" mai jos.
+analytics avansat (Client 360°, Produs 360°, Pareto/ABC, dinamica
+clienților, matrice creștere, cross-sell, risc de concentrare, alerte) și
+setul final (calitatea datelor, Generator de rapoarte pe orice dimensiune,
+rapoarte salvate, export Excel/Executive Report, backup/restore). Toate cele
+6 etape din roadmap-ul specificației sunt complete.
 
 ## Rulare
 
@@ -122,9 +123,43 @@ aliasuri.
   produse care pierd clienți, canalul care generează cea mai mare parte din
   creștere, prețuri sub media produsului. Nimic hardcodat.
 
-Restul paginilor din sidebar (Vânzări, Rapoarte, Calitatea datelor etc.) sunt
-marcate „curând" — intenționat nefuncționale încă, pentru a nu avea butoane
-decorative.
+**Calitatea datelor** (`/calitatea-datelor`): scor 0-100 calculat pe toate
+tranzacțiile/nomenclatoarele din baza de date (nu doar perioada filtrată) —
+clienți/produse neidentificate, cantități/valori zero sau negative, rânduri
+duplicate, produse fără categorie, perechi client/produs posibil duplicate
+(fuzzy, prag mai strict decât la import), luni lipsă din interval, importuri
+cu conținut identic. Fiecare problemă e o listă concretă, nu doar un număr.
+
+**Generator de rapoarte** (`/generator-raport`, spec §29): dimensiune la
+alegere (client/produs/categorie/canal/lună/județ/localitate/agent — inclusiv
+cele fără nomenclator propriu, grupate direct pe textul brut din tranzacție),
+indicatori comutabili individual (Valoare/Cantitate/Tranzacții/Clienți/Preț
+mediu/Pondere/Diferență/Diferență %) și Top N (Toate/Top5/10/20/50/Bottom10).
+Nu e un raport fix — motorul `analytics/genericBreakdown.ts` calculează orice
+combinație cerută.
+
+**Rapoarte salvate** (`/rapoarte-salvate`, spec §30): preseturi complete
+(dimensiune + filtre + indicatori + Top N) salvate din Generator, redeschise
+cu configurația exactă restaurată.
+
+**Export Excel** (spec §31): din Generator, „Exportă Excel" descarcă exact
+tabelul afișat; „Executive Report" (buton propriu sau pagina dedicată
+`/executive-report`) generează un singur `.xlsx` multi-sheet (Rezumat, Canale,
+Categorii, Clienți, Produse, Evoluție lunară, Alerte) pentru perioada
+selectată. Ediția community a `xlsx` nu suportă stilizare de celule la
+scriere — coloanele monetare/procentuale sunt numere simple, fără culori
+condiționate, o limitare documentată, nu simulată.
+
+**Backup / Restore** (`/backup`, spec §32): export JSON cu toate tabelele
+Dexie (generic, prin `db.tables` — nicio tabelă nouă nu e omisă din greșeală);
+restaurarea golește și repopulează totul într-o singură tranzacție Dexie,
+păstrând id-urile originale (relațiile dintre tabele rămân valide), urmată de
+reîncărcarea paginii pentru o stare curată peste tot.
+
+Două intrări din sidebar („Vânzări" în ANALIZE, „Setări" în SISTEM) rămân
+marcate „curând" — nu corespund niciunei secțiuni numerotate din roadmap-ul
+celor 6 etape, așa că sunt lăsate intenționat nefuncționale (disabled, fără
+navigare) în loc de butoane decorative care ar părea să ducă undeva.
 
 ### Fuzzy matching — cum funcționează
 
@@ -151,6 +186,11 @@ npm run test:client-matching   # scenariul din spec §41: variante ANABELLA nu s
 npm run test:dashboard         # Etapa 3: KPI-urile Dashboard-ului corespund exact datelor importate
 npm run test:reports           # Etapa 4: sumele din Canale/Categorii/Clienți/Produse corespund cu Dashboard-ul
 npm run test:advanced          # Etapa 5: Client 360°/Produs 360°/Pareto/Dinamica/Matrice/Alerte/Cross-sell/Outlieri se încarcă fără erori
+npm run test:data-quality      # Etapa 6: scor + probleme reale, pe bază goală și cu date
+npm run test:report-builder    # Etapa 6: toate cele 8 dimensiuni, comutare indicatori, Top N
+npm run test:saved-reports     # Etapa 6: salvare → listă → deschidere cu restaurare exactă → ștergere
+npm run test:excel-export      # Etapa 6: descarcă și citește raportul curent + Executive Report
+npm run test:backup-restore    # Etapa 6: backup → modifică starea → restaurare → verifică revenirea exactă
 ```
 
 ## Arhitectură
@@ -164,9 +204,13 @@ src/
   workers/           importWorker.ts — parsare + validare + normalizare + identificare
   nomenclature/      clientService.ts, productService.ts — CRUD Dexie pentru nomenclatoare
   analytics/         filters.ts, filterRows.ts (predicat comun de filtrare), aggregate.ts
-                     (motor de agregare), compare.ts (diff vs. comparație), seasonality.ts,
-                     clientProfile.ts, productProfile.ts, pareto.ts, clientDynamics.ts,
-                     concentration.ts, crossSell.ts, priceOutliers.ts, alerts.ts
+                     (motor de agregare), genericBreakdown.ts (breakdown pe orice dimensiune,
+                     folosit de Generatorul de rapoarte), compare.ts (diff vs. comparație),
+                     seasonality.ts, clientProfile.ts, productProfile.ts, pareto.ts,
+                     clientDynamics.ts, concentration.ts, crossSell.ts, priceOutliers.ts,
+                     alerts.ts, dataQuality.ts, savedReportsService.ts
+  export/            excelExport.ts — export raport curent + Executive Report (xlsx)
+  backup/            backupService.ts — export/import JSON al tuturor tabelelor Dexie
   hooks/             useReportData.ts — stare comună (filtre + rezultat) pentru orice pagină de raport
   components/        Sidebar, Layout, FileDropZone, ColumnMappingModal, DuplicateFileDialog,
                      PeriodSelector, MultiSelectFilter, FilterBar, KpiCard, BreakdownTable, ReportShell
@@ -174,7 +218,8 @@ src/
                      MonthlyAnalysisPage, SeasonalityPage, PricesPage, ClientProfilePage,
                      ProductProfilePage, ParetoPage, ClientDynamicsPage, GrowthMatrixPage,
                      AlertsPage, ConcentrationRiskPage, CrossSellPage, PriceOutliersPage,
-                     ImportPage, ImportHistoryPage, ClientMatchQueuePage,
+                     DataQualityPage, ReportBuilderPage, SavedReportsPage, ExecutiveReportPage,
+                     BackupPage, ImportPage, ImportHistoryPage, ClientMatchQueuePage,
                      ClientNomenclaturePage, ProductNomenclaturePage
 ```
 
@@ -214,7 +259,12 @@ completă client×produs pentru toți clienții deodată ar fi imposibil de citi
 într-un tabel. „Matrice creștere" desparte clienții mari/mici la mediana
 valorii lor (spec nu specifică pragul exact).
 
-## Ce urmează (Etapa 6 din specificație)
+## Stare finală
 
-6. Report builder, export Excel (rapoarte formatate + Executive Report),
-   backup/restore, calitatea datelor.
+Toate cele 6 etape din roadmap-ul specificației sunt implementate și testate
+end-to-end (Playwright, date sintetice, inclusiv un import de 100.000 de
+rânduri). Ce rămâne intenționat neconstruit, documentat mai sus unde e cazul:
+agregările precompute zilnice/lunare (spec §34, pentru scala de milioane de
+rânduri), stilizarea condiționată a celulelor la exportul Excel (limitare a
+ediției community a `xlsx`), și cele două intrări de sidebar fără o secțiune
+numerotată corespunzătoare în roadmap („Vânzări", „Setări").
