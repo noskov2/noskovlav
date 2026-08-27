@@ -14,7 +14,8 @@
     "test:dashboard": "node scripts/dev/test-dashboard.mjs",
     "test:reports": "node scripts/dev/test-reports.mjs",
     "test:advanced": "node scripts/dev/test-advanced-analytics.mjs",
-    "test:data-quality": "node scripts/dev/test-data-quality.mjs"
+    "test:data-quality": "node scripts/dev/test-data-quality.mjs",
+    "test:report-builder": "node scripts/dev/test-report-builder.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

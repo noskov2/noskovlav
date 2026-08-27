@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ComparedRow } from '../analytics/compare'
 import { formatCurrency, formatNumber, formatPercent, formatQuantity } from '../lib/ro-format'
 
-type SortKey = 'name' | 'value' | 'quantity' | 'count' | 'distinctClients' | 'distinctProducts' | 'avgPrice' | 'share' | 'diffPercent'
+type SortKey = 'name' | 'value' | 'quantity' | 'count' | 'distinctClients' | 'distinctProducts' | 'avgPrice' | 'share' | 'diffValue' | 'diffPercent'
 
 interface Props {
   rows: ComparedRow[]
@@ -10,6 +10,13 @@ interface Props {
   showClients?: boolean
   showProducts?: boolean
   showComparison?: boolean
+  /** Coloane opționale (implicit toate afișate) — folosite de Generatorul de rapoarte pentru comutarea indicatorilor. */
+  showValue?: boolean
+  showQuantity?: boolean
+  showCount?: boolean
+  showAvgPrice?: boolean
+  showShare?: boolean
+  showDiffValue?: boolean
   extraColumn?: { label: string; render: (row: ComparedRow) => string }
   /** Când e setat, denumirea devine link (ex. spre profilul Client 360°/Produs 360°). */
   onRowClick?: (row: ComparedRow) => void
@@ -42,7 +49,21 @@ function SortableHeader({
 }
 
 /** Tabel sortabil/filtrabil reutilizat de rapoartele pe dimensiune (Canale, Categorii, Clienți, Produse — spec §16, §35). */
-export function BreakdownTable({ rows, nameLabel, showClients, showProducts, showComparison, extraColumn, onRowClick }: Props) {
+export function BreakdownTable({
+  rows,
+  nameLabel,
+  showClients,
+  showProducts,
+  showComparison,
+  showValue = true,
+  showQuantity = true,
+  showCount = true,
+  showAvgPrice = true,
+  showShare = true,
+  showDiffValue = false,
+  extraColumn,
+  onRowClick,
+}: Props) {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('value')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -81,13 +102,14 @@ export function BreakdownTable({ rows, nameLabel, showClients, showProducts, sho
             <tr>
               <SortableHeader label={nameLabel} k="name" align="left" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
               {extraColumn && <th className="px-3 py-2 text-left font-medium">{extraColumn.label}</th>}
-              <SortableHeader label="Valoare" k="value" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-              <SortableHeader label="Cantitate" k="quantity" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-              <SortableHeader label="Tranzacții" k="count" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
+              {showValue && <SortableHeader label="Valoare" k="value" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
+              {showQuantity && <SortableHeader label="Cantitate" k="quantity" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
+              {showCount && <SortableHeader label="Tranzacții" k="count" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
               {showClients && <SortableHeader label="Clienți" k="distinctClients" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
               {showProducts && <SortableHeader label="Produse" k="distinctProducts" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
-              <SortableHeader label="Preț mediu" k="avgPrice" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
-              <SortableHeader label="Pondere" k="share" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />
+              {showAvgPrice && <SortableHeader label="Preț mediu" k="avgPrice" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
+              {showShare && <SortableHeader label="Pondere" k="share" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
+              {showDiffValue && <SortableHeader label="Diferență" k="diffValue" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
               {showComparison && <SortableHeader label="Diferență %" k="diffPercent" activeKey={sortKey} dir={sortDir} onToggle={toggleSort} />}
             </tr>
           </thead>
@@ -104,13 +126,24 @@ export function BreakdownTable({ rows, nameLabel, showClients, showProducts, sho
                   )}
                 </td>
                 {extraColumn && <td className="px-3 py-1.5 text-slate-500">{extraColumn.render(r)}</td>}
-                <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatCurrency(r.value)}</td>
-                <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatQuantity(r.quantity)}</td>
-                <td className="px-3 py-1.5 text-right">{formatNumber(r.count)}</td>
+                {showValue && <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatCurrency(r.value)}</td>}
+                {showQuantity && <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatQuantity(r.quantity)}</td>}
+                {showCount && <td className="px-3 py-1.5 text-right">{formatNumber(r.count)}</td>}
                 {showClients && <td className="px-3 py-1.5 text-right">{formatNumber(r.distinctClients)}</td>}
                 {showProducts && <td className="px-3 py-1.5 text-right">{formatNumber(r.distinctProducts)}</td>}
-                <td className="px-3 py-1.5 text-right whitespace-nowrap">{r.quantity > 0 ? formatCurrency(r.value / r.quantity) : '—'}</td>
-                <td className="px-3 py-1.5 text-right">{r.share.toFixed(1)}%</td>
+                {showAvgPrice && (
+                  <td className="px-3 py-1.5 text-right whitespace-nowrap">{r.quantity > 0 ? formatCurrency(r.value / r.quantity) : '—'}</td>
+                )}
+                {showShare && <td className="px-3 py-1.5 text-right">{r.share.toFixed(1)}%</td>}
+                {showDiffValue && (
+                  <td
+                    className={`px-3 py-1.5 text-right whitespace-nowrap ${
+                      r.diffValue === null ? 'text-slate-400' : r.diffValue > 0 ? 'text-emerald-600 dark:text-emerald-400' : r.diffValue < 0 ? 'text-rose-600 dark:text-rose-400' : ''
+                    }`}
+                  >
+                    {r.diffValue === null ? '—' : formatCurrency(r.diffValue)}
+                  </td>
+                )}
                 {showComparison && (
                   <td
                     className={`px-3 py-1.5 text-right whitespace-nowrap ${
