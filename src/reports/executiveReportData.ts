@@ -119,7 +119,7 @@ export function computeExecutiveReportData(
   const topDecline = [...moves].sort((a, b) => a.deltaAbs - b.deltaAbs).slice(0, TOP_MOVERS_COUNT).filter((m) => m.deltaAbs < 0)
 
   const stockWindow: DateRange = { start: addDays(range.end, -(STOCK_RISK_WINDOW_DAYS - 1)), end: range.end }
-  const stockRows = computeStockRotation(allTransactions, products, stockWindow, () => defaultStockThresholds)
+  const stockRows = computeStockRotation(allTransactions, products, stockWindow, () => defaultStockThresholds, supplierReceipts)
   const ruptureCount = stockRows.filter((r) => r.riskClass === 'risc-ruptura').length
 
   const hikeWindow: DateRange = { start: addDays(range.end, -PRICE_HIKE_WINDOW_DAYS), end: range.end }

@@ -1,4 +1,4 @@
-import type { Product, TransactionLine } from '@/types/domain'
+import type { Product, SupplierReceiptLine, TransactionLine } from '@/types/domain'
 import { addDays, dayCountInRange, type DateRange } from '@/kpi/dateRanges'
 
 export type MovementClass = 'activ' | 'lent' | 'foarte-lent' | 'fara-vanzare'
@@ -17,6 +17,15 @@ export interface SlowMoverRow {
   avgPerDay: number
   lastSaleDate: string | null
   daysSinceLastSale: number | null
+  lastReceiptDate: string | null // last supplier delivery on file for this product, if any
+  // The later of lastSaleDate/lastReceiptDate — a fresh delivery means
+  // nothing has had a chance to sell since it arrived, even if the product
+  // itself last sold months ago (likely because it was out of stock in the
+  // meantime). "No sale" alerts should measure staleness from here, not
+  // from lastSaleDate alone, or a station that just restocked a
+  // long-out-of-stock item gets flagged as if it were still sitting idle.
+  lastMovementDate: string | null
+  daysSinceLastMovement: number | null
   classification: MovementClass
   blockedStockValue: number | null // currentStock * purchasePrice, if both known
 }
@@ -31,6 +40,7 @@ export function computeSlowMovers(
   allTransactions: TransactionLine[],
   products: Product[],
   range: DateRange,
+  supplierReceipts: SupplierReceiptLine[] = [],
 ): SlowMoverRow[] {
   const inRange = allTransactions.filter((t) => t.date >= range.start && t.date <= range.end)
   const days = dayCountInRange(range)
@@ -49,19 +59,26 @@ export function computeSlowMovers(
     if (!current || t.date > current) lastSaleByProduct.set(t.productId, t.date)
   }
 
+  const lastReceiptByProduct = new Map<string, string>()
+  for (const r of supplierReceipts) {
+    const current = lastReceiptByProduct.get(r.productId)
+    if (!current || r.date > current) lastReceiptByProduct.set(r.productId, r.date)
+  }
+
   const asOf = range.end
+  const daysBetween = (from: string) =>
+    Math.round((new Date(`${asOf}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000)
 
   return products
     .filter((p) => p.active && !p.groups.neVandabil)
     .map((product) => {
       const agg = byProductInRange.get(product.id) ?? { qty: 0, value: 0 }
       const lastSaleDate = lastSaleByProduct.get(product.id) ?? null
-      const daysSinceLastSale = lastSaleDate
-        ? Math.round(
-            (new Date(`${asOf}T00:00:00`).getTime() - new Date(`${lastSaleDate}T00:00:00`).getTime()) /
-              86400000,
-          )
-        : null
+      const lastReceiptDate = lastReceiptByProduct.get(product.id) ?? null
+      const lastMovementDate =
+        lastReceiptDate && (!lastSaleDate || lastReceiptDate > lastSaleDate) ? lastReceiptDate : lastSaleDate
+      const daysSinceLastSale = lastSaleDate ? daysBetween(lastSaleDate) : null
+      const daysSinceLastMovement = lastMovementDate ? daysBetween(lastMovementDate) : null
       const avgPerDay = agg.qty / days
 
       let classification: MovementClass
@@ -82,6 +99,9 @@ export function computeSlowMovers(
         avgPerDay,
         lastSaleDate,
         daysSinceLastSale,
+        lastReceiptDate,
+        lastMovementDate,
+        daysSinceLastMovement,
         classification,
         blockedStockValue,
       }
@@ -90,5 +110,5 @@ export function computeSlowMovers(
 
 export function noSaleSinceDays(rows: SlowMoverRow[], asOf: string, days: number): SlowMoverRow[] {
   const cutoff = addDays(asOf, -days)
-  return rows.filter((r) => !r.lastSaleDate || r.lastSaleDate < cutoff)
+  return rows.filter((r) => !r.lastMovementDate || r.lastMovementDate < cutoff)
 }

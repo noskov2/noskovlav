@@ -80,8 +80,8 @@ export function StockPage() {
   )
 
   const rows = useMemo(
-    () => computeStockRotation(transactions, products, range, thresholdsForCategory),
-    [transactions, products, range, thresholdsForCategory],
+    () => computeStockRotation(transactions, products, range, thresholdsForCategory, supplierReceipts),
+    [transactions, products, range, thresholdsForCategory, supplierReceipts],
   )
 
   const filteredRows = useMemo(() => {
@@ -205,6 +205,12 @@ export function StockPage() {
       align: 'right',
       render: (r) => (r.daysSinceLastSale != null ? formatNumber(r.daysSinceLastSale) : '—'),
       sortValue: (r) => r.daysSinceLastSale ?? 99999,
+    },
+    {
+      key: 'lastReceipt',
+      header: 'Ultima recepție',
+      render: (r) => (r.lastReceiptDate ? formatDateRo(r.lastReceiptDate) : '—'),
+      sortValue: (r) => r.lastReceiptDate ?? '',
     },
     {
       key: 'dos',

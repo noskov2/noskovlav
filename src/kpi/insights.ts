@@ -72,7 +72,7 @@ export function computeInsights(
   }
 
   const last30Range: DateRange = { start: addDays(range.end, -29), end: range.end }
-  const slowRows = computeSlowMovers(allTransactions, products, last30Range)
+  const slowRows = computeSlowMovers(allTransactions, products, last30Range, supplierReceipts)
   const noSale = noSaleSinceDays(slowRows, range.end, 30)
   if (noSale.length > 0) {
     insights.push({

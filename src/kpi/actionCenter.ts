@@ -35,7 +35,7 @@ export function computeActionCenter(
   const items: ActionItem[] = []
 
   // 🔴 Risc de ruptură stoc — produse cu vânzare activă și < 7 zile de stoc la ritmul curent.
-  const stockRows = computeSlowMovers(allTransactions, products, range)
+  const stockRows = computeSlowMovers(allTransactions, products, range, supplierReceipts)
   const atRisk = stockRows.filter((r) => {
     if (r.product.currentStock == null || r.avgPerDay <= 0) return false
     return r.product.currentStock / r.avgPerDay < STOCK_RISK_DAYS
@@ -63,7 +63,7 @@ export function computeActionCenter(
 
   // 🟠 Produse fără vânzare 30/60/90 zile.
   const wideRange: DateRange = { start: addDays(range.end, -90), end: range.end }
-  const wideRows = computeSlowMovers(allTransactions, products, wideRange)
+  const wideRows = computeSlowMovers(allTransactions, products, wideRange, supplierReceipts)
   const noSale30 = noSaleSinceDays(wideRows, range.end, 30)
   const noSale90 = noSaleSinceDays(wideRows, range.end, 90)
   if (noSale30.length > 0) {

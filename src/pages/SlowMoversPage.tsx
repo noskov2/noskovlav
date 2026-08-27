@@ -22,7 +22,7 @@ const CLASS_TONE: Record<MovementClass, 'good' | 'warn' | 'bad' | 'neutral'> = {
 }
 
 export function SlowMoversPage() {
-  const { transactions, products, stockSnapshots } = useDataStore()
+  const { transactions, products, stockSnapshots, supplierReceipts } = useDataStore()
   const [windowPreset, setWindowPreset] = useState<WindowPreset>(30)
   const [customRange, setCustomRange] = useState<DateRange>({ start: addDays(reportingEndStr(), -29), end: reportingEndStr() })
   const [category, setCategory] = useState('all')
@@ -43,11 +43,17 @@ export function SlowMoversPage() {
     [products],
   )
 
-  const rows = useMemo(() => computeSlowMovers(transactions, products, range), [transactions, products, range])
+  const rows = useMemo(
+    () => computeSlowMovers(transactions, products, range, supplierReceipts),
+    [transactions, products, range, supplierReceipts],
+  )
 
   const [compare, setCompare] = useState(false)
   const prevRange = useMemo(() => previousMonthRange(range), [range])
-  const prevRows = useMemo(() => computeSlowMovers(transactions, products, prevRange), [transactions, products, prevRange])
+  const prevRows = useMemo(
+    () => computeSlowMovers(transactions, products, prevRange, supplierReceipts),
+    [transactions, products, prevRange, supplierReceipts],
+  )
   const prevSalesByProduct = useMemo(() => new Map(prevRows.map((r) => [r.product.id, r.salesValue])), [prevRows])
 
   const filteredRows = useMemo(() => {
@@ -131,6 +137,12 @@ export function SlowMoversPage() {
       align: 'right',
       render: (r) => (r.daysSinceLastSale != null ? formatNumber(r.daysSinceLastSale) : '—'),
       sortValue: (r) => r.daysSinceLastSale ?? 99999,
+    },
+    {
+      key: 'lastReceipt',
+      header: 'Ultima recepție',
+      render: (r) => (r.lastReceiptDate ? formatDateRo(r.lastReceiptDate) : '—'),
+      sortValue: (r) => r.lastReceiptDate ?? '',
     },
     {
       key: 'blocked',
