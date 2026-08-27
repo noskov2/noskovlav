@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { mergeWithComparison } from '../analytics/compare'
+import type { GlobalFilters } from '../analytics/filters'
 import { computeGenericBreakdown, REPORT_DIMENSIONS } from '../analytics/genericBreakdown'
 import type { ReportDimension } from '../analytics/genericBreakdown'
 import type { BreakdownRow } from '../analytics/aggregate'
+import { saveReport } from '../analytics/savedReportsService'
 import { BreakdownTable } from '../components/BreakdownTable'
 import { ReportShell } from '../components/ReportShell'
+import { db } from '../db/db'
 import { useReportData } from '../hooks/useReportData'
+import type { SavedReportConfig } from '../types'
 
 type IndicatorId = 'value' | 'quantity' | 'count' | 'clients' | 'avgPrice' | 'share' | 'diffValue' | 'diffPercent'
 
@@ -68,8 +73,36 @@ export function ReportBuilderPage() {
   const [topN, setTopN] = useState<TopN>('all')
   const [rows, setRows] = useState<BreakdownRow[] | undefined>(undefined)
   const [compRows, setCompRows] = useState<BreakdownRow[] | null>(null)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [searchParams] = useSearchParams()
 
   const filtersKey = JSON.stringify(filters)
+
+  // Încarcă un raport salvat dacă pagina a fost deschisă din „Rapoarte salvate" (?report=<id>).
+  useEffect(() => {
+    const idStr = searchParams.get('report')
+    if (!idStr) return
+    const id = Number(idStr)
+    if (!Number.isFinite(id)) return
+    db.savedReports.get(id).then((saved) => {
+      if (!saved) return
+      setDimension(saved.config.dimension as ReportDimension)
+      setIndicators(saved.config.indicators as Record<IndicatorId, boolean>)
+      setTopN(saved.config.topN as TopN)
+      patchFilters(saved.config.filters as unknown as GlobalFilters)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  function handleSave() {
+    const name = prompt('Denumire raport:')
+    if (!name?.trim()) return
+    const config: SavedReportConfig = { dimension, filters: filters as unknown as Record<string, unknown>, indicators, topN }
+    saveReport(name.trim(), config).then(() => {
+      setSaveMessage(`Raport „${name.trim()}” salvat.`)
+      setTimeout(() => setSaveMessage(null), 4000)
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -110,6 +143,21 @@ export function ReportBuilderPage() {
     >
       {(r) => (
         <div>
+          <div className="flex items-center justify-between mb-3">
+            <Link to="/rapoarte-salvate" className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline">
+              Rapoarte salvate
+            </Link>
+            <div className="flex items-center gap-3">
+              {saveMessage && <span className="text-xs text-emerald-600 dark:text-emerald-400">{saveMessage}</span>}
+              <button
+                onClick={handleSave}
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Salvează raportul
+              </button>
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-end gap-6 mb-4 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Dimensiune</label>

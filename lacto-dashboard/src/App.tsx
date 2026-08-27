@@ -26,6 +26,7 @@ const CrossSellPage = lazy(() => import('./pages/CrossSellPage').then((m) => ({ 
 const PriceOutliersPage = lazy(() => import('./pages/PriceOutliersPage').then((m) => ({ default: m.PriceOutliersPage })))
 const DataQualityPage = lazy(() => import('./pages/DataQualityPage').then((m) => ({ default: m.DataQualityPage })))
 const ReportBuilderPage = lazy(() => import('./pages/ReportBuilderPage').then((m) => ({ default: m.ReportBuilderPage })))
+const SavedReportsPage = lazy(() => import('./pages/SavedReportsPage').then((m) => ({ default: m.SavedReportsPage })))
 
 export function App() {
   return (
@@ -57,6 +58,7 @@ export function App() {
           <Route path="/nomenclator-produse" element={<ProductNomenclaturePage />} />
           <Route path="/calitatea-datelor" element={<DataQualityPage />} />
           <Route path="/generator-raport" element={<ReportBuilderPage />} />
+          <Route path="/rapoarte-salvate" element={<SavedReportsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

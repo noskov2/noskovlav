@@ -10,6 +10,7 @@ import type {
   ImportBatch,
   ProductAlias,
   ProductRecord,
+  SavedReport,
   TransactionRecord,
 } from '../types'
 
@@ -35,6 +36,8 @@ export class LactoDatabase extends Dexie {
   products!: EntityTable<ProductRecord, 'id'>
   productAliases!: EntityTable<ProductAlias, 'id'>
   categories!: EntityTable<CategoryRecord, 'id'>
+
+  savedReports!: EntityTable<SavedReport, 'id'>
 
   constructor() {
     super('LactoDashboardDB')
@@ -66,6 +69,11 @@ export class LactoDatabase extends Dexie {
       products: '++id, productCode, canonicalNameNormalized, categoryId',
       productAliases: '++id, productId, normalizedName',
       categories: '++id, &name',
+    })
+
+    // v3 (Etapa 6): rapoarte salvate (preseturi de filtre din Generatorul de rapoarte).
+    this.version(3).stores({
+      savedReports: '++id, name, createdAt',
     })
   }
 }

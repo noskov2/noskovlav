@@ -56,8 +56,15 @@ async function main() {
     // inainte de date, lasand paginile bazate pe comparatie fara niciun client comun.
     await page.waitForSelector("select[aria-label='Selector perioadă']", { timeout: 15000 })
     await page.waitForTimeout(300)
-    await page.selectOption("select[aria-label='Selector perioadă']", 'custom')
-    await page.waitForTimeout(500)
+    // Uneori selectOption() nimerește exact în tranziția de navigare/randare a
+    // paginii noi (PeriodSelector-ul e remontat) și evenimentul se pierde —
+    // reîncercăm până apar cele 2 input-uri de dată specifice modului "custom".
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await page.selectOption("select[aria-label='Selector perioadă']", 'custom')
+      await page.waitForTimeout(500)
+      if ((await page.locator('input[type=date]').count()) >= 2) break
+      log(`  (retry ${attempt + 1}: selectOption('custom') nu a produs input-urile de dată încă)`)
+    }
     const dateInputs = page.locator('input[type=date]')
     await dateInputs.nth(0).fill('2026-01-01')
     await dateInputs.nth(1).fill('2026-12-31')

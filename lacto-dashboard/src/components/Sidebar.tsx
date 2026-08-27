@@ -44,7 +44,7 @@ export function Sidebar() {
       title: 'RAPOARTE',
       items: [
         { label: 'Generator raport', path: '/generator-raport' },
-        { label: 'Rapoarte salvate' },
+        { label: 'Rapoarte salvate', path: '/rapoarte-salvate' },
         { label: 'Executive report' },
       ],
     },

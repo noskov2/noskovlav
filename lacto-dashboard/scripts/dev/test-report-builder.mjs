@@ -48,9 +48,15 @@ async function main() {
   await page.waitForSelector('text=Compară cu', { timeout: 15000 })
 
   // Perioada implicită ("luna curentă") nu acoperă intervalul fixture-urilor
-  // (2025-01 .. 2026-07) — setăm un interval custom care acoperă tot.
-  await page.selectOption("select[aria-label='Selector perioadă']", 'custom')
-  await page.waitForTimeout(300)
+  // (2025-01 .. 2026-07) — setăm un interval custom care acoperă tot. Uneori
+  // selectOption() nimerește în tranziția de navigare și evenimentul se pierde,
+  // deci reîncercăm până apar cele 2 input-uri de dată.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await page.selectOption("select[aria-label='Selector perioadă']", 'custom')
+    await page.waitForTimeout(300)
+    if ((await page.locator('input[type=date]').count()) >= 2) break
+    log(`  (retry ${attempt + 1}: selectOption('custom') nu a produs input-urile de dată încă)`)
+  }
   const dateInputs = page.locator('input[type=date]')
   await dateInputs.nth(0).fill('2025-01-01')
   await dateInputs.nth(1).fill('2026-07-31')

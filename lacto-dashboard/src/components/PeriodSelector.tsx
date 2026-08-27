@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   COMPARISON_MODES,
   PERIOD_PRESETS,
@@ -19,6 +19,20 @@ export function PeriodSelector({ period, comparisonMode, comparisonPeriod, onCha
   const [preset, setPreset] = useState<PeriodPreset>('current-month')
   const [customPeriod, setCustomPeriod] = useState<DateRange>(period)
   const [customComparison, setCustomComparison] = useState<DateRange>(comparisonPeriod ?? period)
+
+  // Când `period` e schimbat din afara componentei (ex. restaurarea unui raport
+  // salvat) și nu corespunde presetului curent, comută afișarea pe „Custom" —
+  // altfel selectul ar arăta un preset greșit față de intervalul real folosit.
+  useEffect(() => {
+    if (preset === 'custom') return
+    const expected = resolvePeriod(preset)
+    if (expected.start !== period.start || expected.end !== period.end) {
+      setPreset('custom')
+      setCustomPeriod(period)
+      setCustomComparison(comparisonPeriod ?? period)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period])
 
   function handlePresetChange(next: PeriodPreset) {
     setPreset(next)

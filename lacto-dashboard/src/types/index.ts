@@ -168,6 +168,29 @@ export interface ClientRecord {
 
 export type AliasSource = 'import-exact' | 'manual' | 'fuzzy-confirmed'
 
+/* ------------------------------------------------------------------------ *
+ * Etapa 6 — Rapoarte salvate (spec §30)
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Configurația salvată a unui raport din Generatorul de rapoarte. `filters`
+ * e tipizat larg (nu `GlobalFilters` direct) ca să evite un import circular
+ * cu `analytics/filters.ts` — forma e aceeași, doar structural compatibilă.
+ */
+export interface SavedReportConfig {
+  dimension: string
+  filters: Record<string, unknown>
+  indicators: Record<string, boolean>
+  topN: string
+}
+
+export interface SavedReport {
+  id?: number
+  name: string
+  createdAt: number
+  config: SavedReportConfig
+}
+
 /** Alias/denumire brută care indică spre un client canonical (§4, §8). */
 export interface ClientAlias {
   id?: number
