@@ -56,7 +56,7 @@ export function Sidebar() {
         { label: 'Potriviri clienți', path: '/potriviri-clienti', badge: pendingCount },
         { label: 'Nomenclator clienți', path: '/nomenclator-clienti' },
         { label: 'Nomenclator produse', path: '/nomenclator-produse' },
-        { label: 'Calitatea datelor' },
+        { label: 'Calitatea datelor', path: '/calitatea-datelor' },
       ],
     },
     {

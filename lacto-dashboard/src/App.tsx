@@ -24,6 +24,7 @@ const AlertsPage = lazy(() => import('./pages/AlertsPage').then((m) => ({ defaul
 const ConcentrationRiskPage = lazy(() => import('./pages/ConcentrationRiskPage').then((m) => ({ default: m.ConcentrationRiskPage })))
 const CrossSellPage = lazy(() => import('./pages/CrossSellPage').then((m) => ({ default: m.CrossSellPage })))
 const PriceOutliersPage = lazy(() => import('./pages/PriceOutliersPage').then((m) => ({ default: m.PriceOutliersPage })))
+const DataQualityPage = lazy(() => import('./pages/DataQualityPage').then((m) => ({ default: m.DataQualityPage })))
 
 export function App() {
   return (
@@ -53,6 +54,7 @@ export function App() {
           <Route path="/potriviri-clienti" element={<ClientMatchQueuePage />} />
           <Route path="/nomenclator-clienti" element={<ClientNomenclaturePage />} />
           <Route path="/nomenclator-produse" element={<ProductNomenclaturePage />} />
+          <Route path="/calitatea-datelor" element={<DataQualityPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
