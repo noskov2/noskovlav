@@ -5,7 +5,16 @@ import type { PurchaseColumnMapping, SalesColumnMapping, StockColumnMapping } fr
 // ever auto-applied without their review the first time a header set is seen.
 const HINTS: Record<string, string[]> = {
   cashier: ['casier', 'operator', 'user', 'angajat', 'vanzator'],
-  datetime: ['data ora', 'data/ora', 'datetime', 'data si ora'],
+  // 'creat'/'timestamp' matter more than they look: a "Zi"/"Data" column is
+  // often a business-day label (e.g. "2026.08.12_1", "..._2"), not the real
+  // calendar date of the row — a night shift logged under "_2" can genuinely
+  // be the NEXT calendar day while still carrying yesterday's business-day
+  // number. Only a real per-row timestamp column ("Creat(ă) La") has the
+  // true date, so it must always win over "Zi" whenever both exist — see the
+  // datetime-first branch in importTransactions.ts. Matching it here is what
+  // makes that happen automatically instead of relying on the user to
+  // manually remap "Data + Ora" away from the auto-guessed "Zi" every time.
+  datetime: ['data ora', 'data/ora', 'datetime', 'data si ora', 'creat', 'timestamp'],
   date: ['data', 'zi', 'date'],
   time: ['ora', 'time', 'oră'],
   receiptNo: ['bon', 'nr bon', 'numar bon', 'chitanta', 'receipt', 'document', 'id vanzare'],

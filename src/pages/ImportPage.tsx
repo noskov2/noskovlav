@@ -343,6 +343,16 @@ export function ImportPage() {
               Fișierul are {formatNumber(sheet.rows.length)} rânduri. Spune aplicației ce reprezintă fiecare coloană —
               maparea se ține minte pentru importurile viitoare cu aceleași denumiri de coloane.
             </p>
+            {kind === 'sales' && salesMapping && salesMapping.date && !salesMapping.datetime && (
+              <div className="mb-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn">
+                <strong>Atenție la câmpul „Data”:</strong> dacă e „Zi” sau altă coloană cu eticheta unei zile de
+                gestiune (ex. „2026.08.12_1”, „2026.08.12_2”), reține că acea etichetă nu reflectă mereu data
+                calendaristică reală — o tură care trece de miezul nopții poate păstra numărul zilei precedente. Dacă
+                fișierul are și o coloană cu data + ora exactă a fiecărei vânzări (ex. „Creat(ă) La”), mapeaz-o pe
+                aceea la „Data + Ora” de mai jos — are prioritate față de „Data” și evită combinarea a două zile
+                diferite sub aceeași dată.
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               {kind === 'sales' &&
                 SALES_FIELDS.map((f) => (
