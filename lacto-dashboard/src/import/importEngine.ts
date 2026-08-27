@@ -1,6 +1,8 @@
 import { db } from '../db/db'
 import { headerSignature } from './fields'
 import { hashArrayBuffer } from '../lib/hash'
+import { applyImportResolutions as applyClientResolutions, loadClientSnapshot } from '../nomenclature/clientService'
+import { applyImportResolutions as applyProductResolutions, loadProductSnapshot } from '../nomenclature/productService'
 import type {
   ColumnMappingRecord,
   ImportBatch,
@@ -115,7 +117,13 @@ export interface RunImportResult {
   batch: ImportBatch
 }
 
-/** Rulează importul complet: parsare+validare+normalizare (worker) apoi salvare (Dexie). */
+/**
+ * Rulează importul complet: parsare+validare+normalizare+identificare
+ * clienți/produse (worker) apoi salvare (Dexie). Identificarea (spec §5) e
+ * memoizată pe denumire în worker, dar crearea efectivă a clienților/
+ * produselor noi și a intrărilor din coada de verificare se face pe main
+ * thread (Dexie), între faza de scanare și cea de scriere finală.
+ */
 export function runImport(params: RunImportParams): Promise<RunImportResult> {
   const { file, buffer, fileSignature, sourceFileType, mapping, replacedBatchId, onProgress } = params
   const importBatchId = crypto.randomUUID()
@@ -147,6 +155,20 @@ export function runImport(params: RunImportParams): Promise<RunImportResult> {
 
       if (msg.type === 'progress') {
         onProgress({ stage: msg.stage, processed: msg.processed, total: msg.total })
+        return
+      }
+
+      if (msg.type === 'resolution-summary') {
+        try {
+          const [clientIdMap, productIdMap] = await Promise.all([
+            applyClientResolutions(msg.newClients, msg.queueUpserts),
+            applyProductResolutions(msg.newProducts),
+          ])
+          worker.postMessage({ type: 'resolve-ids', requestId, clientIdMap, productIdMap })
+        } catch (err) {
+          worker.terminate()
+          reject(err instanceof Error ? err : new Error(String(err)))
+        }
         return
       }
 
@@ -205,10 +227,22 @@ export function runImport(params: RunImportParams): Promise<RunImportResult> {
       reject(new Error(e.message))
     }
 
-    worker.postMessage(
-      { type: 'process', requestId, buffer, sourceFileType, sourceFile: file.name, importBatchId, mapping },
-      [buffer],
-    )
+    Promise.all([loadClientSnapshot(), loadProductSnapshot()]).then(([clientSnapshot, productSnapshot]) => {
+      worker.postMessage(
+        {
+          type: 'process',
+          requestId,
+          buffer,
+          sourceFileType,
+          sourceFile: file.name,
+          importBatchId,
+          mapping,
+          clientSnapshot,
+          productSnapshot,
+        },
+        [buffer],
+      )
+    })
   })
 }
 

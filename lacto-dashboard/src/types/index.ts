@@ -31,8 +31,9 @@ export function channelForSourceFile(type: SourceFileType): Channel {
 
 /**
  * Un rând de tranzacție (vânzare), așa cum e stocat în IndexedDB.
- * Câmpurile de identificare canonică a clientului/produsului sunt `null`
- * până la Etapa 2 (nomenclatoare + fuzzy matching), care nu e construită încă.
+ * `canonicalClientId`/`canonicalProductId` rămân `null` doar când identificarea
+ * automată (cod/CUI/alias/nume exact) nu a găsit o potrivire sigură — rândul
+ * așteaptă atunci confirmare manuală în „Potriviri clienți" (spec §7).
  */
 export interface TransactionRecord {
   id?: number
@@ -44,13 +45,13 @@ export interface TransactionRecord {
   clientNormalized: string
   clientCode?: string
   cui?: string
-  canonicalClientId: string | null
+  canonicalClientId: number | null
 
   productRaw: string
   productNormalized: string
   productCode?: string
   categoryRaw?: string
-  canonicalProductId: string | null
+  canonicalProductId: number | null
 
   channel: Channel
   sourceChannel: SourceFileType
@@ -144,4 +145,141 @@ export interface ImportProgressEvent {
   processed: number
   total: number
   message?: string
+}
+
+/* ------------------------------------------------------------------------ *
+ * Etapa 2 — Nomenclatoare (clienți, produse) + fuzzy matching (spec §4-11)
+ * ------------------------------------------------------------------------ */
+
+/** Client canonical (§4: "Client Canonical", §10: pregătit pentru ierarhie viitoare). */
+export interface ClientRecord {
+  id?: number
+  canonicalName: string
+  canonicalNameNormalized: string
+  mentorCode?: string
+  cui?: string
+  groupId?: number | null
+  locality?: string
+  county?: string
+  channel?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type AliasSource = 'import-exact' | 'manual' | 'fuzzy-confirmed'
+
+/** Alias/denumire brută care indică spre un client canonical (§4, §8). */
+export interface ClientAlias {
+  id?: number
+  clientId: number
+  rawName: string
+  normalizedName: string
+  source: AliasSource
+  confidence: number
+  confirmedByUser: boolean
+  createdAt: number
+}
+
+export type MatchQueueStatus = 'pending' | 'resolved' | 'ignored'
+
+export interface MatchCandidate {
+  clientId: number
+  canonicalName: string
+  score: number
+  /**
+   * Setat doar când candidatul e un client încă necreat (o altă denumire nouă
+   * descoperită mai devreme în ACELAȘI import, nu unul deja din nomenclator) —
+   * `clientId` e un placeholder, iar main thread-ul îl rezolvă la id-ul real
+   * după ce clientul respectiv e creat (vezi worker-ul de import).
+   */
+  pendingNormalizedName?: string
+}
+
+/** O denumire de client neidentificată automat, în așteptarea verificării manuale (§7). */
+export interface ClientMatchQueueEntry {
+  normalizedName: string
+  rawName: string
+  clientCode?: string
+  cui?: string
+  candidates: MatchCandidate[]
+  status: MatchQueueStatus
+  occurrences: number
+  firstSeenAt: number
+  lastSeenAt: number
+  resolvedClientId?: number
+}
+
+/** „Nu mai propune această asociere" (§7) — o pereche (nume, candidat) exclusă definitiv din sugestii. */
+export interface ClientMatchBlacklistEntry {
+  id?: number
+  normalizedName: string
+  candidateClientId: number
+  createdAt: number
+}
+
+export type ClientAuditOperation = 'create' | 'alias-confirm' | 'alias-move' | 'alias-delete' | 'merge' | 'split'
+
+/** Jurnal de audit pentru operațiile asupra nomenclatorului de clienți (§9). */
+export interface ClientAuditLogEntry {
+  id?: number
+  date: number
+  operation: ClientAuditOperation
+  fromClientId?: number
+  fromClientName?: string
+  toClientId?: number
+  toClientName?: string
+  reason?: string
+  actor: string
+}
+
+export interface CategoryRecord {
+  id?: number
+  name: string
+  createdAt: number
+}
+
+/** Produs canonical (§11: "Nomenclator Produse"). */
+export interface ProductRecord {
+  id?: number
+  canonicalName: string
+  canonicalNameNormalized: string
+  productCode?: string
+  categoryId?: number | null
+  unit?: string
+  active: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ProductAlias {
+  id?: number
+  productId: number
+  rawName: string
+  normalizedName: string
+  source: 'import-exact' | 'manual'
+  createdAt: number
+}
+
+/* --- Rezultatul identificării unui import (worker -> main thread) --- */
+
+export interface NewClientRequest {
+  normalizedName: string
+  rawName: string
+  clientCode?: string
+  cui?: string
+}
+
+export interface QueueUpsertRequest {
+  normalizedName: string
+  rawName: string
+  clientCode?: string
+  cui?: string
+  candidates: MatchCandidate[]
+  occurrences: number
+}
+
+export interface NewProductRequest {
+  normalizedName: string
+  rawName: string
+  productCode?: string
 }

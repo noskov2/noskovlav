@@ -1,8 +1,11 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { NavLink } from 'react-router-dom'
+import { db } from '../db/db'
 
 interface NavItem {
   label: string
   path?: string
+  badge?: number
 }
 
 interface NavSection {
@@ -10,54 +13,53 @@ interface NavSection {
   items: NavItem[]
 }
 
-const SECTIONS: NavSection[] = [
-  {
-    title: 'GENERAL',
-    items: [
-      { label: 'Dashboard' },
-      { label: 'Alerte' },
-    ],
-  },
-  {
-    title: 'ANALIZE',
-    items: [
-      { label: 'Vânzări' },
-      { label: 'Clienți' },
-      { label: 'Produse' },
-      { label: 'Categorii' },
-      { label: 'Canale' },
-      { label: 'Analiză lunară' },
-      { label: 'Sezonalitate' },
-      { label: 'Prețuri' },
-      { label: 'Cross-sell' },
-    ],
-  },
-  {
-    title: 'RAPOARTE',
-    items: [
-      { label: 'Generator raport' },
-      { label: 'Rapoarte salvate' },
-      { label: 'Executive report' },
-    ],
-  },
-  {
-    title: 'DATE',
-    items: [
-      { label: 'Import date', path: '/import' },
-      { label: 'Istoric importuri', path: '/importuri' },
-      { label: 'Potriviri clienți' },
-      { label: 'Nomenclator clienți' },
-      { label: 'Nomenclator produse' },
-      { label: 'Calitatea datelor' },
-    ],
-  },
-  {
-    title: 'SISTEM',
-    items: [{ label: 'Backup' }, { label: 'Setări' }],
-  },
-]
-
 export function Sidebar() {
+  const pendingCount = useLiveQuery(() => db.clientMatchQueue.where('status').equals('pending').count(), [])
+
+  const SECTIONS: NavSection[] = [
+    {
+      title: 'GENERAL',
+      items: [{ label: 'Dashboard' }, { label: 'Alerte' }],
+    },
+    {
+      title: 'ANALIZE',
+      items: [
+        { label: 'Vânzări' },
+        { label: 'Clienți' },
+        { label: 'Produse' },
+        { label: 'Categorii' },
+        { label: 'Canale' },
+        { label: 'Analiză lunară' },
+        { label: 'Sezonalitate' },
+        { label: 'Prețuri' },
+        { label: 'Cross-sell' },
+      ],
+    },
+    {
+      title: 'RAPOARTE',
+      items: [
+        { label: 'Generator raport' },
+        { label: 'Rapoarte salvate' },
+        { label: 'Executive report' },
+      ],
+    },
+    {
+      title: 'DATE',
+      items: [
+        { label: 'Import date', path: '/import' },
+        { label: 'Istoric importuri', path: '/importuri' },
+        { label: 'Potriviri clienți', path: '/potriviri-clienti', badge: pendingCount },
+        { label: 'Nomenclator clienți', path: '/nomenclator-clienti' },
+        { label: 'Nomenclator produse', path: '/nomenclator-produse' },
+        { label: 'Calitatea datelor' },
+      ],
+    },
+    {
+      title: 'SISTEM',
+      items: [{ label: 'Backup' }, { label: 'Setări' }],
+    },
+  ]
+
   return (
     <aside className="w-64 shrink-0 border-r border-slate-200 bg-slate-50 h-full overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
       <div className="px-4 py-5">
@@ -77,14 +79,19 @@ export function Sidebar() {
                     <NavLink
                       to={item.path}
                       className={({ isActive }) =>
-                        `block rounded-md px-3 py-1.5 text-sm mb-0.5 transition-colors ${
+                        `flex items-center justify-between rounded-md px-3 py-1.5 text-sm mb-0.5 transition-colors ${
                           isActive
                             ? 'bg-emerald-600 text-white'
                             : 'text-slate-700 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800'
                         }`
                       }
                     >
-                      {item.label}
+                      <span>{item.label}</span>
+                      {!!item.badge && (
+                        <span className="text-[10px] rounded-full bg-amber-500 text-white px-1.5 py-0.5 leading-none">
+                          {item.badge}
+                        </span>
+                      )}
                     </NavLink>
                   ) : (
                     <div

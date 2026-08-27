@@ -2,9 +2,15 @@
 import * as XLSX from 'xlsx'
 import { autoDetectMapping, STANDARD_FIELDS } from '../import/fields'
 import { fileSignature, rowSignature } from '../lib/hash'
+import { findBestCandidates } from '../lib/fuzzy'
+import type { ClientLite, ClientMatchSnapshot, ClientResolution, ProductMatchSnapshot, ProductResolution } from '../import/matching'
+import { resolveClient, resolveProduct } from '../import/matching'
 import { normalizeForCompare, parseRoDate, parseRoNumber } from '../lib/ro-format'
 import { channelForSourceFile } from '../types'
 import type {
+  NewClientRequest,
+  NewProductRequest,
+  QueueUpsertRequest,
   RejectedRow,
   SourceFileType,
   StandardFieldId,
@@ -24,11 +30,32 @@ type InMessage =
       sourceFile: string
       importBatchId: string
       mapping: Partial<Record<StandardFieldId, string>>
+      clientSnapshot: ClientMatchSnapshot
+      productSnapshot: ProductMatchSnapshot
+    }
+  | {
+      type: 'resolve-ids'
+      requestId: string
+      clientIdMap: Record<string, number>
+      productIdMap: Record<string, number>
     }
 
 type OutMessage =
   | { type: 'headers'; requestId: string; headers: string[]; sample: unknown[][]; suggestion: Partial<Record<StandardFieldId, string>> }
-  | { type: 'progress'; requestId: string; stage: 'citire' | 'normalizare' | 'identificare-clienti'; processed: number; total: number }
+  | {
+      type: 'progress'
+      requestId: string
+      stage: 'citire' | 'normalizare' | 'identificare-clienti' | 'salvare'
+      processed: number
+      total: number
+    }
+  | {
+      type: 'resolution-summary'
+      requestId: string
+      newClients: NewClientRequest[]
+      queueUpserts: QueueUpsertRequest[]
+      newProducts: NewProductRequest[]
+    }
   | { type: 'chunk'; requestId: string; records: TransactionRecord[] }
   | {
       type: 'done'
@@ -45,16 +72,36 @@ type OutMessage =
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope
 
+interface RowDraft {
+  base: Omit<TransactionRecord, 'canonicalClientId' | 'canonicalProductId'>
+  clientRes: ClientResolution
+  productRes: ProductResolution
+}
+
+interface PendingImport {
+  rows: RowDraft[]
+  errors: RejectedRow[]
+  totalRows: number
+  periodStart: string | null
+  periodEnd: string | null
+  rowHashes: string[]
+  sourceFileType: SourceFileType
+}
+
+const pending = new Map<string, PendingImport>()
+
 function readSheetRows(buffer: ArrayBuffer): unknown[][] {
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
   const sheetName = wb.SheetNames[0]
-  if (!sheetName) throw new Error('Fișierul Excel nu conține nicio foaie de calcul.')
+  if (!sheetName) throw new Error('Fisierul Excel nu contine nicio foaie de calcul.')
   const ws = wb.Sheets[sheetName]
   return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) as unknown[][]
 }
 
-/** Detectează rândul de antet: scanează primele rânduri și alege pe cel care
- * potrivește cele mai multe câmpuri standard (spec §3: "detectează automat anteturile"). */
+/**
+ * Detecteaza randul de antet: scaneaza primele randuri si alege pe cel care
+ * potriveste cele mai multe campuri standard (spec S3: "detecteaza automat anteturile").
+ */
 function detectHeaderRowIndex(rows: unknown[][]): number {
   let best = 0
   let bestScore = -1
@@ -69,6 +116,12 @@ function detectHeaderRowIndex(rows: unknown[][]): number {
     }
   }
   return best
+}
+
+function stringOrUndefined(v: unknown): string | undefined {
+  if (v === null || v === undefined) return undefined
+  const s = String(v).trim()
+  return s === '' ? undefined : s
 }
 
 ctx.onmessage = (event: MessageEvent<InMessage>) => {
@@ -89,6 +142,11 @@ ctx.onmessage = (event: MessageEvent<InMessage>) => {
       processFile(msg)
       return
     }
+
+    if (msg.type === 'resolve-ids') {
+      finalizeImport(msg)
+      return
+    }
   } catch (err) {
     const out: OutMessage = {
       type: 'error',
@@ -99,14 +157,17 @@ ctx.onmessage = (event: MessageEvent<InMessage>) => {
   }
 }
 
+/** Faza 1: parsare + validare + normalizare + identificare (matching pe snapshot-ul primit). */
 function processFile(msg: Extract<InMessage, { type: 'process' }>) {
-  const { requestId, buffer, sourceFileType, sourceFile, importBatchId, mapping } = msg
+  const { requestId, buffer, sourceFileType, sourceFile, importBatchId, mapping, clientSnapshot, productSnapshot } = msg
 
   ctx.postMessage({ type: 'progress', requestId, stage: 'citire', processed: 0, total: 0 } satisfies OutMessage)
   const rows = readSheetRows(buffer)
   const headerRowIndex = detectHeaderRowIndex(rows)
   const headers = (rows[headerRowIndex] ?? []).map((c) => (c === null || c === undefined ? '' : String(c).trim()))
-  const dataRows = rows.slice(headerRowIndex + 1).filter((r) => r.some((c) => c !== null && c !== undefined && String(c).trim() !== ''))
+  const dataRows = rows
+    .slice(headerRowIndex + 1)
+    .filter((r) => r.some((c) => c !== null && c !== undefined && String(c).trim() !== ''))
   const total = dataRows.length
 
   const columnIndex: Partial<Record<StandardFieldId, number>> = {}
@@ -122,13 +183,25 @@ function processFile(msg: Extract<InMessage, { type: 'process' }>) {
   const now = Date.now()
   const errors: RejectedRow[] = []
   const rowHashes: string[] = []
-  let importedRows = 0
+  const rowsData: RowDraft[] = []
   let periodStart: string | null = null
   let periodEnd: string | null = null
-  let chunk: TransactionRecord[] = []
 
   const quantityMapped = columnIndex.quantity !== undefined
   const valueMapped = columnIndex.value !== undefined
+
+  // Memoizare pe denumire+cod+cui: fuzzy matching-ul e scump, dar numarul de
+  // denumiri DISTINCTE e mult mai mic decat numarul de randuri (ex. 40.000
+  // randuri -> cateva sute de clienti distincti).
+  const clientResCache = new Map<string, ClientResolution>()
+  const productResCache = new Map<string, ProductResolution>()
+  const queueOccurrences = new Map<string, number>()
+
+  // Denumiri noi (fara corespondent in nomenclator) deja descoperite IN ACEST
+  // import - necesar ca si ele sa participe la fuzzy matching, altfel la un
+  // prim import ANABELLA/ANABELA/ANABELLA SRL etc. ar deveni fiecare un client
+  // nou separat (nu se compara decat cu nomenclatorul existent, gol la start).
+  const sessionNewClients: ClientLite[] = []
 
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i]
@@ -163,7 +236,7 @@ function processFile(msg: Extract<InMessage, { type: 'process' }>) {
     }
 
     if (missing.length > 0) {
-      errors.push({ rowNumber: excelRowNumber, reason: `Lipsesc câmpuri obligatorii: ${missing.join(', ')}`, raw: buildRawValues() })
+      errors.push({ rowNumber: excelRowNumber, reason: 'Lipsesc campuri obligatorii: ' + missing.join(', '), raw: buildRawValues() })
       continue
     }
 
@@ -171,24 +244,67 @@ function processFile(msg: Extract<InMessage, { type: 'process' }>) {
     const productRawStr = String(productRaw).trim()
     const [year, month] = dateIso!.split('-').map(Number)
     const documentNo = columnIndex.documentNo !== undefined ? stringOrUndefined(get('documentNo')) : undefined
+    const clientCode = stringOrUndefined(get('clientCode'))
+    const cui = stringOrUndefined(get('cui'))
+    const productCode = stringOrUndefined(get('productCode'))
 
     const rowHash = rowSignature([dateIso, clientRawStr, productRawStr, quantity, value, documentNo])
     rowHashes.push(rowHash)
 
-    const record: TransactionRecord = {
+    const clientCacheKey = [clientRawStr, clientCode ?? '', cui ?? ''].join('')
+    let clientRes = clientResCache.get(clientCacheKey)
+    if (!clientRes) {
+      clientRes = resolveClient(clientRawStr, clientCode, cui, clientSnapshot)
+
+      if (clientRes.type === 'new') {
+        const sessionCandidates = findBestCandidates(clientRawStr, sessionNewClients, (c) => c.canonicalName)
+        if (sessionCandidates.length > 0) {
+          clientRes = {
+            type: 'queue',
+            normalizedName: clientRes.normalizedName,
+            rawName: clientRes.rawName,
+            candidates: sessionCandidates.map((c) => ({
+              clientId: -1,
+              canonicalName: c.item.canonicalName,
+              score: c.score,
+              pendingNormalizedName: c.item.canonicalNameNormalized,
+            })),
+          }
+        } else {
+          sessionNewClients.push({
+            id: -(sessionNewClients.length + 1),
+            canonicalName: clientRes.rawName,
+            canonicalNameNormalized: clientRes.normalizedName,
+          })
+        }
+      }
+
+      clientResCache.set(clientCacheKey, clientRes)
+    }
+
+    if (clientRes.type === 'queue') {
+      queueOccurrences.set(clientRes.normalizedName, (queueOccurrences.get(clientRes.normalizedName) ?? 0) + 1)
+    }
+
+    const productCacheKey = [productRawStr, productCode ?? ''].join('')
+    let productRes = productResCache.get(productCacheKey)
+    if (!productRes) {
+      productRes = resolveProduct(productRawStr, productCode, productSnapshot)
+      productResCache.set(productCacheKey, productRes)
+    }
+
+    const base: Omit<TransactionRecord, 'canonicalClientId' | 'canonicalProductId'> = {
       date: dateIso!,
       year,
       month,
       clientRaw: clientRawStr,
       clientNormalized: normalizeForCompare(clientRawStr),
-      clientCode: stringOrUndefined(get('clientCode')),
-      cui: stringOrUndefined(get('cui')),
-      canonicalClientId: null,
+      clientCode,
+      cui,
       productRaw: productRawStr,
       productNormalized: normalizeForCompare(productRawStr),
-      productCode: stringOrUndefined(get('productCode')),
+      productCode,
       categoryRaw: stringOrUndefined(get('categoryRaw')),
-      canonicalProductId: null,
       channel,
       sourceChannel: sourceFileType,
       quantity,
@@ -207,39 +323,106 @@ function processFile(msg: Extract<InMessage, { type: 'process' }>) {
     if (!periodStart || dateIso! < periodStart) periodStart = dateIso!
     if (!periodEnd || dateIso! > periodEnd) periodEnd = dateIso!
 
-    chunk.push(record)
-    importedRows++
+    rowsData.push({ base, clientRes, productRes })
 
-    if (chunk.length >= CHUNK_SIZE) {
-      ctx.postMessage({ type: 'chunk', requestId, records: chunk } satisfies OutMessage)
-      chunk = []
+    if (rowsData.length % CHUNK_SIZE === 0) {
       ctx.postMessage({ type: 'progress', requestId, stage: 'normalizare', processed: i + 1, total } satisfies OutMessage)
     }
   }
 
+  ctx.postMessage({ type: 'progress', requestId, stage: 'normalizare', processed: total, total } satisfies OutMessage)
+  ctx.postMessage({ type: 'progress', requestId, stage: 'identificare-clienti', processed: 0, total: clientResCache.size } satisfies OutMessage)
+
+  const newClients = new Map<string, NewClientRequest>()
+  const queueUpserts = new Map<string, QueueUpsertRequest>()
+  for (const res of clientResCache.values()) {
+    if (res.type === 'new' && !newClients.has(res.normalizedName)) {
+      newClients.set(res.normalizedName, { normalizedName: res.normalizedName, rawName: res.rawName })
+    } else if (res.type === 'queue' && !queueUpserts.has(res.normalizedName)) {
+      queueUpserts.set(res.normalizedName, {
+        normalizedName: res.normalizedName,
+        rawName: res.rawName,
+        candidates: res.candidates,
+        occurrences: queueOccurrences.get(res.normalizedName) ?? 1,
+      })
+    }
+  }
+
+  const newProducts = new Map<string, NewProductRequest>()
+  for (const res of productResCache.values()) {
+    if (res.type === 'new' && !newProducts.has(res.normalizedName)) {
+      newProducts.set(res.normalizedName, { normalizedName: res.normalizedName, rawName: res.rawName })
+    }
+  }
+
+  ctx.postMessage({
+    type: 'progress',
+    requestId,
+    stage: 'identificare-clienti',
+    processed: clientResCache.size,
+    total: clientResCache.size,
+  } satisfies OutMessage)
+
+  pending.set(requestId, {
+    rows: rowsData,
+    errors,
+    totalRows: total,
+    periodStart,
+    periodEnd,
+    rowHashes,
+    sourceFileType,
+  })
+
+  ctx.postMessage({
+    type: 'resolution-summary',
+    requestId,
+    newClients: [...newClients.values()],
+    queueUpserts: [...queueUpserts.values()],
+    newProducts: [...newProducts.values()],
+  } satisfies OutMessage)
+}
+
+/** Faza 2: dupa ce main thread a creat clientii/produsele noi si a trimis id-urile reale, finalizeaza randurile. */
+function finalizeImport(msg: Extract<InMessage, { type: 'resolve-ids' }>) {
+  const { requestId, clientIdMap, productIdMap } = msg
+  const state = pending.get(requestId)
+  if (!state) throw new Error('Sesiunea de import a expirat sau nu a fost gasita.')
+  pending.delete(requestId)
+
+  let chunk: TransactionRecord[] = []
+
+  for (const { base, clientRes, productRes } of state.rows) {
+    const canonicalClientId =
+      clientRes.type === 'matched'
+        ? clientRes.clientId
+        : clientRes.type === 'new'
+          ? (clientIdMap[clientRes.normalizedName] ?? null)
+          : null
+    const canonicalProductId =
+      productRes.type === 'matched' ? productRes.productId : (productIdMap[productRes.normalizedName] ?? null)
+
+    chunk.push({ ...base, canonicalClientId, canonicalProductId })
+
+    if (chunk.length >= CHUNK_SIZE) {
+      ctx.postMessage({ type: 'chunk', requestId, records: chunk } satisfies OutMessage)
+      chunk = []
+    }
+  }
   if (chunk.length > 0) {
     ctx.postMessage({ type: 'chunk', requestId, records: chunk } satisfies OutMessage)
   }
-  ctx.postMessage({ type: 'progress', requestId, stage: 'normalizare', processed: total, total } satisfies OutMessage)
-  ctx.postMessage({ type: 'progress', requestId, stage: 'identificare-clienti', processed: total, total } satisfies OutMessage)
 
-  const signature = fileSignature(sourceFileType, rowHashes)
+  const signature = fileSignature(state.sourceFileType, state.rowHashes)
 
   ctx.postMessage({
     type: 'done',
     requestId,
-    totalRows: total,
-    importedRows,
-    rejectedRows: errors.length,
-    errors,
+    totalRows: state.totalRows,
+    importedRows: state.rows.length,
+    rejectedRows: state.errors.length,
+    errors: state.errors,
     rowsSignature: signature,
-    periodStart,
-    periodEnd,
+    periodStart: state.periodStart,
+    periodEnd: state.periodEnd,
   } satisfies OutMessage)
-}
-
-function stringOrUndefined(v: unknown): string | undefined {
-  if (v === null || v === undefined) return undefined
-  const s = String(v).trim()
-  return s === '' ? undefined : s
 }
