@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { parseExcelFile, type ParsedSheet } from '@/import/excelParser'
@@ -14,6 +14,7 @@ import { importSalesSheet } from '@/import/importTransactions'
 import { importPurchaseSheet } from '@/import/importPurchases'
 import { importStockSheet } from '@/import/importStock'
 import { deleteImportBatchData } from '@/import/deleteImport'
+import { backfillPurchaseBatchDates } from '@/data/repo/importBatches'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { useDataStore } from '@/store/dataStore'
 import { formatDateRo, formatNumber } from '@/lib/format'
@@ -113,6 +114,16 @@ export function ImportPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // One-time self-heal for Achiziții batches imported before dateMin/dateMax
+  // started being tracked — those rows show "—" in the history table below
+  // forever otherwise, since nothing ever revisits an already-stored batch.
+  // Cheap no-op once every batch has an interval.
+  useEffect(() => {
+    backfillPurchaseBatchDates().then((n) => {
+      if (n > 0) refresh()
+    })
+  }, [refresh])
 
   async function handleDelete(batch: (typeof importBatches)[number]) {
     setDeletingId(batch.id)
