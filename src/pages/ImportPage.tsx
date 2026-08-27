@@ -200,7 +200,8 @@ export function ImportPage() {
         const result = await importPurchaseSheet(file.name, sheet, purchaseMapping)
         setStatus(
           `Import finalizat: ${formatNumber(result.rowCount)} linii de achiziție importate` +
-            (result.skippedRows > 0 ? `, ${formatNumber(result.skippedRows)} rânduri ignorate.` : '.'),
+            (result.skippedRows > 0 ? `, ${formatNumber(result.skippedRows)} rânduri ignorate.` : '.') +
+            (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
         )
       } else {
         if (!stockMapping || !isStockMappingComplete(stockMapping)) {

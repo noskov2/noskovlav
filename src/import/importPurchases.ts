@@ -10,6 +10,8 @@ export interface PurchaseImportResult {
   importBatchId: string
   rowCount: number
   skippedRows: number
+  dateMin: string | null
+  dateMax: string | null
 }
 
 export async function importPurchaseSheet(
@@ -20,6 +22,8 @@ export async function importPurchaseSheet(
   const importBatchId = uid('import')
   const lines: SupplierReceiptLine[] = []
   let skipped = 0
+  let dateMin: string | null = null
+  let dateMax: string | null = null
 
   for (const row of sheet.rows) {
     const productRaw = String(row[mapping.product] ?? '').trim()
@@ -49,6 +53,8 @@ export async function importPurchaseSheet(
       quantity,
       price,
     })
+    if (!dateMin || date < dateMin) dateMin = date
+    if (!dateMax || date > dateMax) dateMax = date
   }
 
   await bulkInsertSupplierReceipts(lines)
@@ -58,8 +64,8 @@ export async function importPurchaseSheet(
     kind: 'purchases',
     importedAt: Date.now(),
     rowCount: lines.length,
-    dateMin: null,
-    dateMax: null,
+    dateMin,
+    dateMax,
     fileHash: null,
     duplicateRowCount: 0,
     invalidRowCount: 0,
@@ -67,5 +73,5 @@ export async function importPurchaseSheet(
     newCashierCount: 0,
   })
 
-  return { importBatchId, rowCount: lines.length, skippedRows: skipped }
+  return { importBatchId, rowCount: lines.length, skippedRows: skipped, dateMin, dateMax }
 }
