@@ -33,11 +33,15 @@ export function fuelProductIds(products: Product[]): Set<string> {
 // contains) so the per-variant breakdown works even before every product
 // gets manually tagged with a group.
 export function findProductsByNameContains(products: Product[], needle: string): Product[] {
+  // NFD doesn't decompose the modern Romanian ș/ț (comma below) the way it
+  // does ă/â/î — see lib/id.ts's slugify for the full explanation.
   const norm = (s: string) =>
     s
+      .toLowerCase()
+      .replace(/[șş]/g, 's')
+      .replace(/[țţ]/g, 't')
       .normalize('NFD')
       .replace(/[̀-ͯ]/g, '')
-      .toLowerCase()
   const n = norm(needle)
   return products.filter((p) => norm(p.name).includes(n))
 }

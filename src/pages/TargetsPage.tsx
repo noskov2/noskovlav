@@ -168,9 +168,13 @@ const STYLE = `
 
 // ---------- generic helpers ----------
 function norm(s: unknown): string {
+  // NFD doesn't decompose the modern Romanian ș/ț (comma below) the way it
+  // does ă/â/î — see lib/id.ts's slugify for the full explanation.
   return String(s == null ? '' : s)
+    .toLowerCase()
+    .replace(/[șş]/g, 's').replace(/[țţ]/g, 't')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase().replace(/\s+/g, ' ').trim()
+    .replace(/\s+/g, ' ').trim()
 }
 function toNum(v: unknown): number | null {
   if (v == null) return null

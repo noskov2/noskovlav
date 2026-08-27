@@ -48,10 +48,14 @@ const EXCLUDE_FOR_FIELD: Partial<Record<keyof typeof HINTS, string[]>> = {
 
 function norm(s: string): string {
   return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .trim()
+    // NFD doesn't decompose the modern Romanian ș/ț (comma below) the way
+    // it does ă/â/î — see lib/id.ts's slugify for the full explanation.
+    .replace(/[șş]/g, 's')
+    .replace(/[țţ]/g, 't')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
 }
 
 function guessColumn(headers: string[], field: keyof typeof HINTS): string | null {

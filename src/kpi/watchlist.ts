@@ -42,9 +42,18 @@ const STOPWORDS = new Set(['cu', 'si', 'de', 'la', 'fara', 'pe'])
 
 function normalize(s: string): string {
   return s
+    .toLowerCase()
+    // NFD only decomposes SOME Romanian diacritics into base+combining-mark
+    // (ă, â, î) — the modern ș/ț (comma below, U+0219/021B) never decompose
+    // under Unicode's canonical NFD, so they'd survive the strip below
+    // untouched while the same word typed with the older cedilla ş/ţ (which
+    // DO decompose) or with no diacritics at all (common in POS exports)
+    // would end up on a different token. Map every variant explicitly so
+    // "vișine"/"vişine"/"visine" always tokenize the same.
+    .replace(/[șş]/g, 's')
+    .replace(/[țţ]/g, 't')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
     .replace(/&/g, ' si ')
     .replace(/[.,]/g, ' ')
     // Splits a number glued to a unit/word (e.g. "3buc", "300ml") so
@@ -62,14 +71,59 @@ function tokenize(s: string): string[] {
     .filter((t) => t.length > 0 && !STOPWORDS.has(t))
 }
 
-// Matches each watchlist label against the real Nomenclator by word overlap
-// (diacritic/case-insensitive) since the owner's names are close to, but not
-// guaranteed identical to, the real product names on file. Only auto-picks a
-// product when it's a clear winner — high overlap AND a solid lead over the
-// runner-up — so two near-identical real names (e.g. the two "cookie
-// clasic..." variants) never get silently swapped; anything less clear is
-// left unmatched for the user to pick by hand rather than guessed.
+// The owner's shorthand label is sometimes too different from the real
+// Nomenclator name for the generic fuzzy matcher to be confident — an
+// abbreviated word ("cioco" for "ciocolată") or a size/format suffix the
+// label doesn't mention ("felie 75G"). For these he confirmed the exact
+// real spelling directly, so that name is checked first and trusted (no
+// confidence threshold — see the no-threshold branch below) instead of
+// scored against the generic label.
+const KNOWN_REAL_NAMES: Partial<Record<string, string>> = {
+  'melc-vanilie-stafide': 'Melc cu vanilie si stafide 95G',
+  'tarta-mere': 'Tarta cu mere felie 75G',
+  'tarta-visine': 'Tarta cu visine felie 75G',
+  'tarta-ciocolata': 'Tarta cu ciocolata 75G',
+  'tarta-lamaie': 'Tarta cu lamaie 75G',
+  'cookie-clasic-cioco-neagra': 'cookie clasic cu cioco neagra',
+  'cookie-clasic-neagra-alba': 'cookie cioco neagra & alba',
+  'cookie-cioco-alba-macadamia': 'cookie cioco alba & macadamia',
+  'gogoasa-berlineza-cacao': 'gogoasa berlineza cu cacao',
+}
+
+function bestTokenMatch(products: Product[], tokens: string[]): { id: string; score: number } | null {
+  if (tokens.length === 0) return null
+  const scored = products
+    .map((p) => {
+      const productTokens = new Set(tokenize(p.name))
+      const hits = tokens.filter((t) => productTokens.has(t)).length
+      return { id: p.id, score: hits / tokens.length }
+    })
+    .filter((c) => c.score > 0)
+    .sort((a, b) => b.score - a.score)
+  return scored[0] ?? null
+}
+
+// Matches each watchlist label against the real Nomenclator. First tries the
+// owner-confirmed real name (if any) with no confidence threshold, since
+// that's a fact rather than a guess — an exact normalized-name match wins
+// outright, otherwise the best token overlap against it is trusted as-is.
+// Falls back to fuzzy word overlap against the generic label (diacritic/
+// case-insensitive) since the owner's names are close to, but not
+// guaranteed identical to, the real product names on file. There, a product
+// only auto-picks when it's a clear winner — high overlap AND a solid lead
+// over the runner-up — so two near-identical real names (e.g. the two
+// "cookie clasic..." variants) never get silently swapped; anything less
+// clear is left unmatched for the user to pick by hand rather than guessed.
 export function matchWatchlistItem(products: Product[], item: WatchlistItem): string | null {
+  const knownName = KNOWN_REAL_NAMES[item.id]
+  if (knownName) {
+    const target = normalize(knownName)
+    const exact = products.find((p) => normalize(p.name) === target)
+    if (exact) return exact.id
+    const best = bestTokenMatch(products, tokenize(knownName))
+    if (best) return best.id
+  }
+
   const labelTokens = tokenize(item.label)
   if (labelTokens.length === 0) return null
   const scored = products

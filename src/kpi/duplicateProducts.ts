@@ -8,9 +8,17 @@ const STOPWORDS = new Set(['cu', 'si', 'de', 'la', 'fara', 'pe', 'a'])
 
 function normalize(s: string): string {
   return s
+    .toLowerCase()
+    // NFD only decomposes SOME Romanian diacritics into base+combining-mark
+    // (ă, â, î) — the modern ș/ț (comma below, U+0219/021B) never decompose
+    // under Unicode's canonical NFD, so they'd survive the strip below
+    // untouched while the same word typed with the older cedilla ş/ţ (which
+    // DO decompose) or with no diacritics at all would end up on a
+    // different token. Map every variant explicitly.
+    .replace(/[șş]/g, 's')
+    .replace(/[țţ]/g, 't')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
     .replace(/&/g, ' si ')
     .replace(/[.,]/g, ' ')
     .replace(/(\d)([a-z])/g, '$1 $2')

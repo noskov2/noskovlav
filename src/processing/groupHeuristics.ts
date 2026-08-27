@@ -7,9 +7,13 @@ import type { ProductGroups } from '@/types/domain'
 // group the user has already confirmed (see resolveOrCreateProduct).
 function norm(s: string): string {
   return s
+    .toLowerCase()
+    // NFD doesn't decompose the modern Romanian ș/ț (comma below) the way
+    // it does ă/â/î — see lib/id.ts's slugify for the full explanation.
+    .replace(/[șş]/g, 's')
+    .replace(/[țţ]/g, 't')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
 }
 
 const COFFEE_KEYWORDS = ['espresso', 'cappuccino', 'capuccino']

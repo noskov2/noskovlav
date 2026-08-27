@@ -10,10 +10,20 @@ export function uid(prefix = ''): string {
 export function slugify(value: string): string {
   return value
     .toString()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
     .trim()
     .toLowerCase()
+    // NFD only decomposes SOME Romanian diacritics into base+combining-mark
+    // (ă, â, î) — the modern ș/ț (comma below, U+0219/021B) never decompose
+    // under Unicode's canonical NFD, so without this they'd survive the
+    // strip below as a leftover non-ascii char and get collapsed to "-" by
+    // the final replace — meaning "Vișine" and "Visine" (or the same word
+    // typed with the older cedilla ş/ţ) would slugify to two DIFFERENT ids
+    // for what a person reads as the exact same name. That's exactly the
+    // kind of silent split that creates a "ghost" duplicate product record.
+    .replace(/[șş]/g, 's')
+    .replace(/[țţ]/g, 't')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 }
