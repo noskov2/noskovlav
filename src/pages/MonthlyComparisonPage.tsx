@@ -31,6 +31,11 @@ const METRICS: MetricDef[] = [
   { key: 'receiptCount', label: 'Bonuri', get: (r) => r.summary.receiptCount, format: (v) => formatNumber(v) },
   { key: 'avgReceiptValue', label: 'Bon mediu', get: (r) => r.summary.avgReceiptValue, format: formatLei },
   { key: 'crossSellPct', label: 'Cross-sell', get: (r) => r.summary.crossSellPct, format: (v) => formatPct(v) },
+  { key: 'coffeeCount', label: 'Cafele vândute', get: (r) => r.summary.coffeeCount, format: (v) => formatNumber(v) },
+  { key: 'sandwichCount', label: 'Sandwich-uri vândute', get: (r) => r.summary.sandwichCount, format: (v) => formatNumber(v) },
+  { key: 'vitrinaCount', label: 'Dulciuri vitrină vândute', get: (r) => r.summary.vitrinaCount, format: (v) => formatNumber(v) },
+  { key: 'lemonadeCount', label: 'Limonade/ceaiuri vândute', get: (r) => r.summary.lemonadeCount, format: (v) => formatNumber(v) },
+  { key: 'promoValue', label: 'Vânzări prin promoții', get: (r) => r.summary.promoValue, format: formatLei },
   { key: 'grossProfit', label: 'Profit brut (cost cunoscut)', get: (r) => r.grossProfit, format: formatLei },
   { key: 'marginPct', label: 'Marjă', get: (r) => r.marginPct, format: (v) => formatPct(v) },
 ]
