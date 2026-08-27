@@ -6,6 +6,9 @@ import { computeGenericBreakdown, REPORT_DIMENSIONS } from '../analytics/generic
 import type { ReportDimension } from '../analytics/genericBreakdown'
 import type { BreakdownRow } from '../analytics/aggregate'
 import { saveReport } from '../analytics/savedReportsService'
+import type { ComparedRow } from '../analytics/compare'
+import { exportCurrentReport, exportExecutiveReport } from '../export/excelExport'
+import type { ExportColumn } from '../export/excelExport'
 import { BreakdownTable } from '../components/BreakdownTable'
 import { ReportShell } from '../components/ReportShell'
 import { db } from '../db/db'
@@ -24,6 +27,17 @@ const INDICATORS: { id: IndicatorId; label: string }[] = [
   { id: 'diffValue', label: 'Diferență' },
   { id: 'diffPercent', label: 'Diferență %' },
 ]
+
+const INDICATOR_TO_COLUMN: Record<IndicatorId, ExportColumn> = {
+  value: { key: 'value', label: 'Valoare' },
+  quantity: { key: 'quantity', label: 'Cantitate' },
+  count: { key: 'count', label: 'Tranzacții' },
+  clients: { key: 'distinctClients', label: 'Clienți' },
+  avgPrice: { key: 'avgPrice', label: 'Preț mediu' },
+  share: { key: 'share', label: 'Pondere %' },
+  diffValue: { key: 'diffValue', label: 'Diferență' },
+  diffPercent: { key: 'diffPercent', label: 'Diferență %' },
+}
 
 const DEFAULT_INDICATORS: Record<IndicatorId, boolean> = {
   value: true,
@@ -74,6 +88,7 @@ export function ReportBuilderPage() {
   const [rows, setRows] = useState<BreakdownRow[] | undefined>(undefined)
   const [compRows, setCompRows] = useState<BreakdownRow[] | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [exportingExecutive, setExportingExecutive] = useState(false)
   const [searchParams] = useSearchParams()
 
   const filtersKey = JSON.stringify(filters)
@@ -128,6 +143,16 @@ export function ReportBuilderPage() {
 
   const dimensionLabel = REPORT_DIMENSIONS.find((d) => d.id === dimension)?.label ?? 'Grup'
 
+  function handleExportCurrent(displayedRows: ComparedRow[]) {
+    const columns = INDICATORS.filter((ind) => indicators[ind.id]).map((ind) => INDICATOR_TO_COLUMN[ind.id])
+    exportCurrentReport(displayedRows, dimensionLabel, columns, `Raport ${dimensionLabel}`)
+  }
+
+  function handleExportExecutive() {
+    setExportingExecutive(true)
+    exportExecutiveReport(filters).finally(() => setExportingExecutive(false))
+  }
+
   return (
     <ReportShell
       title="Generator de rapoarte"
@@ -141,7 +166,9 @@ export function ReportBuilderPage() {
       loading={loading}
       result={result}
     >
-      {(r) => (
+      {(r) => {
+        const displayedRows: ComparedRow[] = rows === undefined ? [] : applyTopN(mergeWithComparison(rows, compRows, r.totalValue), topN)
+        return (
         <div>
           <div className="flex items-center justify-between mb-3">
             <Link to="/rapoarte-salvate" className="text-sm text-emerald-700 dark:text-emerald-400 hover:underline">
@@ -154,6 +181,20 @@ export function ReportBuilderPage() {
                 className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Salvează raportul
+              </button>
+              <button
+                onClick={() => handleExportCurrent(displayedRows)}
+                disabled={rows === undefined}
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                Exportă Excel
+              </button>
+              <button
+                onClick={handleExportExecutive}
+                disabled={exportingExecutive}
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                {exportingExecutive ? 'Se generează…' : 'Executive Report'}
               </button>
             </div>
           </div>
@@ -213,7 +254,7 @@ export function ReportBuilderPage() {
             <div className="text-sm text-slate-500">Se calculează…</div>
           ) : (
             <BreakdownTable
-              rows={applyTopN(mergeWithComparison(rows, compRows, r.totalValue), topN)}
+              rows={displayedRows}
               nameLabel={dimensionLabel}
               showValue={indicators.value}
               showQuantity={indicators.quantity}
@@ -226,7 +267,8 @@ export function ReportBuilderPage() {
             />
           )}
         </div>
-      )}
+        )
+      }}
     </ReportShell>
   )
 }

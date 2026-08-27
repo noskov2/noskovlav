@@ -27,6 +27,7 @@ const PriceOutliersPage = lazy(() => import('./pages/PriceOutliersPage').then((m
 const DataQualityPage = lazy(() => import('./pages/DataQualityPage').then((m) => ({ default: m.DataQualityPage })))
 const ReportBuilderPage = lazy(() => import('./pages/ReportBuilderPage').then((m) => ({ default: m.ReportBuilderPage })))
 const SavedReportsPage = lazy(() => import('./pages/SavedReportsPage').then((m) => ({ default: m.SavedReportsPage })))
+const ExecutiveReportPage = lazy(() => import('./pages/ExecutiveReportPage').then((m) => ({ default: m.ExecutiveReportPage })))
 
 export function App() {
   return (
@@ -59,6 +60,7 @@ export function App() {
           <Route path="/calitatea-datelor" element={<DataQualityPage />} />
           <Route path="/generator-raport" element={<ReportBuilderPage />} />
           <Route path="/rapoarte-salvate" element={<SavedReportsPage />} />
+          <Route path="/executive-report" element={<ExecutiveReportPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
