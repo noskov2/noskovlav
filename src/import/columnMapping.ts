@@ -1,4 +1,4 @@
-import type { PurchaseColumnMapping, SalesColumnMapping, StockColumnMapping } from '@/types/domain'
+import type { InvoiceColumnMapping, PurchaseColumnMapping, SalesColumnMapping, StockColumnMapping } from '@/types/domain'
 
 // Keyword hints used only to pre-select a likely column in the mapping
 // wizard. The user always confirms (or corrects) the mapping — nothing is
@@ -39,6 +39,25 @@ const HINTS: Record<string, string[]> = {
   price: ['pret', 'price', 'cost'],
   stockQty: ['stoc', 'stock'],
   salePrice: ['pret vanzare', 'pret de vanzare', 'sale price'],
+  // Facturi emise (issued invoices to business/fleet clients). Dedicated
+  // keys rather than reusing `value`/`valueNoVat` — a real export's "Valoare
+  // Totală", "Valoare Totală fără TVA" and "Valoare Totală TVA" columns all
+  // share the "valoare totala" prefix, so the shared sales/purchases keys
+  // (tuned for different header shapes, and used by their own exclude list)
+  // would collide between the three instead of each landing on its own column.
+  invoiceNo: ['nr. factura', 'nr factura', 'numar factura', 'serie factura'],
+  invoiceValue: ['valoare totala'],
+  invoiceValueNoVat: ['fara tva'],
+  invoiceVatValue: ['totala tva', 'valoare tva'],
+  onCredit: ['credit local', 'pe credit'],
+  clientName: ['nume client'],
+  regCom: ['reg. com', 'reg com', 'registrul comertului'],
+  fiscalCode: ['cod fiscal', 'cui'],
+  clientAddress: ['adresa client', 'adresa'],
+  locality: ['localitate'],
+  county: ['judet'],
+  driver: ['sofer'],
+  vehicle: ['vehicul', 'nr. inmatriculare', 'numar inmatriculare'],
 }
 
 // A column whose header contains any of these must never be auto-picked for
@@ -53,6 +72,11 @@ const EXCLUDE_FOR_FIELD: Partial<Record<keyof typeof HINTS, string[]>> = {
   price: ['discount', 'reducere'],
   salePrice: ['discount', 'reducere'],
   quantity: ['discount', 'reducere'],
+  // "Valoare Totală", "Valoare Totală fără TVA" and "Valoare Totală TVA" all
+  // share the "valoare totala" prefix — without this, invoiceValue's generic
+  // keyword would land on whichever of the three comes first in the file,
+  // not necessarily the actual gross-total column.
+  invoiceValue: ['tva'],
 }
 
 function norm(s: string): string {
@@ -119,6 +143,29 @@ export function guessStockMapping(headers: string[]): StockColumnMapping {
 
 export function isStockMappingComplete(m: StockColumnMapping): boolean {
   return !!m.product && !!m.quantity
+}
+
+export function guessInvoiceMapping(headers: string[]): InvoiceColumnMapping {
+  return {
+    invoiceNo: guessColumn(headers, 'invoiceNo') ?? '',
+    date: guessColumn(headers, 'date') ?? '',
+    valueNoVat: guessColumn(headers, 'invoiceValueNoVat'),
+    vatValue: guessColumn(headers, 'invoiceVatValue'),
+    value: guessColumn(headers, 'invoiceValue') ?? '',
+    onCredit: guessColumn(headers, 'onCredit'),
+    clientName: guessColumn(headers, 'clientName') ?? '',
+    regCom: guessColumn(headers, 'regCom'),
+    fiscalCode: guessColumn(headers, 'fiscalCode'),
+    address: guessColumn(headers, 'clientAddress'),
+    locality: guessColumn(headers, 'locality'),
+    county: guessColumn(headers, 'county'),
+    driver: guessColumn(headers, 'driver'),
+    vehicle: guessColumn(headers, 'vehicle'),
+  }
+}
+
+export function isInvoiceMappingComplete(m: InvoiceColumnMapping): boolean {
+  return !!m.invoiceNo && !!m.date && !!m.value && !!m.clientName
 }
 
 export function isSalesMappingComplete(m: SalesColumnMapping): boolean {

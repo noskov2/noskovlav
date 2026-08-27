@@ -18,6 +18,7 @@ const defaultSettings: AppSettings = {
   salesMapping: null,
   purchaseMapping: null,
   stockMapping: null,
+  invoiceMapping: null,
   categoryGroupRules: emptyCategoryGroupRules(),
   reportsAcknowledged: [],
   reportsGenerated: [],

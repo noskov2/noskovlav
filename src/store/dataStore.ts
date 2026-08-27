@@ -8,10 +8,14 @@ import { listAllStockSnapshots } from '@/data/repo/stockSnapshots'
 import { listImportBatches } from '@/data/repo/importBatches'
 import { getSettings } from '@/data/repo/settings'
 import { listMonthSnapshots } from '@/data/repo/monthSnapshots'
+import { listClients } from '@/data/repo/clients'
+import { listAllClientInvoices } from '@/data/repo/clientInvoices'
 import { ensureDefaultTeamsSeeded } from '@/data/seedTeams'
 import type {
   AppSettings,
   Cashier,
+  Client,
+  ClientInvoiceLine,
   ImportBatch,
   MonthSnapshot,
   Product,
@@ -33,6 +37,8 @@ interface DataState {
   importBatches: ImportBatch[]
   settings: AppSettings | null
   monthSnapshots: MonthSnapshot[]
+  clients: Client[]
+  clientInvoices: ClientInvoiceLine[]
   productsById: Map<string, Product>
   cashiersById: Map<string, Cashier>
   teamsById: Map<string, Team>
@@ -51,24 +57,39 @@ export const useDataStore = create<DataState>((set) => ({
   importBatches: [],
   settings: null,
   monthSnapshots: [],
+  clients: [],
+  clientInvoices: [],
   productsById: new Map(),
   cashiersById: new Map(),
   teamsById: new Map(),
   refresh: async () => {
     set({ loading: true })
     await ensureDefaultTeamsSeeded()
-    const [transactions, products, cashiers, teams, supplierReceipts, stockSnapshots, importBatches, settings, monthSnapshots] =
-      await Promise.all([
-        listAllTransactions(),
-        listProducts(),
-        listCashiers(),
-        listTeams(),
-        listAllSupplierReceipts(),
-        listAllStockSnapshots(),
-        listImportBatches(),
-        getSettings(),
-        listMonthSnapshots(),
-      ])
+    const [
+      transactions,
+      products,
+      cashiers,
+      teams,
+      supplierReceipts,
+      stockSnapshots,
+      importBatches,
+      settings,
+      monthSnapshots,
+      clients,
+      clientInvoices,
+    ] = await Promise.all([
+      listAllTransactions(),
+      listProducts(),
+      listCashiers(),
+      listTeams(),
+      listAllSupplierReceipts(),
+      listAllStockSnapshots(),
+      listImportBatches(),
+      getSettings(),
+      listMonthSnapshots(),
+      listClients(),
+      listAllClientInvoices(),
+    ])
     set({
       transactions,
       products,
@@ -79,6 +100,8 @@ export const useDataStore = create<DataState>((set) => ({
       importBatches,
       settings,
       monthSnapshots,
+      clients,
+      clientInvoices,
       productsById: new Map(products.map((p) => [p.id, p])),
       cashiersById: new Map(cashiers.map((c) => [c.id, c])),
       teamsById: new Map(teams.map((t) => [t.id, t])),

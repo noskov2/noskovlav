@@ -83,6 +83,7 @@ export async function importStockSheet(
     invalidRowCount: 0,
     newProductCount: 0,
     newCashierCount: 0,
+    newClientCount: 0,
   })
 
   // Keep each product's "live" currentStock/salePrice pointed at whichever

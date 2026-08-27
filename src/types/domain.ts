@@ -138,7 +138,7 @@ export interface TransactionLine {
   fingerprint: string // dedup key: date+time+cashierRaw+receiptNo+productRaw+quantity+value
 }
 
-export type ImportKind = 'sales' | 'purchases' | 'stock'
+export type ImportKind = 'sales' | 'purchases' | 'stock' | 'invoices'
 
 export interface ImportBatch {
   id: string
@@ -153,6 +153,7 @@ export interface ImportBatch {
   invalidRowCount: number // rows skipped for missing/invalid required fields
   newProductCount: number
   newCashierCount: number
+  newClientCount: number
 }
 
 // Column mapping: maps a logical field to the header name found in the user's Excel file.
@@ -188,6 +189,59 @@ export interface SupplierReceiptLine {
   date: string // YYYY-MM-DD
   quantity: number
   price: number // unit purchase price
+}
+
+// Column mapping for issued invoices (facturi emise către clienți) —
+// distinct from achiziții (SupplierReceiptLine), which are the station's own
+// purchases FROM suppliers. This is the reverse: sales TO business/fleet
+// clients, invoiced instead of paid at the pump.
+export interface InvoiceColumnMapping {
+  invoiceNo: string
+  date: string
+  valueNoVat: string | null
+  vatValue: string | null
+  value: string
+  onCredit: string | null // "Pentru Credit Local" (Da/Nu) — invoiced but not paid at issue time
+  clientName: string
+  regCom: string | null
+  fiscalCode: string | null
+  address: string | null
+  locality: string | null
+  county: string | null
+  driver: string | null
+  vehicle: string | null
+}
+
+// A business/fleet client invoiced directly, as opposed to a walk-in card/
+// cash sale. Identity is resolved by fiscalCode (CUI) when present — the one
+// genuinely stable identifier for a Romanian company across invoices — with
+// the normalized name as a fallback for the rare row missing one.
+export interface Client {
+  id: string
+  name: string
+  fiscalCode: string | null
+  regCom: string | null
+  address: string | null
+  locality: string | null
+  county: string | null
+  aliases: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ClientInvoiceLine {
+  id: string
+  importBatchId: string
+  invoiceNo: string
+  clientId: string
+  clientRaw: string
+  date: string // YYYY-MM-DD
+  valueNoVat: number
+  vatValue: number
+  value: number // total incl. VAT
+  onCredit: boolean // true = "Pentru Credit Local" was Da — invoiced, not settled at issue time
+  driver: string | null
+  vehicle: string | null
 }
 
 export interface StockColumnMapping {
@@ -331,6 +385,7 @@ export interface AppSettings {
   salesMapping: SalesColumnMapping | null
   purchaseMapping: PurchaseColumnMapping | null
   stockMapping: StockColumnMapping | null
+  invoiceMapping: InvoiceColumnMapping | null
   categoryGroupRules: CategoryGroupRules
   reportsAcknowledged: string[] // "YYYY-MM" months whose report banner was dismissed/downloaded
   reportsGenerated: string[] // "YYYY-MM:slug" — a report was downloaded/generated at least once for that month

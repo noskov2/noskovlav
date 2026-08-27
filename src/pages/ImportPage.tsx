@@ -3,9 +3,11 @@ import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { parseExcelFile, type ParsedSheet } from '@/import/excelParser'
 import {
+  guessInvoiceMapping,
   guessPurchaseMapping,
   guessSalesMapping,
   guessStockMapping,
+  isInvoiceMappingComplete,
   isPurchaseMappingComplete,
   isSalesMappingComplete,
   isStockMappingComplete,
@@ -13,6 +15,7 @@ import {
 import { importSalesSheet } from '@/import/importTransactions'
 import { importPurchaseSheet } from '@/import/importPurchases'
 import { importStockSheet } from '@/import/importStock'
+import { importInvoiceSheet } from '@/import/importInvoices'
 import { deleteImportBatchData } from '@/import/deleteImport'
 import { backfillPurchaseBatchDates } from '@/data/repo/importBatches'
 import { getSettings, updateSettings } from '@/data/repo/settings'
@@ -20,11 +23,13 @@ import { useDataStore } from '@/store/dataStore'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
 import type {
   ImportKind,
+  InvoiceColumnMapping,
   PurchaseColumnMapping,
   SalesColumnMapping,
   StockColumnMapping,
   SupplierReceiptLine,
   StockSnapshotLine,
+  ClientInvoiceLine,
 } from '@/types/domain'
 
 const SALES_FIELDS: { key: keyof SalesColumnMapping; label: string; required: boolean }[] = [
@@ -58,10 +63,28 @@ const STOCK_FIELDS: { key: keyof StockColumnMapping; label: string; required: bo
   { key: 'supplier', label: 'Furnizor implicit (completează Furnizorul produsului dacă e gol)', required: false },
 ]
 
+const INVOICE_FIELDS: { key: keyof InvoiceColumnMapping; label: string; required: boolean }[] = [
+  { key: 'invoiceNo', label: 'Nr. Factură', required: true },
+  { key: 'date', label: 'Dată', required: true },
+  { key: 'clientName', label: 'Nume Client', required: true },
+  { key: 'value', label: 'Valoare Totală (cu TVA)', required: true },
+  { key: 'valueNoVat', label: 'Valoare Totală fără TVA', required: false },
+  { key: 'vatValue', label: 'Valoare Totală TVA', required: false },
+  { key: 'onCredit', label: 'Pentru Credit Local (Da/Nu)', required: false },
+  { key: 'fiscalCode', label: 'Cod Fiscal Client', required: false },
+  { key: 'regCom', label: 'Nr. Reg. Com. Client', required: false },
+  { key: 'address', label: 'Adresă Client', required: false },
+  { key: 'locality', label: 'Localitate Client', required: false },
+  { key: 'county', label: 'Județ Client', required: false },
+  { key: 'driver', label: 'Detalii Șofer', required: false },
+  { key: 'vehicle', label: 'Detalii Vehicul', required: false },
+]
+
 const KIND_LABELS: Record<ImportKind, string> = {
   sales: 'Vânzări',
   purchases: 'Achiziții',
   stock: 'Stoc',
+  invoices: 'Facturi clienți',
 }
 
 function normalizeHeader(h: string): string {
@@ -102,17 +125,20 @@ function nowTime(): string {
 }
 
 export function ImportPage() {
-  const { refresh, importBatches, supplierReceipts, stockSnapshots } = useDataStore()
+  const { refresh, importBatches, supplierReceipts, stockSnapshots, clientInvoices } = useDataStore()
   const [searchParams] = useSearchParams()
   const [kind, setKind] = useState<ImportKind>(() => {
     const requested = searchParams.get('kind')
-    return requested === 'sales' || requested === 'purchases' || requested === 'stock' ? requested : 'sales'
+    return requested === 'sales' || requested === 'purchases' || requested === 'stock' || requested === 'invoices'
+      ? requested
+      : 'sales'
   })
   const [file, setFile] = useState<File | null>(null)
   const [sheet, setSheet] = useState<ParsedSheet | null>(null)
   const [salesMapping, setSalesMapping] = useState<SalesColumnMapping | null>(null)
   const [purchaseMapping, setPurchaseMapping] = useState<PurchaseColumnMapping | null>(null)
   const [stockMapping, setStockMapping] = useState<StockColumnMapping | null>(null)
+  const [invoiceMapping, setInvoiceMapping] = useState<InvoiceColumnMapping | null>(null)
   const [asOfDate, setAsOfDate] = useState(nowDate())
   const [asOfTime, setAsOfTime] = useState(nowTime())
   const [status, setStatus] = useState<string | null>(null)
@@ -162,6 +188,9 @@ export function ImportPage() {
       } else if (kind === 'purchases') {
         const reconciled = settings.purchaseMapping && reconcileMapping(settings.purchaseMapping, parsed.headers)
         setPurchaseMapping(reconciled ?? guessPurchaseMapping(parsed.headers))
+      } else if (kind === 'invoices') {
+        const reconciled = settings.invoiceMapping && reconcileMapping(settings.invoiceMapping, parsed.headers)
+        setInvoiceMapping(reconciled ?? guessInvoiceMapping(parsed.headers))
       } else {
         const reconciled = settings.stockMapping && reconcileMapping(settings.stockMapping, parsed.headers)
         setStockMapping(reconciled ?? guessStockMapping(parsed.headers))
@@ -222,6 +251,21 @@ export function ImportPage() {
             (result.skippedRows > 0 ? `, ${formatNumber(result.skippedRows)} rânduri ignorate.` : '.') +
             (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
         )
+      } else if (kind === 'invoices') {
+        if (!invoiceMapping || !isInvoiceMappingComplete(invoiceMapping)) {
+          setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
+          setBusy(false)
+          return
+        }
+        await updateSettings({ invoiceMapping })
+        const result = await importInvoiceSheet(file.name, sheet, invoiceMapping)
+        const bits = [`${formatNumber(result.rowCount)} facturi importate`]
+        if (result.skippedRows > 0) bits.push(`${formatNumber(result.skippedRows)} rânduri ignorate`)
+        if (result.newClientCount > 0) bits.push(`${formatNumber(result.newClientCount)} clienți noi`)
+        setStatus(
+          `Import finalizat: ${bits.join(', ')}.` +
+            (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
+        )
       } else {
         if (!stockMapping || !isStockMappingComplete(stockMapping)) {
           setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
@@ -259,7 +303,9 @@ export function ImportPage() {
       ? !!salesMapping && isSalesMappingComplete(salesMapping)
       : kind === 'purchases'
         ? !!purchaseMapping && isPurchaseMappingComplete(purchaseMapping)
-        : !!stockMapping && isStockMappingComplete(stockMapping) && !!asOfDate
+        : kind === 'invoices'
+          ? !!invoiceMapping && isInvoiceMappingComplete(invoiceMapping)
+          : !!stockMapping && isStockMappingComplete(stockMapping) && !!asOfDate
 
   return (
     <div>
@@ -269,7 +315,7 @@ export function ImportPage() {
       />
 
       <div className="mb-5 flex flex-wrap gap-2">
-        {(['sales', 'purchases', 'stock'] as ImportKind[]).map((k) => (
+        {(['sales', 'purchases', 'stock', 'invoices'] as ImportKind[]).map((k) => (
           <button
             key={k}
             onClick={() => {
@@ -281,7 +327,13 @@ export function ImportPage() {
             }}
             className={`rounded-full px-4 py-1.5 text-sm font-medium ${kind === k ? 'bg-brand-500 text-white' : 'bg-slate-100 text-slate-600'}`}
           >
-            {k === 'sales' ? 'Vânzări / tranzacții' : k === 'purchases' ? 'Achiziții / Furnizori' : 'Stoc curent'}
+            {k === 'sales'
+              ? 'Vânzări / tranzacții'
+              : k === 'purchases'
+                ? 'Achiziții / Furnizori'
+                : k === 'stock'
+                  ? 'Stoc curent'
+                  : 'Facturi clienți'}
           </button>
         ))}
       </div>
@@ -387,6 +439,17 @@ export function ImportPage() {
                     onChange={(v) => setStockMapping((m) => (m ? { ...m, [f.key]: v || null } : m))}
                   />
                 ))}
+              {kind === 'invoices' &&
+                INVOICE_FIELDS.map((f) => (
+                  <MappingField
+                    key={f.key}
+                    label={f.label}
+                    required={f.required}
+                    headers={sheet.headers}
+                    value={invoiceMapping?.[f.key] ?? ''}
+                    onChange={(v) => setInvoiceMapping((m) => (m ? { ...m, [f.key]: v || null } : m))}
+                  />
+                ))}
             </div>
 
             <button
@@ -423,7 +486,7 @@ export function ImportPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {importBatches.map((b) => {
-                  const canExpand = b.kind === 'purchases' || b.kind === 'stock'
+                  const canExpand = b.kind === 'purchases' || b.kind === 'stock' || b.kind === 'invoices'
                   const expanded = expandedBatchId === b.id
                   return (
                     <Fragment key={b.id}>
@@ -463,11 +526,13 @@ export function ImportPage() {
                               {b.invalidRowCount > 0 && `${formatNumber(b.invalidRowCount)} invalide`}
                             </span>
                           )}
-                          {(b.newProductCount > 0 || b.newCashierCount > 0) && (
+                          {(b.newProductCount > 0 || b.newCashierCount > 0 || b.newClientCount > 0) && (
                             <div className="text-slate-400">
                               {b.newProductCount > 0 && `+${formatNumber(b.newProductCount)} produse`}
                               {b.newProductCount > 0 && b.newCashierCount > 0 && ' · '}
                               {b.newCashierCount > 0 && `+${formatNumber(b.newCashierCount)} casieri`}
+                              {(b.newProductCount > 0 || b.newCashierCount > 0) && b.newClientCount > 0 && ' · '}
+                              {b.newClientCount > 0 && `+${formatNumber(b.newClientCount)} clienți`}
                             </div>
                           )}
                         </td>
@@ -512,6 +577,13 @@ export function ImportPage() {
                         <tr>
                           <td colSpan={7} className="bg-slate-50 px-2 py-2">
                             <StockBatchRows rows={stockSnapshots.filter((s) => s.importBatchId === b.id)} />
+                          </td>
+                        </tr>
+                      )}
+                      {expanded && b.kind === 'invoices' && (
+                        <tr>
+                          <td colSpan={7} className="bg-slate-50 px-2 py-2">
+                            <InvoiceBatchRows rows={clientInvoices.filter((c) => c.importBatchId === b.id)} />
                           </td>
                         </tr>
                       )}
@@ -585,6 +657,45 @@ function StockBatchRows({ rows }: { rows: StockSnapshotLine[] }) {
               <td className="px-2 py-1">{r.productRaw}</td>
               <td className="px-2 py-1 text-right">{formatNumber(r.quantity, 2)}</td>
               <td className="px-2 py-1 text-right">{r.salePrice != null ? formatLei(r.salePrice) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Same idea for a Facturi clienți import — sorted most-recent-first, like
+// achiziții, so "ultima factură importată" is the first row.
+function InvoiceBatchRows({ rows }: { rows: ClientInvoiceLine[] }) {
+  const sorted = [...rows].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  if (sorted.length === 0) return <p className="text-xs text-slate-400">Niciun rând găsit pentru acest import.</p>
+  return (
+    <div className="max-h-80 overflow-y-auto rounded border border-slate-200 bg-white scrollbar-thin">
+      <table className="min-w-full divide-y divide-slate-100 text-xs">
+        <thead className="sticky top-0 bg-slate-50">
+          <tr className="text-left uppercase tracking-wide text-slate-400">
+            <th className="px-2 py-1">Dată</th>
+            <th className="px-2 py-1">Nr. Factură</th>
+            <th className="px-2 py-1">Client (cum a fost scris în fișier)</th>
+            <th className="px-2 py-1 text-right">Valoare</th>
+            <th className="px-2 py-1">Pe credit</th>
+            <th className="px-2 py-1">Șofer / Vehicul</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {sorted.map((r) => (
+            <tr key={r.id}>
+              <td className="px-2 py-1 whitespace-nowrap text-slate-500">{formatDateRo(r.date)}</td>
+              <td className="px-2 py-1">{r.invoiceNo}</td>
+              <td className="px-2 py-1">{r.clientRaw}</td>
+              <td className="px-2 py-1 text-right">{formatLei(r.value)}</td>
+              <td className="px-2 py-1">
+                {r.onCredit ? <span className="font-medium text-warn">Da</span> : <span className="text-slate-400">Nu</span>}
+              </td>
+              <td className="px-2 py-1 text-slate-500">
+                {[r.driver, r.vehicle].filter(Boolean).join(' / ') || '—'}
+              </td>
             </tr>
           ))}
         </tbody>

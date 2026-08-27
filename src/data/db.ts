@@ -9,6 +9,8 @@ import type {
   StockSnapshotLine,
   AppSettings,
   MonthSnapshot,
+  Client,
+  ClientInvoiceLine,
 } from '@/types/domain'
 
 // Single IndexedDB database for the whole app. All persistence goes through
@@ -25,6 +27,8 @@ class PecoDatabase extends Dexie {
   stockSnapshots!: EntityTable<StockSnapshotLine, 'id'>
   settings!: EntityTable<AppSettings, 'id'>
   monthSnapshots!: EntityTable<MonthSnapshot, 'id'>
+  clients!: EntityTable<Client, 'id'>
+  clientInvoices!: EntityTable<ClientInvoiceLine, 'id'>
 
   constructor() {
     super('peco-station-db')
@@ -73,6 +77,21 @@ class PecoDatabase extends Dexie {
       stockSnapshots: 'id, importBatchId, productId, asOf',
       settings: 'id',
       monthSnapshots: 'id, monthKey, closedAt',
+    })
+    // v5: clients + clientInvoices for issued-invoice (facturi emise) imports.
+    this.version(5).stores({
+      transactions:
+        'id, importBatchId, date, timestamp, cashierId, productId, receiptNo, shift, fingerprint',
+      products: 'id, name, category, active',
+      cashiers: 'id, name, active, teamId',
+      teams: 'id, name',
+      importBatches: 'id, importedAt, kind',
+      supplierReceipts: 'id, importBatchId, productId, supplier, date',
+      stockSnapshots: 'id, importBatchId, productId, asOf',
+      settings: 'id',
+      monthSnapshots: 'id, monthKey, closedAt',
+      clients: 'id, name, fiscalCode',
+      clientInvoices: 'id, importBatchId, clientId, invoiceNo, date, onCredit',
     })
   }
 }

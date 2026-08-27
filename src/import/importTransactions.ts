@@ -256,6 +256,7 @@ export async function importSalesSheet(
     invalidRowCount,
     newProductCount: newProductIds.size,
     newCashierCount: newCashierIds.size,
+    newClientCount: 0,
   })
 
   onProgress?.({ processed: total, total })
