@@ -10,6 +10,7 @@ import {
   deleteProduct,
   buildManualProduct,
   mergeProducts,
+  markProductsReviewed,
 } from '@/data/repo/products'
 import { findPossibleDuplicateProducts, type DuplicateCandidatePair } from '@/kpi/duplicateProducts'
 import {
@@ -84,6 +85,7 @@ export function NomenclaturePage() {
               onAdd={async (name, category) => { await upsertProduct(buildManualProduct(name, category)); await refresh() }}
               onDelete={async (id) => { await deleteProduct(id); await refresh() }}
               onMerge={async (source, target) => { await mergeProducts(source, target); await refresh() }}
+              onMarkReviewed={async (ids) => { await markProductsReviewed(ids); await refresh() }}
             />
           )}
           {tab === 'grupuri' && (
@@ -139,6 +141,7 @@ function ProductsTab({
   onAdd,
   onDelete,
   onMerge,
+  onMarkReviewed,
 }: {
   products: Product[]
   transactions: TransactionLine[]
@@ -147,11 +150,14 @@ function ProductsTab({
   onAdd: (name: string, category: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onMerge: (sourceId: string, targetId: string) => Promise<void>
+  onMarkReviewed: (ids: string[]) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [supplierFilter, setSupplierFilter] = useState('all')
   const [groupFilter, setGroupFilter] = useState<Set<keyof ProductGroups>>(new Set())
+  const [onlyUnreviewed, setOnlyUnreviewed] = useState(false)
+  const [markingReviewed, setMarkingReviewed] = useState(false)
   const [draft, setDraft] = useState<Record<string, Partial<Product>>>({})
   const [newName, setNewName] = useState('')
   const [newCategory, setNewCategory] = useState('')
@@ -198,10 +204,19 @@ function ProductsTab({
       // most useful for "show me everything tagged Cafea sau Sandwich",
       // not "only products in every one of these groups at once".
       if (groupFilter.size > 0 && !Array.from(groupFilter).some((g) => p.groups[g])) return false
+      if (onlyUnreviewed && !p.autoCreated) return false
       return true
     })
     return [...list].sort((a, b) => a.name.localeCompare(b.name))
-  }, [products, query, categoryFilter, supplierFilter, groupFilter])
+  }, [products, query, categoryFilter, supplierFilter, groupFilter, onlyUnreviewed])
+
+  const unreviewedInFiltered = useMemo(() => filtered.filter((p) => p.autoCreated), [filtered])
+
+  async function handleMarkFilteredReviewed() {
+    setMarkingReviewed(true)
+    await onMarkReviewed(unreviewedInFiltered.map((p) => p.id))
+    setMarkingReviewed(false)
+  }
 
   // How many sales lines reference each product — shown in the delete
   // confirmation so removing a product from Nomenclator is never a surprise
@@ -224,7 +239,11 @@ function ProductsTab({
   async function commit(p: Product) {
     const patch = draft[p.id]
     if (!patch) return
-    await onSave({ ...p, ...patch })
+    // Editing any field here IS the manual review the Data Quality score's
+    // "Produse revizuite" factor is asking for — previously nothing ever
+    // cleared autoCreated, so that factor was stuck at 0% forever no matter
+    // what the user changed.
+    await onSave({ ...p, ...patch, autoCreated: false })
     setDraft((d) => {
       const copy = { ...d }
       delete copy[p.id]
@@ -322,8 +341,27 @@ function ProductsTab({
             Golește filtrul de grupuri
           </button>
         )}
+        <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-600">
+          <input type="checkbox" checked={onlyUnreviewed} onChange={(e) => setOnlyUnreviewed(e.target.checked)} />
+          Doar nerevizuite (auto)
+        </label>
         <span className="text-xs text-slate-400">{formatNumber(filtered.length)} produse</span>
       </div>
+      {unreviewedInFiltered.length > 0 && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <span>
+            {formatNumber(unreviewedInFiltered.length)} din produsele afișate sunt create automat și nu au fost încă
+            revizuite.
+          </span>
+          <button
+            onClick={handleMarkFilteredReviewed}
+            disabled={markingReviewed}
+            className="whitespace-nowrap rounded border border-amber-300 bg-white px-2 py-1 font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-40"
+          >
+            {markingReviewed ? 'Marchez...' : `Marchează ca revizuite (${formatNumber(unreviewedInFiltered.length)})`}
+          </button>
+        </div>
+      )}
       <div className="mb-3 flex flex-wrap gap-1.5">
         {(Object.keys(GROUP_LABELS) as (keyof ProductGroups)[]).map((g) => (
           <button
@@ -359,7 +397,15 @@ function ProductsTab({
                 <tr key={p.id} className={hasDraft ? 'bg-amber-50/60' : undefined}>
                   <td className="px-3 py-1.5 font-medium text-slate-800">
                     {p.name}
-                    {p.autoCreated && <span className="ml-1.5 rounded bg-slate-100 px-1 text-[10px] text-slate-400">auto</span>}
+                    {p.autoCreated && (
+                      <button
+                        onClick={() => onMarkReviewed([p.id])}
+                        title="Marchează acest produs ca revizuit (nu mai apare la «Produse revizuite» din Calitatea datelor)"
+                        className="ml-1.5 rounded bg-slate-100 px-1 text-[10px] text-slate-400 hover:bg-amber-100 hover:text-amber-700"
+                      >
+                        auto ✓
+                      </button>
+                    )}
                   </td>
                   <td className="px-3 py-1.5">
                     <input

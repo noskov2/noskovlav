@@ -153,6 +153,20 @@ export async function bulkSetProducts(products: Product[]): Promise<void> {
   await db.products.bulkPut(products)
 }
 
+// Clears `autoCreated` on a batch of products in one write — the bulk
+// counterpart to editing a product by hand in Nomenclator (which also
+// clears it, see ProductsTab.commit). Needed because a station's Nomenclator
+// can easily have 1000+ auto-created products after a first big import;
+// requiring an actual field edit on every single one to satisfy the "Produse
+// revizuite" data-quality factor isn't realistic.
+export async function markProductsReviewed(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0
+  const rows = await db.products.bulkGet(ids)
+  const toUpdate = rows.filter((p): p is Product => !!p && p.autoCreated).map((p) => ({ ...p, autoCreated: false, updatedAt: Date.now() }))
+  if (toUpdate.length > 0) await db.products.bulkPut(toUpdate)
+  return toUpdate.length
+}
+
 /**
  * Corrects each listed product's category from an authoritative source
  * (the stock/nomenclature export's own "Categorie" column, typically) and
