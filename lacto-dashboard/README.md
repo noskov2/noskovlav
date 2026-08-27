@@ -3,12 +3,14 @@
 Aplicație de analiză managerială și raportare pentru Lacto Solomonescu — locală,
 în browser, fără backend. Datele sunt stocate persistent în IndexedDB (Dexie.js).
 
-Acest folder conține **Etapele 1-4** din planul de implementare al specificației
+Acest folder conține **Etapele 1-5** din planul de implementare al specificației
 complete: fundația (import Excel, validare, salvare), nomenclatoarele de
 clienți/produse cu fuzzy matching, motorul de analiză (perioade, filtre,
-agregări) cu un Dashboard funcțional, și rapoartele principale pe dimensiune
-(Canale, Categorii, Clienți, Produse, Analiză lunară, Sezonalitate, Prețuri).
-Etapele următoare (analytics avansat, report builder, export Excel, backup)
+agregări) cu un Dashboard funcțional, rapoartele principale pe dimensiune
+(Canale, Categorii, Clienți, Produse, Analiză lunară, Sezonalitate, Prețuri),
+și analytics avansat (Client 360°, Produs 360°, Pareto/ABC, dinamica
+clienților, matrice creștere, cross-sell, risc de concentrare, alerte).
+Etapele următoare (report builder, export Excel, backup, calitatea datelor)
 urmează în iterații separate — vezi „Ce urmează" mai jos.
 
 ## Rulare
@@ -93,9 +95,36 @@ aliasuri.
 - **Prețuri** (`/preturi`): preț mediu ponderat pe canal/client/categorie/produs
   și modificarea lui față de perioada de comparație.
 
-Restul paginilor din sidebar (Vânzări, Alerte, Cross-sell, Rapoarte, Calitatea
-datelor etc.) sunt marcate „curând" — intenționat nefuncționale încă, pentru
-a nu avea butoane decorative.
+**Analytics avansat** (spec §17-27):
+- **Client 360°** (`/clienti/:id`, accesibil apăsând un client din Analiză clienți):
+  KPI-uri complete (vânzări, comenzi, valoare medie comandă, prima/ultima
+  achiziție, frecvență medie, evoluție YoY), evoluție lunară, top produse/
+  categorii, produse noi/pierdute și categorii în creștere/scădere față de
+  perioada de comparație.
+- **Produs 360°** (`/produse/:id`, din Analiză produse): vânzări, clienți
+  activi, preț min/median/mediu ponderat/max, top clienți/canale, evoluție
+  lunară, pondere în total companie, clienți care au încetat să-l cumpere.
+- **Pareto / ABC** (`/pareto`): ce % din vânzări vine din Top 5/10/20/50
+  (clienți sau produse), câți clienți/produse generează 50/70/80/90% din
+  vânzări, clasificare ABC cu filtrare pe clasă.
+- **Dinamica clienților** (`/dinamica-clienti`): clienți noi, pierduți,
+  reactivați, activi, în creștere/scădere, cu prag ajustabil.
+- **Matrice creștere** (`/matrice-crestere`): scatter valoare × creștere %,
+  patru cadrane (client mare/mic × creștere/scădere).
+- **Risc de concentrare** (`/risc-concentrare`): pondere Top 1/5/10/20,
+  indice Herfindahl-Hirschman, clienți peste 5% din cifra de afaceri.
+- **Cross-sell / White space** (`/cross-sell`): pentru un client ales, ce
+  cumpără și ce cumpără clienți similari (același canal principal) dar el nu.
+- **Outlieri preț** (`/outlieri-pret`): pentru un produs ales, prețul plătit
+  de fiecare client față de media ponderată, cu outlierii marcați.
+- **Alerte & Insight-uri** (`/alerte`): semnale calculate din date — clienți
+  în creștere/scădere semnificativă, clienți inactivi de peste 45 zile,
+  produse care pierd clienți, canalul care generează cea mai mare parte din
+  creștere, prețuri sub media produsului. Nimic hardcodat.
+
+Restul paginilor din sidebar (Vânzări, Rapoarte, Calitatea datelor etc.) sunt
+marcate „curând" — intenționat nefuncționale încă, pentru a nu avea butoane
+decorative.
 
 ### Fuzzy matching — cum funcționează
 
@@ -121,6 +150,7 @@ npm run test:smoke             # fluxul complet de import (Etapa 1) intr-un Chro
 npm run test:client-matching   # scenariul din spec §41: variante ANABELLA nu se unesc automat
 npm run test:dashboard         # Etapa 3: KPI-urile Dashboard-ului corespund exact datelor importate
 npm run test:reports           # Etapa 4: sumele din Canale/Categorii/Clienți/Produse corespund cu Dashboard-ul
+npm run test:advanced          # Etapa 5: Client 360°/Produs 360°/Pareto/Dinamica/Matrice/Alerte/Cross-sell/Outlieri se încarcă fără erori
 ```
 
 ## Arhitectură
@@ -134,14 +164,18 @@ src/
   workers/           importWorker.ts — parsare + validare + normalizare + identificare
   nomenclature/      clientService.ts, productService.ts — CRUD Dexie pentru nomenclatoare
   analytics/         filters.ts, filterRows.ts (predicat comun de filtrare), aggregate.ts
-                     (motor de agregare), compare.ts (diff vs. comparație), seasonality.ts
+                     (motor de agregare), compare.ts (diff vs. comparație), seasonality.ts,
+                     clientProfile.ts, productProfile.ts, pareto.ts, clientDynamics.ts,
+                     concentration.ts, crossSell.ts, priceOutliers.ts, alerts.ts
   hooks/             useReportData.ts — stare comună (filtre + rezultat) pentru orice pagină de raport
   components/        Sidebar, Layout, FileDropZone, ColumnMappingModal, DuplicateFileDialog,
                      PeriodSelector, MultiSelectFilter, FilterBar, KpiCard, BreakdownTable, ReportShell
   pages/             DashboardPage, ChannelsPage, CategoriesPage, ClientsPage, ProductsPage,
-                     MonthlyAnalysisPage, SeasonalityPage, PricesPage, ImportPage,
-                     ImportHistoryPage, ClientMatchQueuePage, ClientNomenclaturePage,
-                     ProductNomenclaturePage
+                     MonthlyAnalysisPage, SeasonalityPage, PricesPage, ClientProfilePage,
+                     ProductProfilePage, ParetoPage, ClientDynamicsPage, GrowthMatrixPage,
+                     AlertsPage, ConcentrationRiskPage, CrossSellPage, PriceOutliersPage,
+                     ImportPage, ImportHistoryPage, ClientMatchQueuePage,
+                     ClientNomenclaturePage, ProductNomenclaturePage
 ```
 
 Identificarea la import e în doi timpi, ca lucrul greu să rămână în worker
@@ -169,7 +203,18 @@ aceeași bară de filtre (`components/FilterBar.tsx`), ca „aplicația să
 recalculeze instant raportul" la orice schimbare de filtru (spec §14), fără
 cod duplicat între pagini.
 
-## Ce urmează (Etapele 5-6 din specificație)
+### Analytics avansat — note de scop
 
-5. Analytics avansat (Client 360°, Produs 360°, Pareto, ABC, clienți noi/pierduți, cross-sell, matrice creștere, analiza avansată a prețurilor, alerte).
-6. Report builder, export Excel, backup/restore, calitatea datelor.
+„Dinamica clienților" definește *client nou* ca fiind activ acum, fără istoric
+înainte de perioada de comparație; *reactivat* = la fel, dar cu istoric mai
+vechi. Pragul de creștere/scădere semnificativă e ajustabil din UI (spec §19:
+„permite ajustarea regulilor"). „Cross-sell" e scopat la un singur client
+(varianta acționabilă a matricei client×categorie din spec §23) — o matrice
+completă client×produs pentru toți clienții deodată ar fi imposibil de citit
+într-un tabel. „Matrice creștere" desparte clienții mari/mici la mediana
+valorii lor (spec nu specifică pragul exact).
+
+## Ce urmează (Etapa 6 din specificație)
+
+6. Report builder, export Excel (rapoarte formatate + Executive Report),
+   backup/restore, calitatea datelor.

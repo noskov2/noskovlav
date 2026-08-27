@@ -12,9 +12,18 @@ const ChannelsPage = lazy(() => import('./pages/ChannelsPage').then((m) => ({ de
 const CategoriesPage = lazy(() => import('./pages/CategoriesPage').then((m) => ({ default: m.CategoriesPage })))
 const ClientsPage = lazy(() => import('./pages/ClientsPage').then((m) => ({ default: m.ClientsPage })))
 const ProductsPage = lazy(() => import('./pages/ProductsPage').then((m) => ({ default: m.ProductsPage })))
+const ClientProfilePage = lazy(() => import('./pages/ClientProfilePage').then((m) => ({ default: m.ClientProfilePage })))
+const ProductProfilePage = lazy(() => import('./pages/ProductProfilePage').then((m) => ({ default: m.ProductProfilePage })))
 const MonthlyAnalysisPage = lazy(() => import('./pages/MonthlyAnalysisPage').then((m) => ({ default: m.MonthlyAnalysisPage })))
 const SeasonalityPage = lazy(() => import('./pages/SeasonalityPage').then((m) => ({ default: m.SeasonalityPage })))
 const PricesPage = lazy(() => import('./pages/PricesPage').then((m) => ({ default: m.PricesPage })))
+const ParetoPage = lazy(() => import('./pages/ParetoPage').then((m) => ({ default: m.ParetoPage })))
+const ClientDynamicsPage = lazy(() => import('./pages/ClientDynamicsPage').then((m) => ({ default: m.ClientDynamicsPage })))
+const GrowthMatrixPage = lazy(() => import('./pages/GrowthMatrixPage').then((m) => ({ default: m.GrowthMatrixPage })))
+const AlertsPage = lazy(() => import('./pages/AlertsPage').then((m) => ({ default: m.AlertsPage })))
+const ConcentrationRiskPage = lazy(() => import('./pages/ConcentrationRiskPage').then((m) => ({ default: m.ConcentrationRiskPage })))
+const CrossSellPage = lazy(() => import('./pages/CrossSellPage').then((m) => ({ default: m.CrossSellPage })))
+const PriceOutliersPage = lazy(() => import('./pages/PriceOutliersPage').then((m) => ({ default: m.PriceOutliersPage })))
 
 export function App() {
   return (
@@ -23,13 +32,22 @@ export function App() {
         <Route element={<Layout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/alerte" element={<AlertsPage />} />
           <Route path="/canale" element={<ChannelsPage />} />
           <Route path="/categorii" element={<CategoriesPage />} />
           <Route path="/clienti" element={<ClientsPage />} />
+          <Route path="/clienti/:id" element={<ClientProfilePage />} />
           <Route path="/produse" element={<ProductsPage />} />
+          <Route path="/produse/:id" element={<ProductProfilePage />} />
           <Route path="/analiza-lunara" element={<MonthlyAnalysisPage />} />
           <Route path="/sezonalitate" element={<SeasonalityPage />} />
           <Route path="/preturi" element={<PricesPage />} />
+          <Route path="/outlieri-pret" element={<PriceOutliersPage />} />
+          <Route path="/pareto" element={<ParetoPage />} />
+          <Route path="/dinamica-clienti" element={<ClientDynamicsPage />} />
+          <Route path="/matrice-crestere" element={<GrowthMatrixPage />} />
+          <Route path="/risc-concentrare" element={<ConcentrationRiskPage />} />
+          <Route path="/cross-sell" element={<CrossSellPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/importuri" element={<ImportHistoryPage />} />
           <Route path="/potriviri-clienti" element={<ClientMatchQueuePage />} />

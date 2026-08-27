@@ -11,6 +11,8 @@ interface Props {
   showProducts?: boolean
   showComparison?: boolean
   extraColumn?: { label: string; render: (row: ComparedRow) => string }
+  /** Când e setat, denumirea devine link (ex. spre profilul Client 360°/Produs 360°). */
+  onRowClick?: (row: ComparedRow) => void
 }
 
 function SortableHeader({
@@ -40,7 +42,7 @@ function SortableHeader({
 }
 
 /** Tabel sortabil/filtrabil reutilizat de rapoartele pe dimensiune (Canale, Categorii, Clienți, Produse — spec §16, §35). */
-export function BreakdownTable({ rows, nameLabel, showClients, showProducts, showComparison, extraColumn }: Props) {
+export function BreakdownTable({ rows, nameLabel, showClients, showProducts, showComparison, extraColumn, onRowClick }: Props) {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('value')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
@@ -92,7 +94,15 @@ export function BreakdownTable({ rows, nameLabel, showClients, showProducts, sho
           <tbody>
             {sorted.map((r) => (
               <tr key={`${r.id}-${r.name}`} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-3 py-1.5">{r.name}</td>
+                <td className="px-3 py-1.5">
+                  {onRowClick && r.id !== null ? (
+                    <button className="text-emerald-700 dark:text-emerald-400 hover:underline text-left" onClick={() => onRowClick(r)}>
+                      {r.name}
+                    </button>
+                  ) : (
+                    r.name
+                  )}
+                </td>
                 {extraColumn && <td className="px-3 py-1.5 text-slate-500">{extraColumn.render(r)}</td>}
                 <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatCurrency(r.value)}</td>
                 <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatQuantity(r.quantity)}</td>

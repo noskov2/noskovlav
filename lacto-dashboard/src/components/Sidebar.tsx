@@ -19,7 +19,7 @@ export function Sidebar() {
   const SECTIONS: NavSection[] = [
     {
       title: 'GENERAL',
-      items: [{ label: 'Dashboard', path: '/dashboard' }, { label: 'Alerte' }],
+      items: [{ label: 'Dashboard', path: '/dashboard' }, { label: 'Alerte', path: '/alerte' }],
     },
     {
       title: 'ANALIZE',
@@ -32,7 +32,12 @@ export function Sidebar() {
         { label: 'Analiză lunară', path: '/analiza-lunara' },
         { label: 'Sezonalitate', path: '/sezonalitate' },
         { label: 'Prețuri', path: '/preturi' },
-        { label: 'Cross-sell' },
+        { label: 'Outlieri preț', path: '/outlieri-pret' },
+        { label: 'Pareto / ABC', path: '/pareto' },
+        { label: 'Dinamica clienților', path: '/dinamica-clienti' },
+        { label: 'Matrice creștere', path: '/matrice-crestere' },
+        { label: 'Risc concentrare', path: '/risc-concentrare' },
+        { label: 'Cross-sell', path: '/cross-sell' },
       ],
     },
     {
