@@ -16,6 +16,7 @@ import { ReceiptsPage } from '@/pages/ReceiptsPage'
 import { StockPage } from '@/pages/StockPage'
 import { ClosingPage } from '@/pages/ClosingPage'
 import { CondicaPvPage } from '@/pages/CondicaPvPage'
+import { MonthlyComparisonPage } from '@/pages/MonthlyComparisonPage'
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/stoc" element={<StockPage />} />
           <Route path="/inchidere-luna" element={<ClosingPage />} />
           <Route path="/condica-pv" element={<CondicaPvPage />} />
+          <Route path="/comparatie-lunara" element={<MonthlyComparisonPage />} />
           <Route path="/nomenclator" element={<NomenclaturePage />} />
           <Route path="/setari" element={<SettingsPage />} />
         </Route>

@@ -12,7 +12,7 @@ export interface FilterState {
 }
 
 export const defaultFilterState: FilterState = {
-  preset: 'last30',
+  preset: 'thisMonth',
   customRange: null,
   teamId: 'all',
   cashierId: 'all',
