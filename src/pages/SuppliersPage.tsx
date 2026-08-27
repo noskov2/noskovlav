@@ -10,7 +10,7 @@ import { useDrillFilterStore } from '@/store/drillFilterStore'
 import { computeProductPriceSummaries, type ProductPriceSummary } from '@/kpi/suppliers'
 import { computeSupplierImpact } from '@/kpi/supplierImpact'
 import { computeSupplierRanking, type SupplierRankingRow } from '@/kpi/supplierRanking'
-import { todayStr } from '@/kpi/dateRanges'
+import { todayStr, monthLabel } from '@/kpi/dateRanges'
 import { updateSettings } from '@/data/repo/settings'
 import { formatDateRo, formatLei, formatNumber, formatSignedLei, formatSignedPct } from '@/lib/format'
 
@@ -19,9 +19,27 @@ export function SuppliersPage() {
   const [selected, setSelected] = useState<ProductPriceSummary | null>(null)
   const [presetIds, setPresetIds] = useState<string[] | null>(() => useDrillFilterStore.getState().consume('/furnizori'))
 
+  // "Toate lunile" (all-time) stays the default so the ranking's baseline
+  // behavior is unchanged — picking a month scopes both the purchases AND
+  // the attributed sales to that same month, so the row reads as one
+  // coherent period instead of mixing an all-time sales figure with a
+  // single month's purchases.
+  const [supplierMonth, setSupplierMonth] = useState<string>('all')
+  const supplierMonthOptions = useMemo(() => {
+    const keys = new Set(supplierReceipts.map((r) => r.date.slice(0, 7)))
+    return Array.from(keys).sort().reverse()
+  }, [supplierReceipts])
+  const monthFilteredReceipts = useMemo(
+    () => (supplierMonth === 'all' ? supplierReceipts : supplierReceipts.filter((r) => r.date.slice(0, 7) === supplierMonth)),
+    [supplierReceipts, supplierMonth],
+  )
+  const monthFilteredTransactions = useMemo(
+    () => (supplierMonth === 'all' ? transactions : transactions.filter((t) => t.date.slice(0, 7) === supplierMonth)),
+    [transactions, supplierMonth],
+  )
   const supplierRanking = useMemo(
-    () => computeSupplierRanking(supplierReceipts, transactions, products),
-    [supplierReceipts, transactions, products],
+    () => computeSupplierRanking(monthFilteredReceipts, monthFilteredTransactions, products),
+    [monthFilteredReceipts, monthFilteredTransactions, products],
   )
 
   const summaries = useMemo(() => computeProductPriceSummaries(supplierReceipts, products), [supplierReceipts, products])
@@ -192,10 +210,25 @@ export function SuppliersPage() {
       )}
 
       <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="mb-1 text-sm font-semibold text-slate-700">Top Furnizori</h3>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-700">Top Furnizori</h3>
+          <select
+            value={supplierMonth}
+            onChange={(e) => setSupplierMonth(e.target.value)}
+            className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700"
+          >
+            <option value="all">Toate lunile</option>
+            {supplierMonthOptions.map((key) => (
+              <option key={key} value={key}>
+                {monthLabel(`${key}-01`)}
+              </option>
+            ))}
+          </select>
+        </div>
         <p className="mb-3 text-xs text-slate-500">
           Apasă pe un antet de coloană pentru a sorta după achiziții sau după vânzări. „Valoare vândută" atribuie
           vânzările fiecărui produs furnizorului lui cel mai recent (nu există un furnizor unic per produs în timp).
+          {supplierMonth !== 'all' && ' Achizițiile și vânzările de mai jos sunt limitate la luna selectată.'}
         </p>
         <DataTable
           columns={supplierRankingColumns}
