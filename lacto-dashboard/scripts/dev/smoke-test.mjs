@@ -30,6 +30,8 @@ async function main() {
   await page.goto(BASE)
   await page.waitForSelector('text=Import date')
   log('App loaded')
+  await page.click('a:has-text("Import date")')
+  await page.waitForSelector('input[type=file]', { state: 'attached' })
 
   const inputs = page.locator('input[type=file]')
   const count = await inputs.count()

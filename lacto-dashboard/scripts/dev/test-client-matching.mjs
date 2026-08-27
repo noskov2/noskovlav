@@ -28,6 +28,8 @@ async function main() {
 
   await page.goto(BASE)
   await page.waitForSelector('text=Import date')
+  await page.click('a:has-text("Import date")')
+  await page.waitForSelector('input[type=file]', { state: 'attached' })
 
   const inputs = page.locator('input[type=file]')
   log('Uploading RETELE_MARI_100k.xlsx (contine variante ANABELLA amestecate cu retaileri distincti)...')
@@ -128,7 +130,32 @@ async function main() {
   const targetButtonText = await anabelaCard.locator('button:has-text("Este ANABELLA SRL")').textContent()
   log('Buton apasat:', targetButtonText)
   await anabelaCard.locator('button:has-text("Este ANABELLA SRL")').click()
-  await page.waitForTimeout(3000)
+
+  // Poll manual (nu waitForFunction) cu log, ca sa vedem exact evolutia statusului in timp.
+  async function readQueueEntryStatus() {
+    return page.evaluate(async () => {
+      const dbReq = indexedDB.open('LactoDashboardDB')
+      const db = await new Promise((resolve, reject) => {
+        dbReq.onsuccess = () => resolve(dbReq.result)
+        dbReq.onerror = () => reject(dbReq.error)
+      })
+      const entry = await new Promise((resolve, reject) => {
+        const tx = db.transaction('clientMatchQueue', 'readonly')
+        const req = tx.objectStore('clientMatchQueue').get('ANABELA')
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+      })
+      db.close()
+      return entry?.status ?? null
+    })
+  }
+
+  for (let i = 0; i < 20; i++) {
+    const status = await readQueueEntryStatus()
+    log(`  poll ${i}: status=${status}`)
+    if (status === 'resolved') break
+    await page.waitForTimeout(1000)
+  }
 
   const afterConfirm = await page.evaluate(async () => {
     const dbReq = indexedDB.open('LactoDashboardDB')

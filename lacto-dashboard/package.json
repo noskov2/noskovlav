@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "fixtures:gen": "node scripts/dev/gen-fixtures.mjs scripts/dev/fixtures",
     "test:smoke": "node scripts/dev/smoke-test.mjs",
-    "test:client-matching": "node scripts/dev/test-client-matching.mjs"
+    "test:client-matching": "node scripts/dev/test-client-matching.mjs",
+    "test:dashboard": "node scripts/dev/test-dashboard.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -19,7 +19,7 @@ export function Sidebar() {
   const SECTIONS: NavSection[] = [
     {
       title: 'GENERAL',
-      items: [{ label: 'Dashboard' }, { label: 'Alerte' }],
+      items: [{ label: 'Dashboard', path: '/dashboard' }, { label: 'Alerte' }],
     },
     {
       title: 'ANALIZE',
