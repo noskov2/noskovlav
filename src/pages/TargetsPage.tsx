@@ -600,10 +600,27 @@ function mergeRawRealizat(
   })
   return merged
 }
-const DEFAULT_TEAM_NAMES: Record<string, string> = {
-  'Echipa 1': 'Echipa 1 — Catalin + Ioana',
-  'Echipa 2': 'Echipa 2 — Razvan + Rodica',
-  'Echipa 3': 'Echipa 3 — Andreea + Denisa',
+// Canonical lookup key for a raw "Echipa N" cell value, independent of the
+// exact spacing/casing the source file happens to use, so "Echipa 1",
+// "echipa  1" and "ECHIPA 1" all resolve to the one name the owner typed in.
+function teamKeyOf(raw: unknown): string {
+  return teamShortLabel(raw).toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+// Real gestionar names the owner types in (see the "Nume echipe" button/modal
+// below) — replaces every "Echipa N" shown anywhere on this page. Previously
+// this page only ever showed the raw "Echipa N" label from the source file
+// (or, in two spots, a hardcoded set of made-up example names that never
+// matched any real station's actual staff), with no way to fix it short of
+// editing the source Excel by hand.
+function resolveTeamName(raw: unknown, teamNames: Record<string, string>): string {
+  const key = teamKeyOf(raw)
+  if (key && teamNames[key]) return teamNames[key]
+  const first = String(raw || '')
+    .split('\n')[0]
+    .replace(/\r/g, '')
+    .trim()
+  return first || String(raw || '')
 }
 function recompute(data: DashboardData) {
   const cfg = data.config
@@ -643,7 +660,7 @@ function recompute(data: DashboardData) {
     const procent = targetLunar ? t.realizat / targetLunar : null
     const bonus = computeBonusTier(procent, cfg.grila)
     return {
-      name: (nameLookup[short] as string) || DEFAULT_TEAM_NAMES[short] || short,
+      name: (nameLookup[short] as string) || short,
       targetLunar, targetPana: t.targetPana, realizat: t.realizat,
       diferenta: t.realizat - t.targetPana, procent,
       tureRamaseDim: t.tureTotalDim - t.tureWorkedDim, tureRamaseSeara: t.tureTotalSeara - t.tureWorkedSeara,
@@ -732,6 +749,33 @@ function loadStore(): Record<string, DashboardData> {
 function saveStore(store: Record<string, DashboardData>) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)) } catch { /* storage full/unavailable */ }
 }
+// Shared across every month (not per-month like STORE_KEY) — a station's
+// team names don't reset when a new month's Excel is loaded.
+const TEAM_NAMES_KEY = 'salesDashboard:teamNames'
+function loadTeamNames(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(TEAM_NAMES_KEY) || '{}') } catch { return {} }
+}
+function saveTeamNames(names: Record<string, string>) {
+  try { localStorage.setItem(TEAM_NAMES_KEY, JSON.stringify(names)) } catch { /* storage full/unavailable */ }
+}
+// Every place a team can show up on this page, so the "Nume echipe" modal
+// offers one input per team actually present in the loaded month instead of
+// guessing a fixed count.
+function collectTeamKeys(data: DashboardData): { key: string; label: string }[] {
+  const seen = new Map<string, string>()
+  function add(raw: unknown) {
+    const label = teamShortLabel(raw)
+    const key = teamKeyOf(raw)
+    if (label && key && !seen.has(key)) seen.set(key, label)
+  }
+  ;(data.zilnic?.days || []).forEach((d) => { add(d.echipaTura1); add(d.echipaTura2) })
+  ;(data.tracker?.shifts || []).forEach((s) => add(s.echipa))
+  ;(data.situatie?.teams || []).forEach((t) => add(t.name))
+  ;(data.bonus?.teams || []).forEach((t) => add(t.name))
+  return Array.from(seen.entries())
+    .map(([key, label]) => ({ key, label }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+}
 const MONTH_ORDER: Record<string, number> = { IAN: 0, FEB: 1, MAR: 2, APR: 3, MAI: 4, IUN: 5, IUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 }
 function monthSortKey(key: string): number | null {
   const m = String(key).match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
@@ -804,7 +848,12 @@ export function TargetsPage() {
       trackerWrap: $<HTMLDivElement>('trackerTableWrap'),
       trackerCard: $<HTMLDetailsElement>('trackerCard'),
       history: $<HTMLDivElement>('historyCard'),
+      teamNamesBtn: $<HTMLButtonElement>('teamNamesBtn'),
+      teamNamesModal: $<HTMLDivElement>('teamNamesModal'),
+      teamNamesFields: $<HTMLDivElement>('teamNamesFields'),
     }
+
+    let teamNames: Record<string, string> = loadTeamNames()
 
     function showError(msg: string) {
       els.errorBox.textContent = msg
@@ -876,8 +925,8 @@ export function TargetsPage() {
       html += `<div><div class="today-date">${escapeHtml(String(day.data || ''))} <span class="today-sub">${escapeHtml(String(day.ziSapt || ''))}</span></div>
         <div class="today-sub">Ziua ${day.zi} din lună</div></div>`
       html += `<div>
-        <div class="shift-chip"><span class="dot" style="background:${teamColor(day.echipaTura1)}"></span>Tura 1: ${escapeHtml(String(day.echipaTura1 || '').split('\n')[0].replace(/\r/g, ''))}</div>
-        <div class="shift-chip"><span class="dot" style="background:${teamColor(day.echipaTura2)}"></span>Tura 2: ${escapeHtml(String(day.echipaTura2 || '').split('\n')[0].replace(/\r/g, ''))}</div>
+        <div class="shift-chip"><span class="dot" style="background:${teamColor(day.echipaTura1)}"></span>Tura 1: ${escapeHtml(resolveTeamName(day.echipaTura1, teamNames))}</div>
+        <div class="shift-chip"><span class="dot" style="background:${teamColor(day.echipaTura2)}"></span>Tura 2: ${escapeHtml(resolveTeamName(day.echipaTura2, teamNames))}</div>
       </div>`
       if (isPending) {
         html += `<div><div class="today-sub">Target zi</div><div style="font-weight:700;">${fmtRON(day.targetZi)}</div>
@@ -898,11 +947,14 @@ export function TargetsPage() {
       const accents = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)']
       els.teamGrid.innerHTML = teams.map((t, i) => {
         const cls = statusClass(null, t.procent)
-        const [nameShort, members] = String(t.name || '').split(/\s*[—-]\s*/)
+        const override = teamNames[teamKeyOf(t.name)]
+        const [autoShort, autoMembers] = String(t.name || '').split(/\s*[—-]\s*/)
+        const displayName = override || autoShort || t.name
+        const displayMembers = override ? '' : autoMembers || ''
         const barPct = Math.max(0, Math.min(100, (t.procent || 0) * 100))
         return `<div class="team-card" style="--accent:${accents[i % 3]}">
-          <div class="name">${escapeHtml(nameShort || t.name)}</div>
-          <div class="members">${escapeHtml(members || '')}</div>
+          <div class="name">${escapeHtml(displayName)}</div>
+          <div class="members">${escapeHtml(displayMembers)}</div>
           <div class="pct" style="color:var(--${cls === 'pending' ? 'text-primary' : cls})">${fmtPct(t.procent)}</div>
           <div class="bar small"><div class="fill" style="width:${barPct}%;background:var(--${cls === 'pending' ? 'series-1' : cls});"></div></div>
           <div class="stats">
@@ -936,8 +988,10 @@ export function TargetsPage() {
       html += '</div>'
       html += '<div class="table-scroll"><table><thead><tr><th>Echipă</th><th class="num">% realizare</th><th class="num">Bonus/persoană</th><th class="num">Bonus/echipă</th></tr></thead><tbody>'
       b.teams.forEach((t) => {
-        const [nameShort] = String(t.name || '').split(/\s*[—-]\s*/)
-        html += `<tr><td>${escapeHtml(nameShort || t.name)}</td><td class="num">${fmtPct(t.procent)}</td><td class="num">${fmtRON(t.bonusOm)}</td><td class="num">${fmtRON(t.bonusEchipa)}</td></tr>`
+        const override = teamNames[teamKeyOf(t.name)]
+        const [autoShort] = String(t.name || '').split(/\s*[—-]\s*/)
+        const displayName = override || autoShort || t.name
+        html += `<tr><td>${escapeHtml(displayName)}</td><td class="num">${fmtPct(t.procent)}</td><td class="num">${fmtRON(t.bonusOm)}</td><td class="num">${fmtRON(t.bonusEchipa)}</td></tr>`
       })
       if (b.total != null) html += `<tr class="total-row"><td colspan="3">Total bonusuri de plătit</td><td class="num">${fmtRON(b.total)}</td></tr>`
       html += '</tbody></table></div></div>'
@@ -957,8 +1011,8 @@ export function TargetsPage() {
         const isToday = cutoff != null && d.zi === cutoff + 1
         html += `<tr class="${pending ? 'pending' : ''}${isToday ? ' today-row' : ''}">
           <td>${d.zi}</td><td>${escapeHtml(String(d.data || ''))} <span style="color:var(--text-muted);font-size:11px;">${escapeHtml(String(d.ziSapt || '').slice(0, 3))}</span></td>
-          <td>${escapeHtml(String(d.echipaTura1 || '').split('\n')[0].replace(/\r/g, ''))}</td>
-          <td>${escapeHtml(String(d.echipaTura2 || '').split('\n')[0].replace(/\r/g, ''))}</td>
+          <td>${escapeHtml(resolveTeamName(d.echipaTura1, teamNames))}</td>
+          <td>${escapeHtml(resolveTeamName(d.echipaTura2, teamNames))}</td>
           <td class="num">${fmtRON(d.targetZi)}</td>
           <td class="num">${pending ? '—' : fmtRON(d.realizat)}</td>
           <td class="num">${pending ? '—' : ((d.diferenta ?? 0) >= 0 ? '+' : '') + fmtRON(d.diferenta)}</td>
@@ -980,9 +1034,9 @@ export function TargetsPage() {
       data.tracker.shifts.forEach((s) => {
         const pending = s.realizat == null
         const cls = pending ? 'pending' : statusClass(s.status, s.procent)
-        const [nameShort] = String(s.echipa || '').split(/\s*[—-]\s*/)
+        const displayName = resolveTeamName(s.echipa, teamNames)
         html += `<tr class="${pending ? 'pending' : ''}">
-          <td>${escapeHtml(String(s.data || ''))}</td><td>${escapeHtml(String(s.tura || ''))}</td><td>${escapeHtml(nameShort || s.echipa)}</td>
+          <td>${escapeHtml(String(s.data || ''))}</td><td>${escapeHtml(String(s.tura || ''))}</td><td>${escapeHtml(displayName)}</td>
           <td class="num">${pending ? '—' : fmtRON(s.realizat)}</td><td class="num">${fmtRON(s.targetTura)}</td>
           <td>${pending ? '<span class="status-badge status-pending">—</span>' : `<span class="status-badge status-${cls}">${fmtPct(s.procent)}</span>`}</td>
         </tr>`
@@ -1093,6 +1147,7 @@ export function TargetsPage() {
     }
 
     function render(data: DashboardData) {
+      currentData = data
       showWarnings(data.warnings)
       renderHero(data)
       renderToday(data)
@@ -1104,6 +1159,7 @@ export function TargetsPage() {
       renderHistory()
       els.dashboard.classList.add('visible')
       els.empty.style.display = 'none'
+      els.teamNamesBtn.style.display = 'inline-block'
       const d = new Date(data.savedAt)
       els.updatedLabel.textContent = 'actualizat ' + d.toLocaleDateString('ro-RO') + ' ' + d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
       if (currentKey) {
@@ -1117,6 +1173,7 @@ export function TargetsPage() {
 
     // ---------- month switcher ----------
     let currentKey: string | null = null
+    let currentData: DashboardData | null = null
     function refreshMonthSelect() {
       const store = loadStore()
       const keys = sortedMonthKeys(store)
@@ -1314,6 +1371,40 @@ export function TargetsPage() {
       render(data)
     })
 
+    // ---------- team names ----------
+    els.teamNamesBtn.addEventListener('click', () => {
+      if (!currentData) return
+      const keys = collectTeamKeys(currentData)
+      els.teamNamesFields.innerHTML = keys.length
+        ? keys
+            .map(
+              ({ key, label }) => `<label>
+                ${escapeHtml(label)}
+                <input type="text" data-team-key="${escapeHtml(key)}" value="${escapeHtml(teamNames[key] || '')}" placeholder="${escapeHtml(label)}" />
+              </label>`,
+            )
+            .join('')
+        : '<p style="color:var(--text-muted);font-size:13px;">Nicio echipă găsită în luna curentă.</p>'
+      els.teamNamesModal.style.display = 'flex'
+      els.teamNamesFields.querySelector('input')?.focus()
+    })
+    $<HTMLButtonElement>('teamNamesCancel').addEventListener('click', () => { els.teamNamesModal.style.display = 'none' })
+    els.teamNamesModal.addEventListener('click', (e) => { if (e.target === els.teamNamesModal) els.teamNamesModal.style.display = 'none' })
+    $<HTMLButtonElement>('teamNamesSave').addEventListener('click', () => {
+      const inputs = els.teamNamesFields.querySelectorAll<HTMLInputElement>('input[data-team-key]')
+      const next = { ...teamNames }
+      inputs.forEach((input) => {
+        const key = input.getAttribute('data-team-key')!
+        const value = input.value.trim()
+        if (value) next[key] = value
+        else delete next[key]
+      })
+      teamNames = next
+      saveTeamNames(teamNames)
+      els.teamNamesModal.style.display = 'none'
+      if (currentData) render(currentData)
+    })
+
     // ---------- init from storage ----------
     const store = loadStore()
     const keys = sortedMonthKeys(store)
@@ -1335,6 +1426,7 @@ export function TargetsPage() {
           </div>
           <div className="top-actions">
             <select id="monthSelect" style={{ display: 'none' }}></select>
+            <button id="teamNamesBtn" style={{ display: 'none' }} title="Înlocuiește «Echipa 1», «Echipa 2» etc. cu numele gestionarilor">✎ Nume echipe</button>
             <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
             <button id="backupBtn" title="Descarcă o copie de siguranță a tuturor lunilor salvate">⬇ Backup</button>
             <label className="btn" htmlFor="restoreInput" title="Încarcă o copie de siguranță salvată anterior">⬆ Restaurează</label>
@@ -1399,6 +1491,22 @@ export function TargetsPage() {
           <div className="modal-actions">
             <button id="editDayCancel">Anulează</button>
             <button id="editDaySave" className="btn-primary">Salvează</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-overlay" id="teamNamesModal" style={{ display: 'none' }}>
+        <div className="modal-card">
+          <h3>Nume echipe</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+            Înlocuiește „Echipa 1”, „Echipa 2” etc. cu numele reale ale gestionarilor — apare peste tot în pagină
+            (evoluție zilnică, detalii pe tură, situație pe echipă, bonusare). Lasă gol ca să rămână eticheta
+            implicită.
+          </p>
+          <div id="teamNamesFields"></div>
+          <div className="modal-actions">
+            <button id="teamNamesCancel">Anulează</button>
+            <button id="teamNamesSave" className="btn-primary">Salvează</button>
           </div>
         </div>
       </div>
