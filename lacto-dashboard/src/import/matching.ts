@@ -22,7 +22,7 @@ export interface ProductLite {
   canonicalNameNormalized: string
 }
 
-function normalizeCode(code: string): string {
+export function normalizeCode(code: string): string {
   return code.trim().toUpperCase()
 }
 

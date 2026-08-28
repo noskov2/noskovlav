@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { db } from '../db/db'
 import {
   addProductAlias,
@@ -10,7 +11,7 @@ import {
   updateProduct,
 } from '../nomenclature/productService'
 import { formatNumber } from '../lib/ro-format'
-import type { ProductAlias, ProductRecord } from '../types'
+import type { CategoryRecord, ProductAlias, ProductRecord } from '../types'
 
 export function ProductNomenclaturePage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -30,6 +31,13 @@ export function ProductNomenclaturePage() {
 
   const selected = products?.find((p) => p.id === selectedId) ?? null
   const categoryById = new Map((categories ?? []).map((c) => [c.id, c.name]))
+
+  function categoryPath(product: ProductRecord): string {
+    const catName = product.categoryId != null ? categoryById.get(product.categoryId) : undefined
+    const subName = product.subcategoryId != null ? categoryById.get(product.subcategoryId) : undefined
+    if (!catName) return ''
+    return subName ? `${catName} › ${subName}` : catName
+  }
 
   async function handleCreateProduct() {
     const name = prompt('Denumire produs nou:')
@@ -71,8 +79,12 @@ export function ProductNomenclaturePage() {
     <div>
       <h1 className="text-xl font-semibold mb-1">Nomenclator produse</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-        Produse canonice, cod Mentor, categorie, unitate de măsură (§11). Denumirile noi apărute la
-        import devin automat produse noi — le poți categoriza și corecta aici.
+        Produse canonice, cod Mentor, categorie/subcategorie, unitate de măsură (§11). Denumirile noi apărute la
+        import devin automat produse noi — le poți categoriza și corecta aici, sau{' '}
+        <Link to="/import-catalog-produse" className="text-emerald-700 dark:text-emerald-400 hover:underline">
+          importă catalogul complet dintr-un Excel
+        </Link>
+        .
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
@@ -101,9 +113,7 @@ export function ProductNomenclaturePage() {
                 onClick={() => setSelectedId(p.id ?? null)}
               >
                 <div>{p.canonicalName}</div>
-                {p.categoryId !== undefined && p.categoryId !== null && (
-                  <div className="text-[11px] text-slate-400">{categoryById.get(p.categoryId) ?? ''}</div>
-                )}
+                {categoryPath(p) && <div className="text-[11px] text-slate-400">{categoryPath(p)}</div>}
               </button>
             ))}
             {filtered.length === 0 && <div className="px-3 py-4 text-sm text-slate-400">Niciun produs.</div>}
@@ -146,11 +156,11 @@ function ProductDetail({
   onMoveAlias,
 }: {
   product: ProductRecord
-  categories: { id?: number; name: string }[]
+  categories: CategoryRecord[]
   aliases: { id?: number; rawName: string; source: string }[]
   busy: boolean
   onSave: (patch: Partial<ProductRecord>) => void
-  onCreateCategory: (name: string) => Promise<number>
+  onCreateCategory: (name: string, parentId: number | null) => Promise<number>
   onAddAlias: () => void
   onDeleteAlias: (aliasId: number) => void
   onMoveAlias: (aliasId: number) => void
@@ -161,6 +171,9 @@ function ProductDetail({
 
   const NONE = '__none__'
   const NEW = '__new__'
+
+  const topCategories = categories.filter((c) => !c.parentId)
+  const subcategories = product.categoryId != null ? categories.filter((c) => c.parentId === product.categoryId) : []
 
   return (
     <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
@@ -192,22 +205,51 @@ function ProductDetail({
               if (e.target.value === NEW) {
                 const catName = prompt('Denumire categorie nouă:')
                 if (!catName?.trim()) return
-                const id = await onCreateCategory(catName.trim())
-                onSave({ categoryId: id })
+                const id = await onCreateCategory(catName.trim(), null)
+                onSave({ categoryId: id, subcategoryId: null })
               } else if (e.target.value === NONE) {
-                onSave({ categoryId: null })
+                onSave({ categoryId: null, subcategoryId: null })
               } else {
-                onSave({ categoryId: Number(e.target.value) })
+                onSave({ categoryId: Number(e.target.value), subcategoryId: null })
               }
             }}
           >
             <option value={NONE}>— fără categorie —</option>
-            {categories.map((c) => (
+            {topCategories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
             <option value={NEW}>+ categorie nouă…</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-500">Subcategorie</label>
+          <select
+            className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mt-1 disabled:opacity-50"
+            value={product.subcategoryId ?? NONE}
+            disabled={product.categoryId == null}
+            onChange={async (e) => {
+              if (product.categoryId == null) return
+              if (e.target.value === NEW) {
+                const subName = prompt('Denumire subcategorie nouă:')
+                if (!subName?.trim()) return
+                const id = await onCreateCategory(subName.trim(), product.categoryId)
+                onSave({ subcategoryId: id })
+              } else if (e.target.value === NONE) {
+                onSave({ subcategoryId: null })
+              } else {
+                onSave({ subcategoryId: Number(e.target.value) })
+              }
+            }}
+          >
+            <option value={NONE}>— fără subcategorie —</option>
+            {subcategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value={NEW}>+ subcategorie nouă…</option>
           </select>
         </div>
         <div>

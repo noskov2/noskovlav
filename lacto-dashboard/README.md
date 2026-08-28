@@ -103,8 +103,19 @@ o asociere automată.
 editare cod Mentor/CUI.
 
 **Nomenclator produse** (`/nomenclator-produse`): produse canonice, cod
-Mentor, categorie (creabilă din mers), unitate de măsură, activ/inactiv,
-aliasuri.
+Mentor, categorie + subcategorie (creabile din mers, cu două select-uri
+dependente), unitate de măsură, activ/inactiv, aliasuri.
+
+**Import catalog produse** (`/import-catalog-produse`): import dedicat, dintr-un
+Excel separat (Denumire produs / Cod produs opțional / Categorie / Subcategorie),
+pentru catalogul complet de produse. E singurul loc care setează
+`categoryId`/`subcategoryId` pe un produs — importurile de vânzări Mentor nu le
+ating niciodată, indiferent ce ar conține coloana lor „Categorie". Rulează
+matching-ul existent (cod → nume exact/alias → produs nou) ca să actualizeze
+produsele deja cunoscute în loc să creeze duplicate; re-importul catalogului
+actualizează categorizarea (catalogul e sursa de adevăr), dar nimic altceva nu
+o poate suprascrie. Categoriile/subcategoriile sunt aceeași tabelă Dexie —
+`parentId: null` = categorie, `parentId: <id>` = subcategoria ei.
 
 **Rapoartele pe dimensiune** (spec §16), toate cu filtre globale, comparație
 și tabel sortabil/filtrabil:
@@ -215,6 +226,7 @@ npm run test:saved-reports     # Etapa 6: salvare → listă → deschidere cu r
 npm run test:excel-export      # Etapa 6: descarcă și citește raportul curent + Executive Report
 npm run test:backup-restore    # Etapa 6: backup → modifică starea → restaurare → verifică revenirea exactă
 npm run test:standalone        # build standalone deschis din file:// — nu necesită dev server pornit
+npm run test:product-catalog   # import catalog produse → import vânzări → categoria rămâne neschimbată
 ```
 
 ## Arhitectură

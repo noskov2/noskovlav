@@ -8,6 +8,7 @@ const ImportHistoryPage = lazy(() => import('./pages/ImportHistoryPage').then((m
 const ClientMatchQueuePage = lazy(() => import('./pages/ClientMatchQueuePage').then((m) => ({ default: m.ClientMatchQueuePage })))
 const ClientNomenclaturePage = lazy(() => import('./pages/ClientNomenclaturePage').then((m) => ({ default: m.ClientNomenclaturePage })))
 const ProductNomenclaturePage = lazy(() => import('./pages/ProductNomenclaturePage').then((m) => ({ default: m.ProductNomenclaturePage })))
+const ProductCatalogImportPage = lazy(() => import('./pages/ProductCatalogImportPage').then((m) => ({ default: m.ProductCatalogImportPage })))
 const ChannelsPage = lazy(() => import('./pages/ChannelsPage').then((m) => ({ default: m.ChannelsPage })))
 const CategoriesPage = lazy(() => import('./pages/CategoriesPage').then((m) => ({ default: m.CategoriesPage })))
 const ClientsPage = lazy(() => import('./pages/ClientsPage').then((m) => ({ default: m.ClientsPage })))
@@ -58,6 +59,7 @@ export function App() {
           <Route path="/potriviri-clienti" element={<ClientMatchQueuePage />} />
           <Route path="/nomenclator-clienti" element={<ClientNomenclaturePage />} />
           <Route path="/nomenclator-produse" element={<ProductNomenclaturePage />} />
+          <Route path="/import-catalog-produse" element={<ProductCatalogImportPage />} />
           <Route path="/calitatea-datelor" element={<DataQualityPage />} />
           <Route path="/generator-raport" element={<ReportBuilderPage />} />
           <Route path="/rapoarte-salvate" element={<SavedReportsPage />} />

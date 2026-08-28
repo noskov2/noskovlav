@@ -51,6 +51,7 @@ export function Sidebar() {
     {
       title: 'DATE',
       items: [
+        { label: 'Import catalog produse', path: '/import-catalog-produse' },
         { label: 'Import date', path: '/import' },
         { label: 'Istoric importuri', path: '/importuri' },
         { label: 'Potriviri clienți', path: '/potriviri-clienti', badge: pendingCount },

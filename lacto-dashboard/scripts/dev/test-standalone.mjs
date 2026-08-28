@@ -30,6 +30,16 @@ async function main() {
   await page.waitForSelector('text=Dashboard', { timeout: 15000 })
   log('OK: aplicația s-a încărcat din fișierul local, fără server.')
 
+  // --- import catalog produse (parsare xlsx pe main thread, fara worker) ---
+  log('Import catalog produse (CATALOG_PRODUSE.xlsx)...')
+  await page.click('a:has-text("Import catalog produse")')
+  await page.waitForSelector('input[type=file]', { state: 'attached' })
+  await page.locator('input[type=file]').setInputFiles(`${FIX}/CATALOG_PRODUSE.xlsx`)
+  await page.waitForSelector('text=Mapare coloane', { timeout: 15000 })
+  await page.click('button:has-text("Confirmă importul")')
+  await page.waitForSelector('text=Import finalizat.', { timeout: 15000 })
+  log('OK: catalogul de produse s-a importat din file:// (parsare xlsx pe main thread).')
+
   await page.click('a:has-text("Import date")')
   await page.waitForSelector('input[type=file]', { state: 'attached' })
   const inputs = page.locator('input[type=file]')

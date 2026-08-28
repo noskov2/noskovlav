@@ -255,19 +255,32 @@ export interface ClientAuditLogEntry {
   actor: string
 }
 
+/**
+ * Categorie sau subcategorie de produse — aceeași tabelă, cu `parentId`
+ * pentru a distinge nivelul: `parentId: null` = categorie (top-level),
+ * `parentId: <id categorie>` = subcategorie a acelei categorii.
+ */
 export interface CategoryRecord {
   id?: number
   name: string
+  parentId?: number | null
   createdAt: number
 }
 
-/** Produs canonical (§11: "Nomenclator Produse"). */
+/**
+ * Produs canonical (§11: "Nomenclator Produse"). `categoryId`/`subcategoryId`
+ * sunt setate DOAR din catalogul de produse importat separat (spec: "vreau
+ * un loc unde import toate produsele, cu categorie și subcategorie, și
+ * acestea rămân sfinte") — importul de vânzări Mentor nu le atinge niciodată,
+ * indiferent ce vine în coloana "Categorie" a exportului de vânzări.
+ */
 export interface ProductRecord {
   id?: number
   canonicalName: string
   canonicalNameNormalized: string
   productCode?: string
   categoryId?: number | null
+  subcategoryId?: number | null
   unit?: string
   active: boolean
   createdAt: number

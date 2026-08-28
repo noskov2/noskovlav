@@ -75,6 +75,15 @@ export class LactoDatabase extends Dexie {
     this.version(3).stores({
       savedReports: '++id, name, createdAt',
     })
+
+    // v4: catalog de produse cu categorie + subcategorie (categories capătă
+    // `parentId` — o subcategorie e o categorie cu parentId setat). Renunțăm
+    // la unicitatea globală pe `name` (o subcategorie poate avea același nume
+    // sub categorii diferite) — unicitatea se verifică în cod, per (name, parentId).
+    this.version(4).stores({
+      products: '++id, productCode, canonicalNameNormalized, categoryId, subcategoryId',
+      categories: '++id, name, parentId',
+    })
   }
 }
 
