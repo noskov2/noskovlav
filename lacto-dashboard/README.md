@@ -249,6 +249,7 @@ npm run test:backup-restore    # Etapa 6: backup → modifică starea → restau
 npm run test:standalone        # build standalone deschis din file:// — nu necesită dev server pornit
 npm run test:product-catalog   # import catalog produse → import vânzări → categoria rămâne neschimbată
 npm run test:consolidated-import  # fișier unificat pe toate canalele, An+Lună, coloane standardizate
+npm run test:filterbar-fixes   # preset implicit "An curent" + filtrul Categorie doar cu categorii de top
 ```
 
 ## Arhitectură

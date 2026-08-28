@@ -55,7 +55,9 @@ export function FilterBar({ filters, patchFilters, clients, products, categories
       {!hide?.category && (
         <MultiSelectFilter
           label="Categorie"
-          options={(categories ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
+          options={(categories ?? [])
+            .filter((c) => !c.parentId)
+            .map((c) => ({ value: String(c.id), label: c.name }))}
           selected={filters.categoryIds.map(String)}
           onChange={(v) => patchFilters({ categoryIds: v.map(Number) })}
         />

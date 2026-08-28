@@ -25,7 +25,7 @@ export interface GlobalFilters {
 }
 
 export function defaultFilters(): GlobalFilters {
-  const period = resolvePeriod('current-month')
+  const period = resolvePeriod('current-year')
   return {
     period,
     comparisonMode: 'previous-period',

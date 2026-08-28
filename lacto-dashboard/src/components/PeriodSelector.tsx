@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function PeriodSelector({ period, comparisonMode, comparisonPeriod, onChange }: Props) {
-  const [preset, setPreset] = useState<PeriodPreset>('current-month')
+  const [preset, setPreset] = useState<PeriodPreset>('current-year')
   const [customPeriod, setCustomPeriod] = useState<DateRange>(period)
   const [customComparison, setCustomComparison] = useState<DateRange>(comparisonPeriod ?? period)
 
