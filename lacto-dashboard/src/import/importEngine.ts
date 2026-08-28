@@ -1,4 +1,5 @@
 import { db } from '../db/db'
+import ImportWorkerCtor from '../workers/importWorker.ts?worker&inline'
 import { headerSignature } from './fields'
 import { hashArrayBuffer } from '../lib/hash'
 import { applyImportResolutions as applyClientResolutions, loadClientSnapshot } from '../nomenclature/clientService'
@@ -17,7 +18,9 @@ import { channelForSourceFile } from '../types'
 const SAVE_CHUNK_SIZE = 10000
 
 function createWorker(): Worker {
-  return new Worker(new URL('../workers/importWorker.ts', import.meta.url), { type: 'module' })
+  // Worker inlinat (nu fetch-uit ca fișier separat) — necesar ca aplicația să
+  // funcționeze și dintr-un build standalone, deschis direct din file://.
+  return new ImportWorkerCtor()
 }
 
 function newRequestId(): string {

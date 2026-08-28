@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:standalone": "tsc -b && vite build --config vite.config.standalone.ts",
     "lint": "oxlint",
     "preview": "vite preview",
     "fixtures:gen": "node scripts/dev/gen-fixtures.mjs scripts/dev/fixtures",
@@ -18,7 +19,8 @@
     "test:report-builder": "node scripts/dev/test-report-builder.mjs",
     "test:saved-reports": "node scripts/dev/test-saved-reports.mjs",
     "test:excel-export": "node scripts/dev/test-excel-export.mjs",
-    "test:backup-restore": "node scripts/dev/test-backup-restore.mjs"
+    "test:backup-restore": "node scripts/dev/test-backup-restore.mjs",
+    "test:standalone": "node scripts/dev/test-standalone.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -40,6 +42,7 @@
     "playwright": "^1.62.1",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vite-plugin-singlefile": "^2.3.3"
   }
 }

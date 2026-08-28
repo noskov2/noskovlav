@@ -33,11 +33,34 @@ static simplu (ex. `python3 -m http.server` din `dist/`) sau găzduit oriunde.
 Nu poate fi deschis direct din `file://` (limitare browser pentru module
 JS + Web Workers), dar nu necesită niciun backend sau bază de date externă.
 
-> Notă: cerința inițială preferă un singur fișier HTML standalone. Din cauza
-> parsării Excel pe Web Worker (necesară ca interfața să nu îngheață la
-> fișiere mari), build-ul actual produce câteva fișiere statice în loc de unul
-> singur. Dacă un singur `.html` e strict necesar, se poate adăuga ulterior
-> `vite-plugin-singlefile` (inline worker via blob) — nu a fost prioritizat încă.
+### Build standalone (un singur fișier `.html`)
+
+```bash
+npm run build:standalone   # generează dist-standalone/index.html
+```
+
+Fișierul rezultat (~1.6 MB) se deschide direct cu dublu-click, din `file://`,
+fără server, fără Node.js pe calculatorul care îl folosește — tot ce trebuie e
+un browser (testat în Chrome/Edge). Config separat
+(`vite.config.standalone.ts`), ca să nu afecteze build-ul normal:
+
+- `vite-plugin-singlefile` inlinează tot JS/CSS + favicon-ul (ca data URI) în
+  `index.html`.
+- Worker-ul de parsare Excel e inlinat via sintaxa nativă Vite
+  `?worker&inline` (`src/import/importEngine.ts`), nu mai e un fișier fetch-uit
+  separat — necesar și pentru build-ul normal, care beneficiază de același
+  cod.
+- **Detaliu important**: worker-ul trebuie compilat ca `format: 'iife'`
+  (clasic), nu `'es'` (modul) — un Web Worker de tip modul instanțiat dintr-un
+  `blob:` URL e blocat silențios de Chromium pe pagini deschise din `file://`
+  (evenimentul `error` al worker-ului se declanșează fără mesaj). Build-ul
+  normal (`npm run build`) rămâne pe `format: 'es'`, mai eficient când e
+  servit prin HTTP.
+
+Testat end-to-end (`npm run test:standalone`) deschizând fișierul direct din
+`file://`: import Excel (worker inlinat), calcule Dashboard, navigare între
+pagini, export Excel (descărcare reală), persistență IndexedDB după
+reîncărcare a paginii.
 
 ## Ce funcționează acum
 
@@ -191,6 +214,7 @@ npm run test:report-builder    # Etapa 6: toate cele 8 dimensiuni, comutare indi
 npm run test:saved-reports     # Etapa 6: salvare → listă → deschidere cu restaurare exactă → ștergere
 npm run test:excel-export      # Etapa 6: descarcă și citește raportul curent + Executive Report
 npm run test:backup-restore    # Etapa 6: backup → modifică starea → restaurare → verifică revenirea exactă
+npm run test:standalone        # build standalone deschis din file:// — nu necesită dev server pornit
 ```
 
 ## Arhitectură
