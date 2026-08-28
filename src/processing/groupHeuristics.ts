@@ -16,7 +16,7 @@ function norm(s: string): string {
     .replace(/[̀-ͯ]/g, '')
 }
 
-const COFFEE_KEYWORDS = ['espresso', 'cappuccino', 'capuccino']
+const COFFEE_KEYWORDS = ['espresso', 'cappuccino', 'cappucino', 'capuccino']
 const SANDWICH_KEYWORDS = ['sandwich', 'sandvis', 'sandvici']
 // Deliberately does NOT include generic snack-food words like "covrig" or
 // "napolitan" — those are packaged/purchased snacks (a different category

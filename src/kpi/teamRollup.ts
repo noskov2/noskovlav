@@ -91,7 +91,8 @@ export function computeTeamRollup(
       coffee: {
         espresso: sum((r) => r.coffee.espresso),
         espressoLung: sum((r) => r.coffee.espressoLung),
-        cappuccinoLung: sum((r) => r.coffee.cappuccinoLung),
+        cappuccino: sum((r) => r.coffee.cappuccino),
+        other: sum((r) => r.coffee.other),
         total: coffeeTotal,
         receiptsWithCoffee: coffeeReceipts,
         pctReceiptsWithCoffee: pct(coffeeReceipts, totalReceipts),
@@ -112,6 +113,7 @@ export function computeTeamRollup(
         mozzarellaPesto: sum((r) => r.sandwich.mozzarellaPesto),
         kebab: sum((r) => r.sandwich.kebab),
         toast: sum((r) => r.sandwich.toast),
+        other: sum((r) => r.sandwich.other),
         total: sandwichTotal,
         value: sandwichValue,
         receiptsWithSandwich: sandwichReceipts,

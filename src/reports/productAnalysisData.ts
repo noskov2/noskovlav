@@ -40,6 +40,7 @@ export interface TeamSandwichRow {
   teamId: string
   teamName: string
   values: Record<keyof SandwichVariants, number>
+  other: number // sandwich group members that don't match any of the 5 named variants
   total: number
 }
 
@@ -49,6 +50,7 @@ export interface TeamCoffeeRow {
   espressoLung: number
   espresso: number
   cappuccino: number
+  other: number // cafea group members that don't match espresso/espressoLung/cappuccino by name
   total: number
 }
 
@@ -86,12 +88,13 @@ export interface ProductAnalysisData {
   shifts: TeamShiftRow[]
   sandwich: TeamSandwichRow[]
   sandwichTotals: Record<keyof SandwichVariants, number>
+  sandwichOtherTotal: number
 
   vitrinaProducts: VitrinaProductRow[]
   vitrinaTeamTotals: Record<string, number>
 
   coffee: TeamCoffeeRow[]
-  coffeeTotals: { espressoLung: number; espresso: number; cappuccino: number; total: number }
+  coffeeTotals: { espressoLung: number; espresso: number; cappuccino: number; other: number; total: number }
 
   promo: TeamPromoRow[]
   promoBreakdown: PromoBreakdownRow[]
@@ -156,15 +159,22 @@ export function computeProductAnalysisData(
   })
 
   // ---- SANDWICH ----
+  // Totals tie to the 'sandwich' Nomenclator group (same one Comparație
+  // lunară and the Dashboard use) — the 5 named variants below only split
+  // that total into buckets; anything in the group that matches none of
+  // them still counts, in "other".
+  const sandwichGroupIds = productIdsInGroup(products, 'sandwich')
   const sandwichVariants = resolveSandwichVariants(products)
   const sandwichSets: Record<keyof SandwichVariants, Set<string>> = {
-    prosciuttoCotto: idsOf(sandwichVariants.prosciuttoCotto),
-    prosciuttoCrudo: idsOf(sandwichVariants.prosciuttoCrudo),
-    mozzarellaPesto: idsOf(sandwichVariants.mozzarellaPesto),
-    kebab: idsOf(sandwichVariants.kebab),
-    toast: idsOf(sandwichVariants.toast),
+    prosciuttoCotto: new Set([...idsOf(sandwichVariants.prosciuttoCotto)].filter((id) => sandwichGroupIds.has(id))),
+    prosciuttoCrudo: new Set([...idsOf(sandwichVariants.prosciuttoCrudo)].filter((id) => sandwichGroupIds.has(id))),
+    mozzarellaPesto: new Set([...idsOf(sandwichVariants.mozzarellaPesto)].filter((id) => sandwichGroupIds.has(id))),
+    kebab: new Set([...idsOf(sandwichVariants.kebab)].filter((id) => sandwichGroupIds.has(id))),
+    toast: new Set([...idsOf(sandwichVariants.toast)].filter((id) => sandwichGroupIds.has(id))),
   }
   const sandwichKeys = Object.keys(sandwichSets) as (keyof SandwichVariants)[]
+  const sandwichNamedIds = new Set(sandwichKeys.flatMap((k) => [...sandwichSets[k]]))
+  const sandwichOtherIds = new Set([...sandwichGroupIds].filter((id) => !sandwichNamedIds.has(id)))
 
   const sandwich: TeamSandwichRow[] = teamIds.map((id) => {
     const lines = linesByTeam.get(id)!
@@ -172,29 +182,45 @@ export function computeProductAnalysisData(
     for (const k of sandwichKeys) {
       values[k] = lines.filter((t) => sandwichSets[k].has(t.productId)).reduce((s, t) => s + t.quantity, 0)
     }
-    const total = sandwichKeys.reduce((s, k) => s + values[k], 0)
-    return { teamId: id, teamName: teamName.get(id) ?? id, values, total }
+    const other = lines.filter((t) => sandwichOtherIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
+    const total = sandwichKeys.reduce((s, k) => s + values[k], 0) + other
+    return { teamId: id, teamName: teamName.get(id) ?? id, values, other, total }
   })
   const sandwichTotals = {} as Record<keyof SandwichVariants, number>
   for (const k of sandwichKeys) sandwichTotals[k] = sandwich.reduce((s, r) => s + r.values[k], 0)
+  const sandwichOtherTotal = sandwich.reduce((s, r) => s + r.other, 0)
 
   // ---- CAFEA ----
+  // Same idea: total ties to the 'cafea' group, named variants only split it.
+  const coffeeGroupIds = productIdsInGroup(products, 'cafea')
   const coffeeVariants = resolveCoffeeVariants(products)
-  const espressoIds = idsOf(coffeeVariants.espresso)
-  const espressoLungIds = idsOf(coffeeVariants.espressoLung)
-  const cappuccinoIds = idsOf(coffeeVariants.cappuccinoLung)
+  const espressoIds = new Set([...idsOf(coffeeVariants.espresso)].filter((id) => coffeeGroupIds.has(id)))
+  const espressoLungIds = new Set([...idsOf(coffeeVariants.espressoLung)].filter((id) => coffeeGroupIds.has(id)))
+  const cappuccinoIds = new Set([...idsOf(coffeeVariants.cappuccino)].filter((id) => coffeeGroupIds.has(id)))
+  const coffeeNamedIds = new Set([...espressoIds, ...espressoLungIds, ...cappuccinoIds])
+  const coffeeOtherIds = new Set([...coffeeGroupIds].filter((id) => !coffeeNamedIds.has(id)))
 
   const coffee: TeamCoffeeRow[] = teamIds.map((id) => {
     const lines = linesByTeam.get(id)!
     const espressoLung = lines.filter((t) => espressoLungIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
     const espresso = lines.filter((t) => espressoIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
     const cappuccino = lines.filter((t) => cappuccinoIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
-    return { teamId: id, teamName: teamName.get(id) ?? id, espressoLung, espresso, cappuccino, total: espressoLung + espresso + cappuccino }
+    const other = lines.filter((t) => coffeeOtherIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
+    return {
+      teamId: id,
+      teamName: teamName.get(id) ?? id,
+      espressoLung,
+      espresso,
+      cappuccino,
+      other,
+      total: espressoLung + espresso + cappuccino + other,
+    }
   })
   const coffeeTotals = {
     espressoLung: coffee.reduce((s, r) => s + r.espressoLung, 0),
     espresso: coffee.reduce((s, r) => s + r.espresso, 0),
     cappuccino: coffee.reduce((s, r) => s + r.cappuccino, 0),
+    other: coffee.reduce((s, r) => s + r.other, 0),
     total: coffee.reduce((s, r) => s + r.total, 0),
   }
 
@@ -289,6 +315,7 @@ export function computeProductAnalysisData(
     shifts,
     sandwich,
     sandwichTotals,
+    sandwichOtherTotal,
     vitrinaProducts,
     vitrinaTeamTotals,
     coffee,

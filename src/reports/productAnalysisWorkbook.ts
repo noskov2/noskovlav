@@ -77,9 +77,11 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
 
   // ---- SANDWICH ----
   const sandwichKeys = Object.keys(SANDWICH_VARIANT_LABELS) as (keyof typeof SANDWICH_VARIANT_LABELS)[]
-  sectionTitle(ws, r, sandwichKeys.length + 2, 'SANDWICH – TOTAL PERIOADA (buc)')
+  const sandwichOtherCol = sandwichKeys.length + 2
+  const sandwichTotalCol = sandwichKeys.length + 3
+  sectionTitle(ws, r, sandwichTotalCol, 'SANDWICH – TOTAL PERIOADA (buc)')
   r++
-  ;['Echipă', ...sandwichKeys.map((k) => SANDWICH_VARIANT_LABELS[k]), 'TOTAL'].forEach((h, i) => {
+  ;['Echipă', ...sandwichKeys.map((k) => SANDWICH_VARIANT_LABELS[k]), 'Altele', 'TOTAL'].forEach((h, i) => {
     const c = ws.getCell(r, i + 1)
     c.value = h
     styleCell(c, { bold: true, align: i === 0 ? 'left' : 'center' })
@@ -93,8 +95,10 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
       styleCell(ws.getCell(r, i + 2), { fill, fmt: INT_FMT })
       ws.getCell(r, i + 2).value = row.values[k]
     })
-    styleCell(ws.getCell(r, sandwichKeys.length + 2), { bold: true, fill, fmt: INT_FMT })
-    ws.getCell(r, sandwichKeys.length + 2).value = row.total
+    styleCell(ws.getCell(r, sandwichOtherCol), { fill, fmt: INT_FMT })
+    ws.getCell(r, sandwichOtherCol).value = row.other
+    styleCell(ws.getCell(r, sandwichTotalCol), { bold: true, fill, fmt: INT_FMT })
+    ws.getCell(r, sandwichTotalCol).value = row.total
     r++
   }
   styleCell(ws.getCell(r, 1), { bold: true })
@@ -103,14 +107,16 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
     styleCell(ws.getCell(r, i + 2), { bold: true, fmt: INT_FMT })
     ws.getCell(r, i + 2).value = data.sandwichTotals[k]
   })
-  styleCell(ws.getCell(r, sandwichKeys.length + 2), { bold: true, fmt: INT_FMT })
-  ws.getCell(r, sandwichKeys.length + 2).value = data.sandwich.reduce((s, row) => s + row.total, 0)
+  styleCell(ws.getCell(r, sandwichOtherCol), { bold: true, fmt: INT_FMT })
+  ws.getCell(r, sandwichOtherCol).value = data.sandwichOtherTotal
+  styleCell(ws.getCell(r, sandwichTotalCol), { bold: true, fmt: INT_FMT })
+  ws.getCell(r, sandwichTotalCol).value = data.sandwich.reduce((s, row) => s + row.total, 0)
   r += 3
 
   // ---- CAFEA ----
-  sectionTitle(ws, r, 5, 'CAFEA – TOTAL PERIOADA (buc)')
+  sectionTitle(ws, r, 6, 'CAFEA – TOTAL PERIOADA (buc)')
   r++
-  ;['Echipă', 'Espresso Lung', 'Espresso', 'Cappuccino', 'TOTAL'].forEach((h, i) => {
+  ;['Echipă', 'Espresso Lung', 'Espresso', 'Cappuccino', 'Altele', 'TOTAL'].forEach((h, i) => {
     const c = ws.getCell(r, i + 1)
     c.value = h
     styleCell(c, { bold: true, align: i === 0 ? 'left' : 'center' })
@@ -126,8 +132,10 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
     ws.getCell(r, 3).value = row.espresso
     styleCell(ws.getCell(r, 4), { fill, fmt: INT_FMT })
     ws.getCell(r, 4).value = row.cappuccino
-    styleCell(ws.getCell(r, 5), { bold: true, fill, fmt: INT_FMT })
-    ws.getCell(r, 5).value = row.total
+    styleCell(ws.getCell(r, 5), { fill, fmt: INT_FMT })
+    ws.getCell(r, 5).value = row.other
+    styleCell(ws.getCell(r, 6), { bold: true, fill, fmt: INT_FMT })
+    ws.getCell(r, 6).value = row.total
     r++
   }
   styleCell(ws.getCell(r, 1), { bold: true })
@@ -139,7 +147,9 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
   styleCell(ws.getCell(r, 4), { bold: true, fmt: INT_FMT })
   ws.getCell(r, 4).value = data.coffeeTotals.cappuccino
   styleCell(ws.getCell(r, 5), { bold: true, fmt: INT_FMT })
-  ws.getCell(r, 5).value = data.coffeeTotals.total
+  ws.getCell(r, 5).value = data.coffeeTotals.other
+  styleCell(ws.getCell(r, 6), { bold: true, fmt: INT_FMT })
+  ws.getCell(r, 6).value = data.coffeeTotals.total
   r += 3
 
   // ---- DULCIURI VITRINĂ, per product (new) ----

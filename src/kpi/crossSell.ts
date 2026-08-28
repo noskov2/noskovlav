@@ -3,10 +3,15 @@ import { groupIntoReceipts, receiptContainsProduct, quantityOfProducts, valueOfP
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { idsOf, resolveCoffeeVariants, resolveSandwichVariants } from '@/kpi/namedVariants'
 
+function intersect(a: Set<string>, b: Set<string>): Set<string> {
+  return new Set([...a].filter((id) => b.has(id)))
+}
+
 export interface CoffeeBreakdown {
   espresso: number
   espressoLung: number
-  cappuccinoLung: number
+  cappuccino: number
+  other: number // cafea group members that don't match espresso/espressoLung/cappuccino by name
   total: number
   receiptsWithCoffee: number
   pctReceiptsWithCoffee: number
@@ -29,6 +34,7 @@ export interface SandwichBreakdown {
   mozzarellaPesto: number
   kebab: number
   toast: number
+  other: number // sandwich group members that don't match any of the 5 named variants
   total: number
   value: number
   receiptsWithSandwich: number
@@ -71,16 +77,29 @@ export interface CashierCrossSellRow {
   promo: PromoBreakdown
 }
 
+// The total ties to the same 'cafea' Nomenclator group used by every other
+// page (Dashboard, Comparație lunară) — NOT just whichever products happen
+// to match the espresso/espressoLung/cappuccino name patterns below. Those
+// patterns only decide how the group's total splits into named buckets;
+// anything in the group that matches none of them still counts, in "other",
+// instead of silently vanishing from the total the way it used to (the old
+// version summed only the three name-matched buckets, so any cafea-group
+// product with a name the patterns didn't recognize — a misspelling, a
+// product like "Espresso Dublu", a locally-typed variant — was invisible
+// here even though it was correctly counted everywhere else).
 function computeCoffee(receipts: Receipt[], products: Product[]): CoffeeBreakdown {
+  const groupIds = productIdsInGroup(products, 'cafea')
   const variants = resolveCoffeeVariants(products)
-  const espressoIds = idsOf(variants.espresso)
-  const espressoLungIds = idsOf(variants.espressoLung)
-  const cappuccinoIds = idsOf(variants.cappuccinoLung)
-  const allIds = new Set([...espressoIds, ...espressoLungIds, ...cappuccinoIds])
+  const espressoIds = intersect(idsOf(variants.espresso), groupIds)
+  const espressoLungIds = intersect(idsOf(variants.espressoLung), groupIds)
+  const cappuccinoIds = intersect(idsOf(variants.cappuccino), groupIds)
+  const namedIds = new Set([...espressoIds, ...espressoLungIds, ...cappuccinoIds])
+  const otherIds = new Set([...groupIds].filter((id) => !namedIds.has(id)))
 
   let espresso = 0
   let espressoLung = 0
-  let cappuccinoLung = 0
+  let cappuccino = 0
+  let other = 0
   let receiptsWithCoffee = 0
   const shiftsSeen = new Set<string>()
   const daysSeen = new Set<string>()
@@ -90,11 +109,12 @@ function computeCoffee(receipts: Receipt[], products: Product[]): CoffeeBreakdow
     if (r.shift) shiftsSeen.add(`${r.date}:${r.shift}`)
     espresso += quantityOfProducts(r, espressoIds)
     espressoLung += quantityOfProducts(r, espressoLungIds)
-    cappuccinoLung += quantityOfProducts(r, cappuccinoIds)
-    if (receiptContainsProduct(r, allIds)) receiptsWithCoffee++
+    cappuccino += quantityOfProducts(r, cappuccinoIds)
+    other += quantityOfProducts(r, otherIds)
+    if (receiptContainsProduct(r, groupIds)) receiptsWithCoffee++
   }
 
-  const total = espresso + espressoLung + cappuccinoLung
+  const total = espresso + espressoLung + cappuccino + other
   const receiptCount = receipts.length
   const shifts = shiftsSeen.size || 1
   const days = daysSeen.size || 1
@@ -102,7 +122,8 @@ function computeCoffee(receipts: Receipt[], products: Product[]): CoffeeBreakdow
   return {
     espresso,
     espressoLung,
-    cappuccinoLung,
+    cappuccino,
+    other,
     total,
     receiptsWithCoffee,
     pctReceiptsWithCoffee: receiptCount > 0 ? (receiptsWithCoffee / receiptCount) * 100 : 0,
@@ -131,22 +152,30 @@ function computeVitrina(receipts: Receipt[], products: Product[]): VitrinaBreakd
   }
 }
 
+// Same idea as computeCoffee: the total ties to the 'sandwich' Nomenclator
+// group, and the 5 named patterns only split that total into buckets — a
+// sandwich whose name doesn't match any of them (e.g. spelled "sandviș"
+// instead of "sandwich", or a filling not on this list) still counts, in
+// "other", instead of dropping out of the total.
 function computeSandwich(receipts: Receipt[], products: Product[]): SandwichBreakdown {
+  const groupIds = productIdsInGroup(products, 'sandwich')
   const variants = resolveSandwichVariants(products)
   const sets = {
-    prosciuttoCotto: idsOf(variants.prosciuttoCotto),
-    prosciuttoCrudo: idsOf(variants.prosciuttoCrudo),
-    mozzarellaPesto: idsOf(variants.mozzarellaPesto),
-    kebab: idsOf(variants.kebab),
-    toast: idsOf(variants.toast),
+    prosciuttoCotto: intersect(idsOf(variants.prosciuttoCotto), groupIds),
+    prosciuttoCrudo: intersect(idsOf(variants.prosciuttoCrudo), groupIds),
+    mozzarellaPesto: intersect(idsOf(variants.mozzarellaPesto), groupIds),
+    kebab: intersect(idsOf(variants.kebab), groupIds),
+    toast: intersect(idsOf(variants.toast), groupIds),
   }
-  const allIds = new Set([...sets.prosciuttoCotto, ...sets.prosciuttoCrudo, ...sets.mozzarellaPesto, ...sets.kebab, ...sets.toast])
+  const namedIds = new Set([...sets.prosciuttoCotto, ...sets.prosciuttoCrudo, ...sets.mozzarellaPesto, ...sets.kebab, ...sets.toast])
+  const otherIds = new Set([...groupIds].filter((id) => !namedIds.has(id)))
 
   let prosciuttoCotto = 0
   let prosciuttoCrudo = 0
   let mozzarellaPesto = 0
   let kebab = 0
   let toast = 0
+  let other = 0
   let value = 0
   let receiptsWithSandwich = 0
 
@@ -156,17 +185,19 @@ function computeSandwich(receipts: Receipt[], products: Product[]): SandwichBrea
     mozzarellaPesto += quantityOfProducts(r, sets.mozzarellaPesto)
     kebab += quantityOfProducts(r, sets.kebab)
     toast += quantityOfProducts(r, sets.toast)
-    value += valueOfProducts(r, allIds)
-    if (receiptContainsProduct(r, allIds)) receiptsWithSandwich++
+    other += quantityOfProducts(r, otherIds)
+    value += valueOfProducts(r, groupIds)
+    if (receiptContainsProduct(r, groupIds)) receiptsWithSandwich++
   }
 
-  const total = prosciuttoCotto + prosciuttoCrudo + mozzarellaPesto + kebab + toast
+  const total = prosciuttoCotto + prosciuttoCrudo + mozzarellaPesto + kebab + toast + other
   return {
     prosciuttoCotto,
     prosciuttoCrudo,
     mozzarellaPesto,
     kebab,
     toast,
+    other,
     total,
     value,
     receiptsWithSandwich,

@@ -18,10 +18,21 @@ function matchAll(products: Product[], must: string[], mustNot: string[] = []): 
   })
 }
 
+// Same as matchAll, but OR instead of AND across `alternatives` — for a word
+// that shows up spelled several different ways across POS exports (e.g. a
+// register that types "cappucino" with one 'c', missing the double from the
+// Italian spelling).
+function matchAny(products: Product[], alternatives: string[]): Product[] {
+  return products.filter((p) => {
+    const name = norm(p.name)
+    return alternatives.some((alt) => name.includes(alt))
+  })
+}
+
 export interface CoffeeVariants {
   espresso: Product[]
   espressoLung: Product[]
-  cappuccinoLung: Product[]
+  cappuccino: Product[]
 }
 
 // The three coffee products the spec calls out by exact name. Matched by
@@ -31,7 +42,7 @@ export function resolveCoffeeVariants(products: Product[]): CoffeeVariants {
   return {
     espresso: matchAll(products, ['espresso'], ['lung']),
     espressoLung: matchAll(products, ['espresso', 'lung']),
-    cappuccinoLung: matchAll(products, ['cappuccino']),
+    cappuccino: matchAny(products, ['cappuccino', 'cappucino', 'capuccino']),
   }
 }
 
