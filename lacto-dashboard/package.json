@@ -23,7 +23,8 @@
     "test:standalone": "node scripts/dev/test-standalone.mjs",
     "test:product-catalog": "node scripts/dev/test-product-catalog.mjs",
     "test:consolidated-import": "node scripts/dev/test-consolidated-import.mjs",
-    "test:filterbar-fixes": "node scripts/dev/test-filterbar-fixes.mjs"
+    "test:filterbar-fixes": "node scripts/dev/test-filterbar-fixes.mjs",
+    "test:filter-search": "node scripts/dev/test-filter-search.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

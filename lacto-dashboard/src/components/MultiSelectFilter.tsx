@@ -12,9 +12,10 @@ interface Props {
   onChange: (selected: string[]) => void
 }
 
-/** Filtru multi-select generic (spec §14: „Toate selecțiile trebuie să accepte MULTI-SELECT"). */
+/** Filtru multi-select generic (spec §14: „Toate selecțiile trebuie să accepte MULTI-SELECT"), cu căutare. */
 export function MultiSelectFilter({ label, options, selected, onChange }: Props) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   function toggle(value: string) {
@@ -23,6 +24,7 @@ export function MultiSelectFilter({ label, options, selected, onChange }: Props)
   }
 
   const summary = selected.length === 0 ? 'toate' : selected.length === 1 ? options.find((o) => o.value === selected[0])?.label : `${selected.length} selectate`
+  const filtered = search.trim() === '' ? options : options.filter((o) => o.label.toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
     <div className="relative" ref={ref}>
@@ -30,14 +32,32 @@ export function MultiSelectFilter({ label, options, selected, onChange }: Props)
       <button
         type="button"
         className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm min-w-[140px] text-left"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v)
+          setSearch('')
+        }}
       >
         {summary}
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 max-h-64 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg min-w-[200px] p-1">
+          <div className="absolute z-20 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg min-w-[220px] p-1">
+            {options.length > 5 && (
+              <input
+                key="search-input"
+                autoFocus
+                type="text"
+                placeholder="Caută…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setOpen(false)
+                }}
+                className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded px-2 py-1 text-sm mb-1"
+              />
+            )}
             {selected.length > 0 && (
               <button
                 className="w-full text-left px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
@@ -46,13 +66,16 @@ export function MultiSelectFilter({ label, options, selected, onChange }: Props)
                 golește selecția
               </button>
             )}
-            {options.map((o) => (
-              <label key={o.value} className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer">
-                <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} />
-                {o.label}
-              </label>
-            ))}
-            {options.length === 0 && <div className="px-2 py-1 text-xs text-slate-400">Nicio opțiune.</div>}
+            <div className="max-h-56 overflow-y-auto">
+              {filtered.map((o) => (
+                <label key={o.value} className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 rounded cursor-pointer">
+                  <input type="checkbox" checked={selected.includes(o.value)} onChange={() => toggle(o.value)} />
+                  {o.label}
+                </label>
+              ))}
+              {options.length === 0 && <div className="px-2 py-1 text-xs text-slate-400">Nicio opțiune.</div>}
+              {options.length > 0 && filtered.length === 0 && <div className="px-2 py-1 text-xs text-slate-400">Niciun rezultat pentru „{search}".</div>}
+            </div>
           </div>
         </>
       )}

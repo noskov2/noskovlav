@@ -250,6 +250,7 @@ npm run test:standalone        # build standalone deschis din file:// — nu nec
 npm run test:product-catalog   # import catalog produse → import vânzări → categoria rămâne neschimbată
 npm run test:consolidated-import  # fișier unificat pe toate canalele, An+Lună, coloane standardizate
 npm run test:filterbar-fixes   # preset implicit "An curent" + filtrul Categorie doar cu categorii de top
+npm run test:filter-search     # filtrele multi-select (Client/Produs/Categorie/Canal) au căutare care restrânge lista
 ```
 
 ## Arhitectură
@@ -305,7 +306,10 @@ rămân de adăugat quando volumul real o cere.
 Toate paginile de raport împart aceeași stare (`hooks/useReportData.ts`) și
 aceeași bară de filtre (`components/FilterBar.tsx`), ca „aplicația să
 recalculeze instant raportul" la orice schimbare de filtru (spec §14), fără
-cod duplicat între pagini.
+cod duplicat între pagini. Fiecare filtru multi-select (Client, Produs,
+Categorie, Canal) are un câmp de căutare (afișat automat când sunt peste 5
+opțiuni, cu focus automat la deschidere) care restrânge live lista de
+opțiuni pe măsură ce se scrie.
 
 ### Analytics avansat — note de scop
 
