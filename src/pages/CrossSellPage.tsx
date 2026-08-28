@@ -9,7 +9,7 @@ import { useFilterStore } from '@/store/filterStore'
 import { effectiveRange } from '@/kpi/filterState'
 import { filterTransactions, filterByDimensions, filterByRange } from '@/kpi/applyFilters'
 import { computeCrossSellReport } from '@/kpi/crossSell'
-import { computeTeamRollup } from '@/kpi/teamRollup'
+import { computePontajTeamReport } from '@/kpi/pontajTeamReport'
 import { previousMonthRange, computeDelta, type Delta } from '@/kpi/monthComparison'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 import { FuelTab } from '@/pages/crossSell/FuelTab'
@@ -33,7 +33,7 @@ const TABS = [
 type GroupBy = 'casier' | 'echipa'
 
 export function CrossSellPage() {
-  const { transactions, products, cashiers, teams, settings, productsById, cashiersById } = useDataStore()
+  const { transactions, products, cashiers, settings, productsById, cashiersById } = useDataStore()
   const { filter } = useFilterStore()
   const [tab, setTab] = useState('fuel')
   const [groupBy, setGroupBy] = useState<GroupBy>('casier')
@@ -44,7 +44,7 @@ export function CrossSellPage() {
     [transactions, filter, productsById, cashiersById],
   )
   const report = useMemo(() => computeCrossSellReport(filtered, products, cashiers), [filtered, products, cashiers])
-  const teamRows = useMemo(() => computeTeamRollup(report.cashiers, teams), [report, teams])
+  const pontajReport = useMemo(() => computePontajTeamReport(filtered, products), [filtered, products])
 
   const range = effectiveRange(filter)
   const dimFiltered = useMemo(
@@ -57,7 +57,7 @@ export function CrossSellPage() {
     () => computeCrossSellReport(prevFiltered, products, cashiers),
     [prevFiltered, products, cashiers],
   )
-  const prevTeamRows = useMemo(() => computeTeamRollup(prevReport.cashiers, teams), [prevReport, teams])
+  const prevPontajReport = useMemo(() => computePontajTeamReport(prevFiltered, products), [prevFiltered, products])
 
   if (transactions.length === 0) {
     return (
@@ -68,9 +68,10 @@ export function CrossSellPage() {
     )
   }
 
-  const displayReport = groupBy === 'echipa' ? { stationTotal: report.stationTotal, cashiers: teamRows } : report
+  const displayReport =
+    groupBy === 'echipa' ? { stationTotal: pontajReport.stationTotal, cashiers: pontajReport.teams } : report
   const prevDisplayReport =
-    groupBy === 'echipa' ? { stationTotal: prevReport.stationTotal, cashiers: prevTeamRows } : prevReport
+    groupBy === 'echipa' ? { stationTotal: prevPontajReport.stationTotal, cashiers: prevPontajReport.teams } : prevReport
   const tabProps = {
     transactions: filtered,
     products,
@@ -129,6 +130,19 @@ export function CrossSellPage() {
             </button>
           </div>
         </div>
+        {groupBy === 'echipa' && !pontajReport.hasPontaj && (
+          <p className="mb-4 rounded-lg border border-warn/20 bg-warn/5 px-3 py-2 text-sm text-warn">
+            Nu există niciun pontaj încărcat — mergi la pagina Target și încarcă fișierul Excel cu programul lunii.
+            Fără el nu se poate ști cu certitudine care echipă a lucrat fiecare tură.
+          </p>
+        )}
+        {groupBy === 'echipa' && pontajReport.hasPontaj && pontajReport.unscheduledReceiptCount > 0 && (
+          <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            {formatNumber(pontajReport.unscheduledReceiptCount)} bonuri ({formatLei(pontajReport.unscheduledValue)}) nu
+            au putut fi atribuite unei echipe — nu există pontaj încărcat în Target pentru acele zile, sau tura nu a
+            putut fi determinată. Nu apar sub nicio echipă mai jos, dar rămân în totalul stației.
+          </p>
+        )}
         <div className="mt-4">
           {tab === 'fuel' && <FuelTab {...tabProps} />}
           {tab === 'coffee' && <CoffeeTab {...tabProps} />}

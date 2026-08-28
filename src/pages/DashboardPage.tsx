@@ -18,8 +18,7 @@ import { addDays, dayCountInRange, monthLabel, reportingEndStr, todayStr } from 
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
-import { computeCrossSellReport } from '@/kpi/crossSell'
-import { computeTeamRollup } from '@/kpi/teamRollup'
+import { computePontajTeamReport } from '@/kpi/pontajTeamReport'
 import { computeForecast, computePace, type PaceStatus } from '@/kpi/forecast'
 import { computeActionCenter, type ActionTone } from '@/kpi/actionCenter'
 import { getMonthTargets } from '@/data/repo/settings'
@@ -50,7 +49,7 @@ const ACTION_TONE_CLASSES: Record<ActionTone, string> = {
 const ACTION_TONE_ICON: Record<ActionTone, string> = { red: '🔴', orange: '🟠', green: '🟢' }
 
 export function DashboardPage() {
-  const { transactions, products, cashiers, teams, supplierReceipts, settings, productsById, cashiersById } =
+  const { transactions, products, cashiers, supplierReceipts, settings, productsById, cashiersById } =
     useDataStore()
   const { filter } = useFilterStore()
   const range = effectiveRange(filter)
@@ -121,10 +120,11 @@ export function DashboardPage() {
       .slice(0, 10)
   }, [periodTx, productsById, fuelIds, topCategory])
 
-  const teamLeaderboard = useMemo(() => {
-    const report = computeCrossSellReport(periodTx, products, cashiers)
-    return computeTeamRollup(report.cashiers, teams).sort((a, b) => b.totalSales - a.totalSales)
-  }, [periodTx, products, cashiers, teams])
+  // Attributed by the pre-set monthly schedule (pontaj) on the Target page —
+  // which team was ROSTERED for a given date+tură — not by which cashier
+  // happened to be logged into the register (employees swap shifts
+  // informally, so those two can disagree).
+  const teamLeaderboard = useMemo(() => computePontajTeamReport(periodTx, products).teams, [periodTx, products])
 
   const coffeeIds = useMemo(() => productIdsInGroup(products, 'cafea'), [products])
   const sandwichIds = useMemo(() => productIdsInGroup(products, 'sandwich'), [products])
@@ -641,7 +641,10 @@ export function DashboardPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold text-slate-700">Clasament echipe</h3>
           {teamLeaderboard.length === 0 ? (
-            <p className="text-sm text-slate-400">Nicio echipă configurată — vezi Nomenclator → Casieri.</p>
+            <p className="text-sm text-slate-400">
+              Nicio echipă rostuită pe pontaj pentru perioada selectată — mergi la pagina Target și încarcă fișierul
+              Excel cu programul lunii.
+            </p>
           ) : (
             <ol className="space-y-1.5 text-sm">
               {teamLeaderboard.map((row, i) => (

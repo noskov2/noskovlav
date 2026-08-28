@@ -1,7 +1,8 @@
 import type { Cashier, Product, ScoreWeights, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts, receiptContainsProduct } from '@/kpi/receipts'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
-import { NO_TEAM_ID, TEAM_ROW_PREFIX } from '@/kpi/teamRollup'
+import { PONTAJ_ROW_PREFIX } from '@/kpi/pontajTeamReport'
+import { buildPontajIndex, scheduledTeamFor } from '@/data/pontaj'
 import type { CrossSellReport } from '@/kpi/crossSell'
 
 export interface CrossSellTabProps {
@@ -15,21 +16,21 @@ export interface CrossSellTabProps {
 
 /**
  * Lines belonging to a given row's id: '__station__' for everything, a
- * real cashier id for that cashier, or a synthetic 'team:<teamId>' id (as
- * produced by computeTeamRollup) for every cashier in that team.
+ * real cashier id for that cashier, or a synthetic 'pontaj:<teamKey>' id
+ * (as produced by computePontajTeamReport) for every line whose date+tură
+ * was rostered to that team on the Target page's pontaj — regardless of
+ * which cashier actually rang it up.
  */
 export function linesForCashier(
   transactions: TransactionLine[],
   cashierId: string,
-  cashiersById: Map<string, Cashier>,
+  _cashiersById: Map<string, Cashier>,
 ): TransactionLine[] {
   if (cashierId === '__station__') return transactions
-  if (cashierId.startsWith(TEAM_ROW_PREFIX)) {
-    const teamId = cashierId.slice(TEAM_ROW_PREFIX.length)
-    return transactions.filter((t) => {
-      const cashier = cashiersById.get(t.cashierId)
-      return teamId === NO_TEAM_ID ? !cashier?.teamId : cashier?.teamId === teamId
-    })
+  if (cashierId.startsWith(PONTAJ_ROW_PREFIX)) {
+    const teamKey = cashierId.slice(PONTAJ_ROW_PREFIX.length)
+    const pontajIndex = buildPontajIndex()
+    return transactions.filter((t) => scheduledTeamFor(pontajIndex, t.date, t.shift) === teamKey)
   }
   return transactions.filter((t) => t.cashierId === cashierId)
 }

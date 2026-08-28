@@ -2,6 +2,14 @@ import { useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { emptyMonthTargets } from '@/types/domain'
+import {
+  STORE_KEY,
+  TEAM_NAMES_KEY,
+  teamKeyOf,
+  teamShortLabel,
+  resolveTeamName,
+  loadTeamNames,
+} from '@/data/pontaj'
 
 // This page is a close, self-contained port of the station's own "Target
 // Vânzări" tool (a separate Excel-template-driven tracker for team shift
@@ -207,11 +215,6 @@ function statusClass(status: unknown, pct: number | null): string {
   if (pct >= 0.9) return 'warning'
   return 'critical'
 }
-function teamShortLabel(name: unknown): string {
-  const m = String(name || '').match(/echipa\s*\d+/i)
-  return m ? m[0] : String(name || '')
-}
-
 // ---------- parsing ----------
 type Row = unknown[]
 type WB = XLSX.WorkBook
@@ -600,28 +603,6 @@ function mergeRawRealizat(
   })
   return merged
 }
-// Canonical lookup key for a raw "Echipa N" cell value, independent of the
-// exact spacing/casing the source file happens to use, so "Echipa 1",
-// "echipa  1" and "ECHIPA 1" all resolve to the one name the owner typed in.
-function teamKeyOf(raw: unknown): string {
-  return teamShortLabel(raw).toLowerCase().replace(/\s+/g, ' ').trim()
-}
-
-// Real gestionar names the owner types in (see the "Nume echipe" button/modal
-// below) — replaces every "Echipa N" shown anywhere on this page. Previously
-// this page only ever showed the raw "Echipa N" label from the source file
-// (or, in two spots, a hardcoded set of made-up example names that never
-// matched any real station's actual staff), with no way to fix it short of
-// editing the source Excel by hand.
-function resolveTeamName(raw: unknown, teamNames: Record<string, string>): string {
-  const key = teamKeyOf(raw)
-  if (key && teamNames[key]) return teamNames[key]
-  const first = String(raw || '')
-    .split('\n')[0]
-    .replace(/\r/g, '')
-    .trim()
-  return first || String(raw || '')
-}
 function recompute(data: DashboardData) {
   const cfg = data.config
   const rotation = data.rotation
@@ -742,18 +723,15 @@ function monthKeyFrom(data: DashboardData, fileName: string): string {
 }
 
 // ---------- storage ----------
-const STORE_KEY = 'salesDashboard:months'
+// STORE_KEY/TEAM_NAMES_KEY and the read-only helpers below (teamShortLabel,
+// teamKeyOf, resolveTeamName, loadTeamNames) live in @/data/pontaj so
+// Cross-sell & Casieri and the Dashboard can read this page's pontaj
+// without duplicating the keys/logic — this page stays the only writer.
 function loadStore(): Record<string, DashboardData> {
   try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') } catch { return {} }
 }
 function saveStore(store: Record<string, DashboardData>) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)) } catch { /* storage full/unavailable */ }
-}
-// Shared across every month (not per-month like STORE_KEY) — a station's
-// team names don't reset when a new month's Excel is loaded.
-const TEAM_NAMES_KEY = 'salesDashboard:teamNames'
-function loadTeamNames(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(TEAM_NAMES_KEY) || '{}') } catch { return {} }
 }
 function saveTeamNames(names: Record<string, string>) {
   try { localStorage.setItem(TEAM_NAMES_KEY, JSON.stringify(names)) } catch { /* storage full/unavailable */ }

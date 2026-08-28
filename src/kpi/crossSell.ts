@@ -255,7 +255,9 @@ function computePromo(receipts: Receipt[], products: Product[]): PromoBreakdown 
   }
 }
 
-function buildCashierRow(
+// Exported so pontajTeamReport.ts can build the same row shape for a group
+// of receipts scheduled to a pontaj team, instead of a single cashier.
+export function buildCashierRow(
   cashier: Cashier,
   receipts: Receipt[],
   products: Product[],
