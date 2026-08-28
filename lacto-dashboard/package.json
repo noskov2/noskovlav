@@ -9,7 +9,7 @@
     "build:standalone": "tsc -b && vite build --config vite.config.standalone.ts",
     "lint": "oxlint",
     "preview": "vite preview",
-    "fixtures:gen": "node scripts/dev/gen-fixtures.mjs scripts/dev/fixtures && node scripts/dev/gen-product-catalog-fixture.mjs scripts/dev/fixtures",
+    "fixtures:gen": "node scripts/dev/gen-fixtures.mjs scripts/dev/fixtures && node scripts/dev/gen-product-catalog-fixture.mjs scripts/dev/fixtures && node scripts/dev/gen-consolidated-fixture.mjs scripts/dev/fixtures",
     "test:smoke": "node scripts/dev/smoke-test.mjs",
     "test:client-matching": "node scripts/dev/test-client-matching.mjs",
     "test:dashboard": "node scripts/dev/test-dashboard.mjs",
@@ -21,7 +21,8 @@
     "test:excel-export": "node scripts/dev/test-excel-export.mjs",
     "test:backup-restore": "node scripts/dev/test-backup-restore.mjs",
     "test:standalone": "node scripts/dev/test-standalone.mjs",
-    "test:product-catalog": "node scripts/dev/test-product-catalog.mjs"
+    "test:product-catalog": "node scripts/dev/test-product-catalog.mjs",
+    "test:consolidated-import": "node scripts/dev/test-consolidated-import.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

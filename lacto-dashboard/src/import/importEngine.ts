@@ -130,7 +130,9 @@ export interface RunImportResult {
 export function runImport(params: RunImportParams): Promise<RunImportResult> {
   const { file, buffer, fileSignature, sourceFileType, mapping, replacedBatchId, onProgress } = params
   const importBatchId = crypto.randomUUID()
-  const channel = channelForSourceFile(sourceFileType)
+  // Pentru importul consolidat, canalul e per tranzacție (coloana "Canal"),
+  // nu per fișier — batch-ul e etichetat "MIXT" doar pentru afișare în istoric.
+  const channel = sourceFileType === 'CONSOLIDATED' ? 'MIXT' : channelForSourceFile(sourceFileType)
 
   return new Promise((resolve, reject) => {
     const worker = createWorker()

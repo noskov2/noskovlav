@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { STANDARD_FIELDS } from '../import/fields'
+import { fieldDef, STANDARD_FIELDS } from '../import/fields'
 import { sourceFileLabel } from '../types'
 import type { SourceFileType, StandardFieldId } from '../types'
 
@@ -17,7 +17,16 @@ const NONE = '__NONE__'
 export function ColumnMappingModal({ sourceFileType, headers, sample, suggestion, onConfirm, onCancel }: Props) {
   const [mapping, setMapping] = useState<Partial<Record<StandardFieldId, string>>>(suggestion)
 
-  const missingRequired = STANDARD_FIELDS.filter((f) => f.required && !mapping[f.id])
+  // "Data" e satisfăcută fie de coloana ei directă, fie de An+Lună (fișierele
+  // fără dată exactă, doar agregate lunar — ex. importul consolidat). "Canal"
+  // e obligatoriu doar pentru importul consolidat (celelalte tipuri au un
+  // canal fix, dat de tipul fișierului).
+  const dateSatisfied = !!mapping.date || (!!mapping.year && !!mapping.month)
+  const missingRequired = [
+    ...STANDARD_FIELDS.filter((f) => f.required && f.id !== 'date' && !mapping[f.id]),
+    ...(dateSatisfied ? [] : [fieldDef('date')]),
+    ...(sourceFileType === 'CONSOLIDATED' && !mapping.channelRaw ? [fieldDef('channelRaw')] : []),
+  ]
 
   function setField(id: StandardFieldId, header: string) {
     setMapping((prev) => {
@@ -40,12 +49,27 @@ export function ColumnMappingModal({ sourceFileType, headers, sample, suggestion
           importurile viitoare cu aceeași structură.
         </p>
 
+        {sourceFileType === 'CONSOLIDATED' && (
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 border border-slate-200 dark:border-slate-700 rounded-md p-2">
+            Acest fișier n-are neapărat o coloană „Data" exactă — poți mapa în loc „An" + „Lună (număr)"
+            (se folosește prima zi a lunii). „Canal" e obligatoriu aici, ca fiecare rând să știe cărui
+            canal îi aparține.
+          </p>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {STANDARD_FIELDS.map((field) => (
+          {STANDARD_FIELDS.map((field) => {
+            const isRequired =
+              field.id === 'date'
+                ? !dateSatisfied
+                : field.id === 'channelRaw'
+                  ? sourceFileType === 'CONSOLIDATED'
+                  : field.required
+            return (
             <div key={field.id} className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
                 {field.label}
-                {field.required && <span className="text-rose-500"> *</span>}
+                {isRequired && <span className="text-rose-500"> *</span>}
               </label>
               <select
                 className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
@@ -60,7 +84,8 @@ export function ColumnMappingModal({ sourceFileType, headers, sample, suggestion
                 ))}
               </select>
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {sample.length > 0 && (

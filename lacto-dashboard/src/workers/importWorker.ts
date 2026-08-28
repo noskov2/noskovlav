@@ -6,8 +6,9 @@ import { findBestCandidates } from '../lib/fuzzy'
 import type { ClientLite, ClientMatchSnapshot, ClientResolution, ProductMatchSnapshot, ProductResolution } from '../import/matching'
 import { resolveClient, resolveProduct } from '../import/matching'
 import { normalizeForCompare, parseRoDate, parseRoNumber } from '../lib/ro-format'
-import { channelForSourceFile } from '../types'
+import { channelForSourceFile, normalizeChannelText } from '../types'
 import type {
+  Channel,
   NewClientRequest,
   NewProductRequest,
   QueueUpsertRequest,
@@ -124,6 +125,22 @@ function stringOrUndefined(v: unknown): string | undefined {
   return s === '' ? undefined : s
 }
 
+/**
+ * Sintetizeaza o data (prima zi a lunii) dintr-un fisier care nu are o coloana
+ * de data exacta, doar An + Luna (numar) — cazul fisierelor deja agregate
+ * lunar (ex. importul consolidat). Nu ghiceste: an/luna invalide -> null,
+ * randul e respins ca oricare alt rand fara data.
+ */
+function synthesizeMonthDate(yearRaw: unknown, monthRaw: unknown): string | null {
+  const year = parseRoNumber(yearRaw)
+  const month = parseRoNumber(monthRaw)
+  if (year === null || month === null) return null
+  const y = Math.round(year)
+  const m = Math.round(month)
+  if (y < 2000 || y > 2100 || m < 1 || m > 12) return null
+  return `${y}-${String(m).padStart(2, '0')}-01`
+}
+
 ctx.onmessage = (event: MessageEvent<InMessage>) => {
   const msg = event.data
   try {
@@ -179,7 +196,11 @@ function processFile(msg: Extract<InMessage, { type: 'process' }>) {
     }
   }
 
-  const channel = channelForSourceFile(sourceFileType)
+  // Pentru `CONSOLIDATED` canalul e per rand (coloana "Canal"); pentru celelalte
+  // 4 tipuri e fix, dat de tipul fisierului.
+  const fixedChannel = sourceFileType === 'CONSOLIDATED' ? null : channelForSourceFile(sourceFileType)
+  const hasDateColumn = columnIndex.date !== undefined
+  const hasYearMonthColumns = columnIndex.year !== undefined && columnIndex.month !== undefined
   const now = Date.now()
   const errors: RejectedRow[] = []
   const rowHashes: string[] = []
@@ -222,12 +243,23 @@ function processFile(msg: Extract<InMessage, { type: 'process' }>) {
 
     const clientRaw = get('clientRaw')
     const productRaw = get('productRaw')
-    const dateIso = parseRoDate(get('date'))
+    const dateIso = hasDateColumn
+      ? parseRoDate(get('date'))
+      : hasYearMonthColumns
+        ? synthesizeMonthDate(get('year'), get('month'))
+        : null
+
+    let rowChannel: Channel | null = fixedChannel
+    if (fixedChannel === null) {
+      const channelText = get('channelRaw')
+      rowChannel = channelText ? normalizeChannelText(String(channelText)) : null
+    }
 
     const missing: string[] = []
     if (!clientRaw || String(clientRaw).trim() === '') missing.push('client')
     if (!productRaw || String(productRaw).trim() === '') missing.push('produs')
-    if (!dateIso) missing.push('data')
+    if (!dateIso) missing.push(hasDateColumn ? 'data' : 'an/luna')
+    if (!rowChannel) missing.push('canal')
 
     const quantity = quantityMapped ? parseRoNumber(get('quantity')) : null
     const value = valueMapped ? parseRoNumber(get('value')) : null
@@ -305,7 +337,8 @@ function processFile(msg: Extract<InMessage, { type: 'process' }>) {
       productNormalized: normalizeForCompare(productRawStr),
       productCode,
       categoryRaw: stringOrUndefined(get('categoryRaw')),
-      channel,
+      subcategoryRaw: stringOrUndefined(get('subcategoryRaw')),
+      channel: rowChannel!,
       sourceChannel: sourceFileType,
       quantity,
       value,

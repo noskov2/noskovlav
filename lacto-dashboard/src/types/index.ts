@@ -1,11 +1,17 @@
+import { stripDiacritics } from '../lib/ro-format'
+
 /**
- * Cele 4 tipuri de fișiere sursă exportate lunar din Mentor (spec §2).
+ * Cele 4 tipuri de fișiere sursă exportate lunar din Mentor (spec §2), plus
+ * `CONSOLIDATED` — un fișier alternativ, deja unificat de utilizator pe toate
+ * cele 3 canale (cu canal/client/categorie proprii per rând), importat dintr-un
+ * singur fișier în loc de cele 4 separate.
  */
 export type SourceFileType =
   | 'RETELE_MARI'
   | 'MAGAZINE_PROPRII'
   | 'DISTRIBUTIE'
   | 'DISTRIBUTIE_2'
+  | 'CONSOLIDATED'
 
 /** Canalul standardizat (spec §3): DISTRIBUȚIE și DISTRIBUȚIE 2 se unifică. */
 export type Channel = 'RETELE' | 'MAGAZINE PROPRII' | 'DISTRIBUTIE'
@@ -19,6 +25,9 @@ export const SOURCE_FILE_TYPES: {
   { id: 'MAGAZINE_PROPRII', label: 'MAGAZINE PROPRII', channel: 'MAGAZINE PROPRII' },
   { id: 'DISTRIBUTIE', label: 'DISTRIBUȚIE', channel: 'DISTRIBUTIE' },
   { id: 'DISTRIBUTIE_2', label: 'DISTRIBUȚIE 2', channel: 'DISTRIBUTIE' },
+  // `channel` de mai jos e un placeholder neutilizat efectiv — pentru acest tip,
+  // canalul se determină per rând, din coloana mapată pe `channelRaw`.
+  { id: 'CONSOLIDATED', label: 'Date consolidate (toate canalele, un fișier)', channel: 'DISTRIBUTIE' },
 ]
 
 export function sourceFileLabel(type: SourceFileType): string {
@@ -27,6 +36,29 @@ export function sourceFileLabel(type: SourceFileType): string {
 
 export function channelForSourceFile(type: SourceFileType): Channel {
   return SOURCE_FILE_TYPES.find((s) => s.id === type)?.channel ?? 'DISTRIBUTIE'
+}
+
+const CHANNEL_ALIASES: { channel: Channel; aliases: string[] }[] = [
+  { channel: 'RETELE', aliases: ['retele', 'retele mari', 'retea'] },
+  { channel: 'MAGAZINE PROPRII', aliases: ['magazine proprii', 'magazin propriu', 'mp'] },
+  {
+    channel: 'DISTRIBUTIE',
+    aliases: ['distributie', 'distributie1', 'distributie 1', 'distributie2', 'distributie 2'],
+  },
+]
+
+/**
+ * Normalizează textul liber dintr-o coloană „Canal" (ex. „Canal Standardizat"
+ * dintr-un fișier consolidat) la unul din cele 3 canale standard, sau `null`
+ * dacă nu se recunoaște — un rând cu un canal nerecunoscut e respins, nu
+ * ghicit.
+ */
+export function normalizeChannelText(raw: string): Channel | null {
+  const norm = stripDiacritics(raw).trim().toLowerCase()
+  for (const { channel, aliases } of CHANNEL_ALIASES) {
+    if (aliases.includes(norm)) return channel
+  }
+  return null
 }
 
 /**
@@ -51,6 +83,7 @@ export interface TransactionRecord {
   productNormalized: string
   productCode?: string
   categoryRaw?: string
+  subcategoryRaw?: string
   canonicalProductId: number | null
 
   channel: Channel
@@ -84,7 +117,8 @@ export interface ImportBatch {
   createdAt: number
   fileName: string
   sourceFileType: SourceFileType
-  channel: Channel
+  /** `'MIXT'` doar pentru `sourceFileType: 'CONSOLIDATED'` — canalul real e per tranzacție, nu per batch. */
+  channel: Channel | 'MIXT'
   fileSignature: string
   rowsSignature: string
   totalRows: number
@@ -114,14 +148,18 @@ export type StandardFieldId =
   | 'productRaw'
   | 'productCode'
   | 'categoryRaw'
+  | 'subcategoryRaw'
   | 'quantity'
   | 'value'
   | 'unitPrice'
   | 'date'
+  | 'year'
+  | 'month'
   | 'documentNo'
   | 'agent'
   | 'county'
   | 'locality'
+  | 'channelRaw'
 
 export interface ColumnMappingRecord {
   sourceFileType: SourceFileType

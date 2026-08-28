@@ -87,6 +87,27 @@ corespunzătoare, nu un mockup.
 - detectarea fișierelor deja importate (hash pe conținut), cu opțiunile
   Anulează / Importă oricum / Înlocuiește importul precedent.
 
+**Import „Date consolidate"** (aceeași pagină `/import`, secțiunea de sub „SAU"):
+alternativă la cele 4 fișiere separate, pentru un fișier deja unificat de
+utilizator pe toate cele 3 canale (canal, client, categorie/subcategorie
+proprii per rând, ca în modelul cu coloane „Canal Standardizat"/„Client
+Standardizat"/„Categorie"/„Subcategorie"). Diferă de importul normal în
+câteva puncte:
+- **canalul e per rând**, nu fix per fișier — citit din coloana mapată pe
+  „Canal", normalizat la RETELE/MAGAZINE PROPRII/DISTRIBUȚIE (variante
+  necunoscute → rândul e respins, nu ghicit);
+- **data poate fi sintetizată din An + Lună** (prima zi a lunii) când fișierul
+  n-are o coloană de dată exactă — cazul datelor deja agregate lunar;
+- auto-detectarea coloanelor preferă varianta „standardizată"/„unificată" când
+  există ambele (ex. „Client" și „Client Standardizat" cu același scor de
+  potrivire) — cea considerată de încredere;
+- categoria/subcategoria din fișier se salvează pe tranzacție doar ca
+  referință (`categoryRaw`/`subcategoryRaw`) — **nu ating niciodată**
+  `categoryId`/`subcategoryId` ale produsului, exact ca la importul normal;
+  singurul loc care le setează rămâne Import catalog produse (mai jos).
+- în Istoric importuri apare cu eticheta de canal „MIXT" (un batch, trei
+  canale), ștergerea lui elimină toate rândurile fișierului dintr-o dată.
+
 **Istoric importuri** (`/importuri`): listă batch-uri, vizualizare/descărcare
 (CSV) a rândurilor respinse, ștergere completă a unui batch fără să afecteze
 celelalte luni.
@@ -227,6 +248,7 @@ npm run test:excel-export      # Etapa 6: descarcă și citește raportul curent
 npm run test:backup-restore    # Etapa 6: backup → modifică starea → restaurare → verifică revenirea exactă
 npm run test:standalone        # build standalone deschis din file:// — nu necesită dev server pornit
 npm run test:product-catalog   # import catalog produse → import vânzări → categoria rămâne neschimbată
+npm run test:consolidated-import  # fișier unificat pe toate canalele, An+Lună, coloane standardizate
 ```
 
 ## Arhitectură

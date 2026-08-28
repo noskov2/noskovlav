@@ -140,7 +140,35 @@ export function ImportPage() {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {SOURCE_FILE_TYPES.map((source) => {
+        {SOURCE_FILE_TYPES.filter((source) => source.id !== 'CONSOLIDATED').map((source) => {
+          const slot = slots[source.id]
+          return (
+            <div key={source.id} className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+              <FileDropZone
+                label={source.label}
+                disabled={slot.status !== 'idle' && slot.status !== 'error' && slot.status !== 'done'}
+                fileName={slot.file?.name}
+                onFile={(file) => handleFile(source.id, file)}
+              />
+              <SlotStatusView slot={slot} />
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="flex items-center gap-3 my-6">
+        <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+        <span className="text-xs text-slate-400">SAU</span>
+        <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+      </div>
+
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+        Dacă ai deja datele unificate pe toate cele 3 canale într-un singur fișier (canal, client,
+        categorie/subcategorie proprii per rând), importă-l direct aici — în loc de cele 4 fișiere de
+        mai sus.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {SOURCE_FILE_TYPES.filter((source) => source.id === 'CONSOLIDATED').map((source) => {
           const slot = slots[source.id]
           return (
             <div key={source.id} className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">

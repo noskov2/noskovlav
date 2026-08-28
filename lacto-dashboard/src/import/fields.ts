@@ -12,7 +12,7 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
     label: 'Client',
     required: true,
     type: 'string',
-    aliases: ['denumire client', 'client', 'denumire partener', 'partener', 'cumparator', 'nume client'],
+    aliases: ['denumire client', 'client standardizat', 'client', 'denumire partener', 'partener', 'cumparator', 'nume client'],
   },
   {
     id: 'clientCode',
@@ -50,6 +50,13 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
     aliases: ['categorie', 'grupa', 'grupa produs', 'grupa de produse'],
   },
   {
+    id: 'subcategoryRaw',
+    label: 'Subcategorie',
+    required: false,
+    type: 'string',
+    aliases: ['subcategorie', 'sub-categorie', 'sub categorie', 'subgrupa'],
+  },
+  {
     id: 'quantity',
     label: 'Cantitate',
     required: false,
@@ -76,6 +83,27 @@ export const STANDARD_FIELDS: StandardFieldDef[] = [
     required: true,
     type: 'date',
     aliases: ['data', 'data document', 'data factura', 'data documentului'],
+  },
+  {
+    id: 'year',
+    label: 'An (dacă nu există „Data" exactă)',
+    required: false,
+    type: 'number',
+    aliases: ['anul', 'an'],
+  },
+  {
+    id: 'month',
+    label: 'Lună — număr (dacă nu există „Data" exactă)',
+    required: false,
+    type: 'number',
+    aliases: ['numar luna', 'luna nr', 'nr luna', 'luna numar'],
+  },
+  {
+    id: 'channelRaw',
+    label: 'Canal (RETELE / MAGAZINE PROPRII / DISTRIBUȚIE)',
+    required: false,
+    type: 'string',
+    aliases: ['canal standardizat', 'canal', 'canal vanzare'],
   },
   {
     id: 'documentNo',
@@ -136,6 +164,12 @@ export function autoDetectMapping(headers: string[]): Partial<Record<StandardFie
         score = 80
       } else if (aliasesNorm.some((a) => norm.includes(a) || a.includes(norm))) {
         score = 60
+      }
+      // La egalitate, preferă coloana "standardizată"/"unificată" — un fișier deja
+      // consolidat are des perechi „Client" + „Client Standardizat" cu același scor,
+      // iar a doua e cea de încredere.
+      if (score > 0 && (norm.includes('STANDARDIZAT') || norm.includes('UNIFICAT'))) {
+        score += 1
       }
       if (score > 0 && (!best || score > best.score)) {
         best = { header, score }
