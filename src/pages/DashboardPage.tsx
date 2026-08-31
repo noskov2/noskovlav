@@ -19,6 +19,7 @@ import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
 import { computePontajTeamReport } from '@/kpi/pontajTeamReport'
+import { computePromoLineLabels } from '@/kpi/promoLines'
 import { computeForecast, computePace, type PaceStatus } from '@/kpi/forecast'
 import { computeActionCenter, type ActionTone } from '@/kpi/actionCenter'
 import { getMonthTargets } from '@/data/repo/settings'
@@ -130,11 +131,8 @@ export function DashboardPage() {
   const sandwichIds = useMemo(() => productIdsInGroup(products, 'sandwich'), [products])
   const vitrinaIds = useMemo(() => productIdsInGroup(products, 'dulciuriVitrina'), [products])
   const lemonadeIds = useMemo(() => productIdsInGroup(products, 'limonadaCeai'), [products])
-  const promoIds = useMemo(() => productIdsInGroup(products, 'promotii'), [products])
-  const promoLines = useMemo(
-    () => periodTx.filter((t) => !!t.promotionRaw || promoIds.has(t.productId)),
-    [periodTx, promoIds],
-  )
+  const promoLabelsById = useMemo(() => computePromoLineLabels(periodTx, products), [periodTx, products])
+  const promoLines = useMemo(() => periodTx.filter((t) => promoLabelsById.has(t.id)), [periodTx, promoLabelsById])
   const promoValue = useMemo(() => promoLines.reduce((s, t) => s + t.value, 0), [promoLines])
 
   // Targeturi: momentan sunt configurate per lună calendaristică, la nivel de

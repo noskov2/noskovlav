@@ -229,6 +229,7 @@ export async function importSalesSheet(
       promotionRaw,
       hasReceiptNo,
       fingerprint,
+      rowIndex: i,
     })
 
     if (!dateMin || date < dateMin) dateMin = date

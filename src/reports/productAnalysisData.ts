@@ -5,6 +5,7 @@ import { idsOf, resolveCoffeeVariants, resolveSandwichVariants, SANDWICH_VARIANT
 import { monthLabel } from '@/kpi/dateRanges'
 import { NO_TEAM_ID } from '@/kpi/teamRollup'
 import { buildTeamAsOfResolver } from '@/kpi/teamHistory'
+import { computePromoLineLabels } from '@/kpi/promoLines'
 
 // "Analiza Produse" — inspired by the station's own "Analiza produse" workbook
 // (TURE / SANDWICH / CAFEA sections, per-team rows), extended per the
@@ -257,15 +258,13 @@ export function computeProductAnalysisData(
 
   // ---- PROMOȚII ----
   const promoProductIds = productIdsInGroup(products, 'promotii')
-  const productsById = new Map(products.map((p) => [p.id, p]))
+  const promoLabelsById = computePromoLineLabels(monthTx, products)
   const hasPromoColumn = monthTx.some((t) => !!t.promotionRaw)
   const promoConfigured = promoProductIds.size > 0 || hasPromoColumn
-  const isPromoLine = (t: TransactionLine) => !!t.promotionRaw || promoProductIds.has(t.productId)
-  const promoLabelOf = (t: TransactionLine) => t.promotionRaw?.trim() || productsById.get(t.productId)?.name || t.productRaw
 
   const promo: TeamPromoRow[] = teamIds.map((id) => {
     const lines = linesByTeam.get(id)!
-    const promoLines = lines.filter(isPromoLine)
+    const promoLines = lines.filter((t) => promoLabelsById.has(t.id))
     const totalReceipts = receiptsByTeam.get(id)!.length
     return {
       teamId: id,
@@ -280,8 +279,8 @@ export function computeProductAnalysisData(
   const promoCountByLabelTeam = new Map<string, Map<string, number>>() // label -> teamId -> count
   for (const id of teamIds) {
     for (const t of linesByTeam.get(id)!) {
-      if (!isPromoLine(t)) continue
-      const label = promoLabelOf(t)
+      const label = promoLabelsById.get(t.id)
+      if (!label) continue
       let byTeam = promoCountByLabelTeam.get(label)
       if (!byTeam) {
         byTeam = new Map()

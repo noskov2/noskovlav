@@ -2,23 +2,15 @@ import { useMemo } from 'react'
 import { DataTable, type DataTableColumn } from '@/components/ui/DataTable'
 import { DrillValue } from '@/components/ui/DrillValue'
 import type { CashierCrossSellRow } from '@/kpi/crossSell'
-import { productIdsInGroup } from '@/kpi/productGroups'
+import { computePromoLineLabels } from '@/kpi/promoLines'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 import { linesForCashier, type CrossSellTabProps } from '@/pages/crossSell/shared'
 
 export function PromoTab({ transactions, products, report, cashiersById }: CrossSellTabProps) {
-  const promoProductIds = useMemo(() => productIdsInGroup(products, 'promotii'), [products])
-  const productsById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
-
-  function isPromo(t: { promotionRaw: string | null; productId: string }) {
-    return !!t.promotionRaw || promoProductIds.has(t.productId)
-  }
-  function labelOf(t: { promotionRaw: string | null; productId: string; productRaw: string }) {
-    return t.promotionRaw?.trim() || productsById.get(t.productId)?.name || t.productRaw
-  }
+  const promoLabelsById = useMemo(() => computePromoLineLabels(transactions, products), [transactions, products])
 
   function drillFor(cashierId: string) {
-    return linesForCashier(transactions, cashierId, cashiersById).filter(isPromo)
+    return linesForCashier(transactions, cashierId, cashiersById).filter((t) => promoLabelsById.has(t.id))
   }
 
   const configured = report.stationTotal.promo.lineCount > 0 || transactions.some((t) => !!t.promotionRaw)
@@ -53,7 +45,7 @@ export function PromoTab({ transactions, products, report, cashiersById }: Cross
   for (const row of report.cashiers) {
     const lines = drillFor(row.cashier.id)
     for (const l of lines) {
-      const label = labelOf(l)
+      const label = promoLabelsById.get(l.id) ?? l.productRaw
       let byGroup = byLabel.get(label)
       if (!byGroup) {
         byGroup = new Map()

@@ -136,6 +136,13 @@ export interface TransactionLine {
   promotionRaw: string | null // raw value from the mapped "promoție" column, if configured
   hasReceiptNo: boolean // false when the source row had no usable bon number — this line could not be reliably grouped into a real multi-line receipt
   fingerprint: string // dedup key: date+time+cashierRaw+receiptNo+productRaw+quantity+value
+  // Position of this row in its source sheet (in import order, gaps where
+  // rows were skipped/invalid/duplicate) — the only reliable way to
+  // reconstruct "the next line on this receipt", since same-receipt lines
+  // routinely share one timestamp. Used to pair a combo promo's untagged
+  // half (see kpi/promoLines.ts) with the tagged line right above it.
+  // Absent (undefined) on lines imported before this field existed.
+  rowIndex?: number
 }
 
 export type ImportKind = 'sales' | 'purchases' | 'stock' | 'invoices'

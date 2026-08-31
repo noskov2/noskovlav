@@ -12,6 +12,7 @@ import { effectiveRange } from '@/kpi/filterState'
 import { computeDayDetail, computeDayComparisons, COMPARISON_METRIC_LABELS, type ComparisonMetricKey } from '@/kpi/dailyPerformance'
 import { computeDailySeries } from '@/kpi/dailySeries'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
+import { computePromoLineLabels } from '@/kpi/promoLines'
 import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTypeKey } from '@/kpi/fuelVariants'
 import { BAKERY_WATCHLIST, matchWatchlistItem, computeWatchlistRows } from '@/kpi/watchlist'
 import { filterByRange } from '@/kpi/applyFilters'
@@ -85,10 +86,10 @@ export function DailyPerformancePage() {
   const sandwichIds = useMemo(() => productIdsInGroup(products, 'sandwich'), [products])
   const vitrinaIds = useMemo(() => productIdsInGroup(products, 'dulciuriVitrina'), [products])
   const lemonadeIds = useMemo(() => productIdsInGroup(products, 'limonadaCeai'), [products])
-  const promoIds = useMemo(() => productIdsInGroup(products, 'promotii'), [products])
+  const promoLabelsById = useMemo(() => computePromoLineLabels(viewTransactions, products), [viewTransactions, products])
   const promoLines = useMemo(
-    () => viewTransactions.filter((t) => !!t.promotionRaw || promoIds.has(t.productId)),
-    [viewTransactions, promoIds],
+    () => viewTransactions.filter((t) => promoLabelsById.has(t.id)),
+    [viewTransactions, promoLabelsById],
   )
 
   const [comparisonMetric, setComparisonMetric] = useState<ComparisonMetricKey>('totalSales')

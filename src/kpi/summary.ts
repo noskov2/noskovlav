@@ -3,6 +3,7 @@ import { groupIntoReceipts } from '@/kpi/receipts'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { resolveFuelTypeIds } from '@/kpi/fuelVariants'
 import { exVatValue } from '@/kpi/vat'
+import { computePromoLineLabels } from '@/kpi/promoLines'
 
 export interface PeriodSummary {
   totalSales: number
@@ -42,7 +43,7 @@ export function computePeriodSummary(
   const sandwichIds = productIdsInGroup(products, 'sandwich')
   const lemonadeIds = productIdsInGroup(products, 'limonadaCeai')
   const vitrinaIds = productIdsInGroup(products, 'dulciuriVitrina')
-  const promoIds = productIdsInGroup(products, 'promotii')
+  const promoLabelsById = computePromoLineLabels(transactions, products)
   const productsById = new Map(products.map((p) => [p.id, p]))
 
   let totalSales = 0
@@ -74,7 +75,7 @@ export function computePeriodSummary(
     if (sandwichIds.has(t.productId)) sandwichCount += t.quantity
     if (lemonadeIds.has(t.productId)) lemonadeCount += t.quantity
     if (vitrinaIds.has(t.productId)) vitrinaCount += t.quantity
-    if (t.promotionRaw || promoIds.has(t.productId)) {
+    if (promoLabelsById.has(t.id)) {
       promoValue += t.value
       promoCount++
     }

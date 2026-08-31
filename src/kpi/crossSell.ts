@@ -2,6 +2,7 @@ import type { Cashier, Product, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts, receiptContainsProduct, quantityOfProducts, valueOfProducts, type Receipt } from '@/kpi/receipts'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { idsOf, resolveCoffeeVariants, resolveSandwichVariants } from '@/kpi/namedVariants'
+import { promoLabelsForReceiptLines } from '@/kpi/promoLines'
 
 function intersect(a: Set<string>, b: Set<string>): Set<string> {
   return new Set([...a].filter((id) => b.has(id)))
@@ -224,27 +225,20 @@ function computeLemonade(receipts: Receipt[], products: Product[]): LemonadeBrea
   }
 }
 
-// A line counts as promotional either via the "Promoție" column mapped at
-// import time (its raw text becomes the promotion's label elsewhere) or via
-// the "Promoții" special group in Nomenclator -> Grupuri pe categorie.
-function isPromoLine(line: TransactionLine, promoProductIds: Set<string>): boolean {
-  return !!line.promotionRaw || promoProductIds.has(line.productId)
-}
-
 function computePromo(receipts: Receipt[], products: Product[]): PromoBreakdown {
   const promoProductIds = productIdsInGroup(products, 'promotii')
+  const productsById = new Map(products.map((p) => [p.id, p]))
   let lineCount = 0
   let value = 0
   let receiptsWithPromo = 0
   for (const r of receipts) {
-    let hasPromo = false
+    const labels = promoLabelsForReceiptLines(r.lines, promoProductIds, productsById)
+    if (labels.size > 0) receiptsWithPromo++
     for (const l of r.lines) {
-      if (!isPromoLine(l, promoProductIds)) continue
+      if (!labels.has(l.id)) continue
       lineCount++
       value += l.value
-      hasPromo = true
     }
-    if (hasPromo) receiptsWithPromo++
   }
   return {
     lineCount,
