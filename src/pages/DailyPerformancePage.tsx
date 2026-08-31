@@ -104,6 +104,27 @@ export function DailyPerformancePage() {
   // against the real product list (never invented — unmatched or ambiguous
   // items are left for the user to resolve via the dropdown).
   const productsById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products])
+
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort(),
+    [products],
+  )
+  const [dayCategory, setDayCategory] = useState('')
+  const categoryLines = useMemo(
+    () =>
+      dayCategory
+        ? viewTransactions.filter((t) => (productsById.get(t.productId)?.category || t.categoryRaw) === dayCategory)
+        : [],
+    [viewTransactions, dayCategory, productsById],
+  )
+  const categoryTotal = useMemo(
+    () => ({
+      value: categoryLines.reduce((s, t) => s + t.value, 0),
+      quantity: categoryLines.reduce((s, t) => s + t.quantity, 0),
+      receiptCount: new Set(categoryLines.map((t) => `${t.date}::${t.receiptNo}::${t.cashierId}`)).size,
+    }),
+    [categoryLines],
+  )
   const productsSortedByName = useMemo(() => products.slice().sort((a, b) => a.name.localeCompare(b.name)), [products])
   const coffeeProducts = useMemo(
     () => products.filter((p) => coffeeIds.has(p.id)).sort((a, b) => a.name.localeCompare(b.name)),
@@ -313,6 +334,48 @@ export function DailyPerformancePage() {
               </div>
             </div>
           )}
+
+          <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-slate-700">Vânzări pe categorie</h3>
+              <select
+                value={dayCategory}
+                onChange={(e) => setDayCategory(e.target.value)}
+                className="rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+              >
+                <option value="">Alege o categorie...</option>
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {dayCategory ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-100 p-3">
+                  <p className="text-xs text-slate-500">Valoare vândută</p>
+                  <p className="mt-0.5 text-lg font-semibold text-slate-900">
+                    <DrillValue title={`${dayCategory} — ${formatDateRo(date)}`} lines={categoryLines}>
+                      {formatLei(categoryTotal.value)}
+                    </DrillValue>
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-100 p-3">
+                  <p className="text-xs text-slate-500">Cantitate</p>
+                  <p className="mt-0.5 text-lg font-semibold text-slate-900">{formatNumber(categoryTotal.quantity, 2)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-100 p-3">
+                  <p className="text-xs text-slate-500">Bonuri cu produse din categorie</p>
+                  <p className="mt-0.5 text-lg font-semibold text-slate-900">{formatNumber(categoryTotal.receiptCount)}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">
+                Alege o categorie ca să vezi cât s-a vândut din ea {view === 'total' ? 'în ziua selectată' : 'pentru selecția curentă (tură/casier)'}.
+              </p>
+            )}
+          </div>
 
           {view === 'total' && detail.byCashier.length > 0 && (
             <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
