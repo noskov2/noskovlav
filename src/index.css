@@ -40,3 +40,18 @@ body {
   background-color: var(--color-slate-300);
   border-radius: 9999px;
 }
+
+/* Printing a page (see PageHeader's "Printează" button) should print just
+   that page's content — not the sidebar, top bar, or the button itself. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  html, body, #root {
+    height: auto !important;
+  }
+}
