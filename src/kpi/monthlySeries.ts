@@ -1,6 +1,7 @@
 import type { Product, SupplierReceiptLine, TransactionLine } from '@/types/domain'
 import { computePeriodSummary, type PeriodSummary } from '@/kpi/summary'
 import { computeProductProfitability } from '@/kpi/profitability'
+import { fuelProductIds } from '@/kpi/productGroups'
 import { filterByRange } from '@/kpi/applyFilters'
 import { monthLabel } from '@/kpi/dateRanges'
 
@@ -10,6 +11,8 @@ export interface MonthlyRow {
   shortLabel: string // "Ian 2026"
   summary: PeriodSummary
   grossProfit: number | null
+  fuelGrossProfit: number | null // grossProfit split: carburant
+  goodsGrossProfit: number | null // grossProfit split: marfă (everything non-fuel)
   marginPct: number | null
 }
 
@@ -40,6 +43,7 @@ export function computeMonthlySeries(
   defaultVatRatePct = 19,
 ): MonthlyRow[] {
   const monthKeys = Array.from(new Set(allTransactions.map((t) => t.date.slice(0, 7)))).sort()
+  const fuelIds = fuelProductIds(products)
 
   return monthKeys.map((monthKey) => {
     const start = `${monthKey}-01`
@@ -49,6 +53,8 @@ export function computeMonthlySeries(
 
     const profitRows = computeProductProfitability(monthTx, products, supplierReceipts, defaultVatRatePct)
     let grossProfit = 0
+    let fuelGrossProfit = 0
+    let goodsGrossProfit = 0
     let salesNoVatKnown = 0
     let hasCost = false
     for (const r of profitRows) {
@@ -56,6 +62,8 @@ export function computeMonthlySeries(
         grossProfit += r.grossProfit
         salesNoVatKnown += r.salesValueNoVat ?? 0
         hasCost = true
+        if (fuelIds.has(r.product.id)) fuelGrossProfit += r.grossProfit
+        else goodsGrossProfit += r.grossProfit
       }
     }
 
@@ -69,6 +77,8 @@ export function computeMonthlySeries(
       shortLabel,
       summary,
       grossProfit: hasCost ? grossProfit : null,
+      fuelGrossProfit: hasCost ? fuelGrossProfit : null,
+      goodsGrossProfit: hasCost ? goodsGrossProfit : null,
       marginPct: hasCost && salesNoVatKnown > 0 ? (grossProfit / salesNoVatKnown) * 100 : null,
     }
   })

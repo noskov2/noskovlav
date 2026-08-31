@@ -21,6 +21,7 @@ interface MetricDef {
   label: string
   get: (r: MonthlyRow) => number | null
   format: (v: number) => string
+  sub?: boolean // rendered as an indented "din care" breakdown of the row above
 }
 
 const METRICS: MetricDef[] = [
@@ -37,6 +38,8 @@ const METRICS: MetricDef[] = [
   { key: 'lemonadeCount', label: 'Limonade/ceaiuri vândute', get: (r) => r.summary.lemonadeCount, format: (v) => formatNumber(v) },
   { key: 'promoValue', label: 'Vânzări prin promoții', get: (r) => r.summary.promoValue, format: formatLei },
   { key: 'grossProfit', label: 'Profit brut (cost cunoscut)', get: (r) => r.grossProfit, format: formatLei },
+  { key: 'fuelGrossProfit', label: 'din care: Combustibil', get: (r) => r.fuelGrossProfit, format: formatLei, sub: true },
+  { key: 'goodsGrossProfit', label: 'din care: Marfă', get: (r) => r.goodsGrossProfit, format: formatLei, sub: true },
   { key: 'marginPct', label: 'Marjă', get: (r) => r.marginPct, format: (v) => formatPct(v) },
 ]
 
@@ -119,14 +122,22 @@ export function MonthlyComparisonPage() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               {METRICS.map((metric) => (
-                <tr key={metric.key}>
-                  <td className="sticky left-0 bg-white px-3 py-2 font-medium text-slate-700">{metric.label}</td>
+                <tr key={metric.key} className={metric.sub ? 'bg-slate-50/60' : undefined}>
+                  <td
+                    className={`sticky left-0 px-3 py-2 ${
+                      metric.sub ? 'bg-slate-50/60 pl-6 text-xs text-slate-500' : 'bg-white font-medium text-slate-700'
+                    }`}
+                  >
+                    {metric.label}
+                  </td>
                   {months.map((m, i) => {
                     const value = metric.get(m)
                     const prevValue = i > 0 ? metric.get(months[i - 1]) : null
                     return (
                       <td key={m.monthKey} className="whitespace-nowrap px-3 py-2 text-right">
-                        <div className="text-slate-800">{value != null ? metric.format(value) : '—'}</div>
+                        <div className={metric.sub ? 'text-xs text-slate-600' : 'text-slate-800'}>
+                          {value != null ? metric.format(value) : '—'}
+                        </div>
                         {i > 0 && value != null && prevValue != null && (
                           <div className="mt-0.5 flex justify-end">
                             <DeltaBadge delta={computeDelta(value, prevValue)} />
