@@ -41,17 +41,29 @@ body {
   border-radius: 9999px;
 }
 
-/* Printing a page (see PageHeader's "Printează" button) should print just
-   that page's content — not the sidebar, top bar, or the button itself. */
+/* Printing a page (see PageHeader's "Printează" button, and TargetsPage's
+   own) should print the FULL page content, flowing across as many sheets
+   of paper as needed — not just whatever fit on screen at that moment.
+   AppShell's layout is built for an on-screen app (a fixed h-screen root,
+   with overflow-hidden flex wrappers so only <main> scrolls) — during
+   print, every ancestor between #root and <main> still clips at viewport
+   height unless explicitly reset here, which silently truncates anything
+   below the fold instead of spilling onto a second printed page. */
 @media print {
   .no-print {
     display: none !important;
   }
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  #root > div,
+  #root > div > div {
+    height: auto !important;
+    overflow: visible !important;
+  }
   main {
     overflow: visible !important;
-    height: auto !important;
-  }
-  html, body, #root {
     height: auto !important;
   }
 }
