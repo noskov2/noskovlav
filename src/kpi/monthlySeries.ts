@@ -2,6 +2,7 @@ import type { Product, SupplierReceiptLine, TransactionLine } from '@/types/doma
 import { computePeriodSummary, type PeriodSummary } from '@/kpi/summary'
 import { computeProductProfitability } from '@/kpi/profitability'
 import { fuelProductIds } from '@/kpi/productGroups'
+import { computeFuelBreakdown, type FuelBreakdown } from '@/kpi/fuelVariants'
 import { filterByRange } from '@/kpi/applyFilters'
 import { monthLabel } from '@/kpi/dateRanges'
 
@@ -10,6 +11,7 @@ export interface MonthlyRow {
   label: string // "Ianuarie 2026"
   shortLabel: string // "Ian 2026"
   summary: PeriodSummary
+  fuelBreakdown: FuelBreakdown // vânzări carburant, pe tip (motorină/benzină/GPL), valoric + cantitativ
   grossProfit: number | null
   fuelGrossProfit: number | null // grossProfit split: carburant
   goodsGrossProfit: number | null // grossProfit split: marfă (everything non-fuel)
@@ -50,6 +52,7 @@ export function computeMonthlySeries(
     const end = `${monthKey}-${String(daysInMonth(monthKey)).padStart(2, '0')}`
     const monthTx = filterByRange(allTransactions, start, end)
     const summary = computePeriodSummary(monthTx, products, defaultVatRatePct)
+    const fuelBreakdown = computeFuelBreakdown(monthTx, products)
 
     const profitRows = computeProductProfitability(monthTx, products, supplierReceipts, defaultVatRatePct)
     let grossProfit = 0
@@ -76,6 +79,7 @@ export function computeMonthlySeries(
       label: `${monthName} ${year}`,
       shortLabel,
       summary,
+      fuelBreakdown,
       grossProfit: hasCost ? grossProfit : null,
       fuelGrossProfit: hasCost ? fuelGrossProfit : null,
       goodsGrossProfit: hasCost ? goodsGrossProfit : null,
