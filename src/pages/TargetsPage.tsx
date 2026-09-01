@@ -154,13 +154,22 @@ const STYLE = `
 .target-tool .edit-day-btn:hover { background: var(--surface-2); }
 .target-tool .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
 .target-tool .modal-card { background: var(--surface-1); border-radius: 14px; padding: 20px; width: 100%; max-width: 340px; border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(0,0,0,.25); }
+.target-tool .modal-card.wide { max-width: 640px; }
 .target-tool .modal-card h3 { margin: 0 0 14px; font-size: 15px; }
 .target-tool .modal-card label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
-.target-tool .modal-card input {
+.target-tool .modal-card input, .target-tool .modal-card select {
   display: block; width: 100%; margin-top: 5px; padding: 8px 10px; font: inherit; font-size: 14px;
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);
 }
 .target-tool .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.target-tool .new-month-row { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 12px 16px; margin-bottom: 4px; }
+.target-tool .new-month-note { font-size: 12px; color: var(--text-muted); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; margin: 4px 0 12px; }
+.target-tool .new-month-days { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; }
+.target-tool .new-month-day-row { display: grid; grid-template-columns: 28px 40px 1fr 1fr; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--gridline); }
+.target-tool .new-month-day-row:last-child { border-bottom: none; }
+.target-tool .new-month-day-row .zi { font-weight: 600; font-size: 12.5px; }
+.target-tool .new-month-day-row .ziSapt { font-size: 11px; color: var(--text-muted); }
+.target-tool .new-month-day-row select { margin-top: 0; padding: 5px 8px; font-size: 12.5px; }
 .target-tool .history-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gridline); font-size: 13px; }
 .target-tool .history-row:last-child { border-bottom: none; }
 .target-tool .history-row .hmonth { width: 90px; flex: none; font-weight: 600; }
@@ -754,7 +763,18 @@ function collectTeamKeys(data: DashboardData): { key: string; label: string }[] 
     .map(([key, label]) => ({ key, label }))
     .sort((a, b) => a.label.localeCompare(b.label))
 }
-const MONTH_ORDER: Record<string, number> = { IAN: 0, FEB: 1, MAR: 2, APR: 3, MAI: 4, IUN: 5, IUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 }
+// Keys match monthKeyFrom's 3-letter truncation of the Romanian month name
+// (e.g. "noiembrie".slice(0,3) === "noi", never "nov").
+const MONTH_ORDER: Record<string, number> = { IAN: 0, FEB: 1, MAR: 2, APR: 3, MAI: 4, IUN: 5, IUL: 6, AUG: 7, SEP: 8, OCT: 9, NOI: 10, DEC: 11 }
+const MONTH_ABBR_RO = ['IAN', 'FEB', 'MAR', 'APR', 'MAI', 'IUN', 'IUL', 'AUG', 'SEP', 'OCT', 'NOI', 'DEC']
+const MONTH_NAMES_RO = [
+  'Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie',
+  'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie',
+]
+const WEEKDAYS_RO = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă']
+function storeKeyForMonth(monthIdx: number, year: number): string {
+  return `${MONTH_ABBR_RO[monthIdx]} ${year}`
+}
 function monthSortKey(key: string): number | null {
   const m = String(key).match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
   if (!m) return null
@@ -767,6 +787,95 @@ function sortedMonthKeys(store: Record<string, DashboardData>): string[] {
     if (ka != null && kb != null) return ka - kb
     return String(a).localeCompare(String(b))
   })
+}
+
+// ---------- new month skeleton (no Excel needed) ----------
+// The owner's team rotation follows a fixed, repeating pattern (confirmed by
+// the station owner directly) — so a brand-new month doesn't need to be
+// typed in blind. We detect the cycle length from the most recently saved
+// month's rotation and continue it day-by-day into the new month, letting
+// the owner fix any individual day before saving (people do swap shifts).
+function detectRotationCycle(days: DayRow[]): { tura1: string; tura2: string }[] | null {
+  if (days.length < 4) return null
+  const seq = days.map((d) => ({
+    tura1: teamShortLabel(String(d.echipaTura1 || '').split('\n')[0]),
+    tura2: teamShortLabel(String(d.echipaTura2 || '').split('\n')[0]),
+  }))
+  const maxPeriod = Math.floor(seq.length / 2)
+  for (let period = 1; period <= maxPeriod; period++) {
+    let ok = true
+    for (let i = period; i < seq.length; i++) {
+      if (seq[i].tura1 !== seq[i - period].tura1 || seq[i].tura2 !== seq[i - period].tura2) { ok = false; break }
+    }
+    if (ok) return seq.slice(0, period)
+  }
+  return null
+}
+// Where the new month's day 1 falls in that cycle, continuing on from the
+// source month's last day (calendar-adjacent months only — a skipped month
+// would throw this off, which is why every day stays editable in the modal).
+function computeCycleOffset(sourceDays: DayRow[], cycle: { tura1: string; tura2: string }[]): number {
+  if (!sourceDays.length || !cycle.length) return 0
+  const lastIdx = (sourceDays.length - 1) % cycle.length
+  return (lastIdx + 1) % cycle.length
+}
+function newMonthTeamOptions(latestData: DashboardData | null): { key: string; label: string }[] {
+  const keys = latestData ? collectTeamKeys(latestData) : []
+  if (keys.length) return keys
+  return [
+    { key: 'echipa 1', label: 'Echipa 1' },
+    { key: 'echipa 2', label: 'Echipa 2' },
+    { key: 'echipa 3', label: 'Echipa 3' },
+  ]
+}
+function defaultNewMonthTarget(store: Record<string, DashboardData>): { monthIdx: number; year: number } {
+  const keys = sortedMonthKeys(store)
+  const now = new Date()
+  if (!keys.length) return { monthIdx: now.getMonth(), year: now.getFullYear() }
+  const m = keys[keys.length - 1].match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
+  const idx = m ? MONTH_ORDER[m[1].toUpperCase()] : null
+  if (!m || idx == null) return { monthIdx: now.getMonth(), year: now.getFullYear() }
+  const year = parseInt(m[2], 10)
+  return idx === 11 ? { monthIdx: 0, year: year + 1 } : { monthIdx: idx + 1, year }
+}
+function buildNewMonthSkeleton(
+  monthIdx: number,
+  year: number,
+  shift1Target: number | null,
+  shift2Target: number | null,
+  grila: GrilaRow[],
+  dayAssignments: { tura1: string; tura2: string }[],
+): DashboardData {
+  const numDays = new Date(year, monthIdx + 1, 0).getDate()
+  const dailyTarget = shift1Target != null && shift2Target != null ? shift1Target + shift2Target : null
+  const days: DayRow[] = []
+  for (let zi = 1; zi <= numDays; zi++) {
+    const dateObj = new Date(year, monthIdx, zi)
+    const assignment = dayAssignments[zi - 1] || { tura1: 'Echipa 1', tura2: 'Echipa 2' }
+    days.push({
+      zi,
+      data: `${String(zi).padStart(2, '0')}.${String(monthIdx + 1).padStart(2, '0')}.${year}`,
+      ziSapt: WEEKDAYS_RO[dateObj.getDay()],
+      echipaTura1: assignment.tura1,
+      echipaTura2: assignment.tura2,
+      targetZi: dailyTarget, realizat: null, diferenta: null, procent: null, status: null,
+    })
+  }
+  const monthName = MONTH_NAMES_RO[monthIdx]
+  const rezumat: Rezumat = {
+    title: `Target Vânzări ${monthName} ${year}`,
+    subtitle: null,
+    monthlyTotal: dailyTarget != null ? dailyTarget * numDays : null,
+    dailyTarget, shift1Target, shift2Target,
+  }
+  const data: DashboardData = {
+    rezumat, situatie: null, bonus: { grila, teams: [], total: null },
+    zilnic: { days, total: null }, tracker: null,
+    config: { shift1Target, shift2Target, dailyTarget, grila },
+    rotation: buildRotation(days), rawRealizat: {}, cutoffZi: null, warnings: [], savedAt: Date.now(),
+  }
+  recompute(data)
+  return data
 }
 
 // ---------- bridge into the app's own AppSettings.monthlyTargets ----------
@@ -829,6 +938,14 @@ export function TargetsPage() {
       teamNamesBtn: $<HTMLButtonElement>('teamNamesBtn'),
       teamNamesModal: $<HTMLDivElement>('teamNamesModal'),
       teamNamesFields: $<HTMLDivElement>('teamNamesFields'),
+      newMonthBtn: $<HTMLButtonElement>('newMonthBtn'),
+      newMonthModal: $<HTMLDivElement>('newMonthModal'),
+      newMonthMonth: $<HTMLSelectElement>('newMonthMonth'),
+      newMonthYear: $<HTMLInputElement>('newMonthYear'),
+      newMonthShift1: $<HTMLInputElement>('newMonthShift1'),
+      newMonthShift2: $<HTMLInputElement>('newMonthShift2'),
+      newMonthNote: $<HTMLDivElement>('newMonthNote'),
+      newMonthDays: $<HTMLDivElement>('newMonthDays'),
     }
 
     let teamNames: Record<string, string> = loadTeamNames()
@@ -1383,6 +1500,106 @@ export function TargetsPage() {
       if (currentData) render(currentData)
     })
 
+    // ---------- new month ----------
+    function renderNewMonthDays() {
+      const monthIdx = Number(els.newMonthMonth.value)
+      const year = Number(els.newMonthYear.value) || new Date().getFullYear()
+      const numDays = new Date(year, monthIdx + 1, 0).getDate()
+      const store = loadStore()
+      const keys = sortedMonthKeys(store)
+      const latestKey = keys[keys.length - 1]
+      const latestData = latestKey ? store[latestKey] : null
+      const latestDays = latestData?.zilnic?.days || []
+      const cycle = latestDays.length ? detectRotationCycle(latestDays) : null
+      const offset = cycle ? computeCycleOffset(latestDays, cycle) : 0
+      const teamOptions = newMonthTeamOptions(latestData)
+
+      let rows = ''
+      for (let zi = 1; zi <= numDays; zi++) {
+        const dateObj = new Date(year, monthIdx, zi)
+        let t1 = teamOptions[0]?.label || 'Echipa 1'
+        let t2 = teamOptions[1]?.label || teamOptions[0]?.label || 'Echipa 2'
+        if (cycle && cycle.length) {
+          const c = cycle[(offset + zi - 1) % cycle.length]
+          if (c.tura1) t1 = c.tura1
+          if (c.tura2) t2 = c.tura2
+        }
+        const optHtml = (selected: string) =>
+          teamOptions
+            .map(
+              (o) =>
+                `<option value="${escapeHtml(o.label)}" ${teamKeyOf(o.label) === teamKeyOf(selected) ? 'selected' : ''}>${escapeHtml(o.label)}</option>`,
+            )
+            .join('')
+        rows += `<div class="new-month-day-row">
+          <span class="zi">${zi}</span>
+          <span class="ziSapt">${escapeHtml(WEEKDAYS_RO[dateObj.getDay()].slice(0, 3))}</span>
+          <select data-zi="${zi}" data-shift="1">${optHtml(t1)}</select>
+          <select data-zi="${zi}" data-shift="2">${optHtml(t2)}</select>
+        </div>`
+      }
+      els.newMonthDays.innerHTML = rows
+
+      if (cycle) {
+        els.newMonthNote.textContent = `Tipar detectat în ${latestKey}: se repetă la fiecare ${cycle.length} zile — rotația de mai jos e continuată automat din el. Corectează orice zi dacă echipele au schimbat între ele.`
+      } else if (latestKey) {
+        els.newMonthNote.textContent = `Nu am putut detecta un tipar fix de rotație în ${latestKey} — completează echipele de mai jos manual.`
+      } else {
+        els.newMonthNote.textContent = 'Nicio lună anterioară salvată — completează echipele de mai jos manual.'
+      }
+    }
+    function openNewMonthModal() {
+      const store = loadStore()
+      const { monthIdx, year } = defaultNewMonthTarget(store)
+      els.newMonthMonth.value = String(monthIdx)
+      els.newMonthYear.value = String(year)
+      const keys = sortedMonthKeys(store)
+      const latestData = keys.length ? store[keys[keys.length - 1]] : null
+      els.newMonthShift1.value = latestData?.config?.shift1Target != null ? String(latestData.config.shift1Target) : ''
+      els.newMonthShift2.value = latestData?.config?.shift2Target != null ? String(latestData.config.shift2Target) : ''
+      renderNewMonthDays()
+      els.newMonthModal.style.display = 'flex'
+    }
+    els.newMonthBtn.addEventListener('click', openNewMonthModal)
+    els.newMonthMonth.addEventListener('change', renderNewMonthDays)
+    els.newMonthYear.addEventListener('change', renderNewMonthDays)
+    $<HTMLButtonElement>('newMonthCancel').addEventListener('click', () => { els.newMonthModal.style.display = 'none' })
+    els.newMonthModal.addEventListener('click', (e) => { if (e.target === els.newMonthModal) els.newMonthModal.style.display = 'none' })
+    $<HTMLButtonElement>('newMonthSave').addEventListener('click', () => {
+      const monthIdx = Number(els.newMonthMonth.value)
+      const year = Number(els.newMonthYear.value)
+      if (!year || year < 2000 || year > 2100) { showError('Anul introdus pentru luna nouă nu este valid.'); return }
+      const store = loadStore()
+      const key = storeKeyForMonth(monthIdx, year)
+      if (store[key] && !confirm(`Există deja o lună salvată pentru ${key}. O suprascrii?`)) return
+
+      const s1 = els.newMonthShift1.value.trim()
+      const s2 = els.newMonthShift2.value.trim()
+      const shift1Target = s1 === '' ? null : parseFloat(s1)
+      const shift2Target = s2 === '' ? null : parseFloat(s2)
+
+      const numDays = new Date(year, monthIdx + 1, 0).getDate()
+      const dayAssignments: { tura1: string; tura2: string }[] = []
+      for (let zi = 1; zi <= numDays; zi++) {
+        const sel1 = els.newMonthDays.querySelector<HTMLSelectElement>(`select[data-zi="${zi}"][data-shift="1"]`)
+        const sel2 = els.newMonthDays.querySelector<HTMLSelectElement>(`select[data-zi="${zi}"][data-shift="2"]`)
+        dayAssignments.push({ tura1: sel1?.value || 'Echipa 1', tura2: sel2?.value || 'Echipa 2' })
+      }
+
+      const keys = sortedMonthKeys(store)
+      const latestData = keys.length ? store[keys[keys.length - 1]] : null
+      const grila = latestData?.bonus?.grila || []
+
+      const data = buildNewMonthSkeleton(monthIdx, year, shift1Target, shift2Target, grila, dayAssignments)
+      store[key] = data
+      saveStore(store)
+      currentKey = key
+      showError('')
+      render(data)
+      refreshMonthSelect()
+      els.newMonthModal.style.display = 'none'
+    })
+
     // ---------- init from storage ----------
     const store = loadStore()
     const keys = sortedMonthKeys(store)
@@ -1405,6 +1622,7 @@ export function TargetsPage() {
           <div className="top-actions">
             <select id="monthSelect" style={{ display: 'none' }}></select>
             <button id="teamNamesBtn" style={{ display: 'none' }} title="Înlocuiește «Echipa 1», «Echipa 2» etc. cu numele gestionarilor">✎ Nume echipe</button>
+            <button id="newMonthBtn" className="btn-primary" title="Creează scheletul (targete + rotație echipe) pentru o lună nouă, fără fișier Excel">+ Lună nouă</button>
             <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
             <button id="backupBtn" title="Descarcă o copie de siguranță a tuturor lunilor salvate">⬇ Backup</button>
             <label className="btn" htmlFor="restoreInput" title="Încarcă o copie de siguranță salvată anterior">⬆ Restaurează</label>
@@ -1485,6 +1703,45 @@ export function TargetsPage() {
           <div className="modal-actions">
             <button id="teamNamesCancel">Anulează</button>
             <button id="teamNamesSave" className="btn-primary">Salvează</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-overlay" id="newMonthModal" style={{ display: 'none' }}>
+        <div className="modal-card wide">
+          <h3>Lună nouă</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+            Creează scheletul lunii — targete și rotația echipelor pe zile — fără să fie nevoie de un fișier Excel.
+            Rotația se continuă automat din ultima lună salvată (tipar fix), iar tu poți corecta orice zi mai jos
+            înainte de a salva.
+          </p>
+          <div className="new-month-row">
+            <label>
+              Lună
+              <select id="newMonthMonth">
+                {MONTH_NAMES_RO.map((name, i) => (
+                  <option key={name} value={i}>{name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              An
+              <input type="number" id="newMonthYear" step="1" />
+            </label>
+            <label>
+              Target tură 1 (RON/zi)
+              <input type="number" id="newMonthShift1" step="0.01" inputMode="decimal" />
+            </label>
+            <label>
+              Target tură 2 (RON/zi)
+              <input type="number" id="newMonthShift2" step="0.01" inputMode="decimal" />
+            </label>
+          </div>
+          <div className="new-month-note" id="newMonthNote"></div>
+          <div className="new-month-days" id="newMonthDays"></div>
+          <div className="modal-actions">
+            <button id="newMonthCancel">Anulează</button>
+            <button id="newMonthSave" className="btn-primary">Salvează luna</button>
           </div>
         </div>
       </div>
