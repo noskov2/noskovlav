@@ -100,6 +100,9 @@ const STYLE = `
 .target-tool .stat-tile .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .target-tool .stat-tile .value.delta-good { color: var(--good); }
 .target-tool .stat-tile .value.delta-bad { color: var(--critical); }
+.target-tool .stat-tile .sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; line-height: 1.35; }
+.target-tool .stat-tile .sub.good { color: var(--good); }
+.target-tool .stat-tile .sub.bad { color: var(--critical); }
 .target-tool .bar { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; position: relative; }
 .target-tool .bar .fill { height: 100%; border-radius: 5px; background: var(--series-1); transition: width .3s ease; }
 .target-tool .bar.small { height: 7px; border-radius: 4px; }
@@ -208,6 +211,23 @@ function fmtRON(n: number | null | undefined): string {
 function fmtPct(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return '—'
   return (n * 100).toFixed(1).replace('.', ',') + '%'
+}
+// Year-over-year comparisons (target/realizat vs. same month last year) are
+// expressed as already-scaled percentages (e.g. 35, not 0.35) since they're
+// computed from two RON figures directly, not from a fraction like fmtPct.
+function pctChange(curr: number | null, prev: number | null | undefined): number | null {
+  if (curr == null || prev == null || prev === 0) return null
+  return (curr / prev - 1) * 100
+}
+function fmtSignedPct(n: number | null): string {
+  if (n == null || isNaN(n)) return '—'
+  const sign = n >= 0 ? '+' : ''
+  return sign + n.toFixed(1).replace('.', ',') + '%'
+}
+function fmtVsTargetPct(n: number | null): string {
+  if (n == null || isNaN(n)) return '—'
+  const abs = Math.abs(n).toFixed(1).replace('.', ',')
+  return n >= 0 ? `+${abs}% peste target lunar` : `-${abs}% sub target lunar`
 }
 function escapeHtml(s: unknown): string {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
@@ -573,6 +593,11 @@ interface DashboardData {
   cutoffZi: number | null
   warnings: string[]
   savedAt: number
+  // Actual RON figure for the same calendar month, one year earlier — typed
+  // in by the owner (not from any Excel sheet), since the monthly target is
+  // itself usually set as "+X% vs. same month last year". Optional so old
+  // saved months (before this field existed) still deserialize fine.
+  lastYearActual?: number | null
 }
 
 function buildRotation(zilnicDays: DayRow[] | undefined): Record<string, { tura1: string; tura2: string }> {
@@ -775,6 +800,16 @@ const WEEKDAYS_RO = ['Duminică', 'Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri',
 function storeKeyForMonth(monthIdx: number, year: number): string {
   return `${MONTH_ABBR_RO[monthIdx]} ${year}`
 }
+// "AUG 2026" -> "August 2025" — the same calendar month, one year earlier,
+// for labeling the year-over-year comparison figures in the hero card.
+function priorYearLabel(key: string | null): string {
+  if (!key) return 'anul trecut'
+  const m = key.match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
+  if (!m) return 'anul trecut'
+  const idx = MONTH_ORDER[m[1].toUpperCase()]
+  if (idx == null) return 'anul trecut'
+  return `${MONTH_NAMES_RO[idx]} ${parseInt(m[2], 10) - 1}`
+}
 function monthSortKey(key: string): number | null {
   const m = String(key).match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
   if (!m) return null
@@ -938,6 +973,10 @@ export function TargetsPage() {
       teamNamesBtn: $<HTMLButtonElement>('teamNamesBtn'),
       teamNamesModal: $<HTMLDivElement>('teamNamesModal'),
       teamNamesFields: $<HTMLDivElement>('teamNamesFields'),
+      lastYearBtn: $<HTMLButtonElement>('lastYearBtn'),
+      lastYearModal: $<HTMLDivElement>('lastYearModal'),
+      lastYearLabel: $<HTMLSpanElement>('lastYearLabel'),
+      lastYearInput: $<HTMLInputElement>('lastYearInput'),
       newMonthBtn: $<HTMLButtonElement>('newMonthBtn'),
       newMonthModal: $<HTMLDivElement>('newMonthModal'),
       newMonthMonth: $<HTMLSelectElement>('newMonthMonth'),
@@ -960,8 +999,9 @@ export function TargetsPage() {
       els.warnBox.style.display = 'block'
     }
 
-    function statTile(label: string, value: string, cls?: string): string {
-      return `<div class="stat-tile"><div class="label">${escapeHtml(label)}</div><div class="value${cls ? ' ' + cls : ''}">${value}</div></div>`
+    function statTile(label: string, value: string, cls?: string, subLines?: { text: string; cls?: string }[]): string {
+      const subHtml = (subLines || []).map((s) => `<div class="sub${s.cls ? ' ' + s.cls : ''}">${s.text}</div>`).join('')
+      return `<div class="stat-tile"><div class="label">${escapeHtml(label)}</div><div class="value${cls ? ' ' + cls : ''}">${value}</div>${subHtml}</div>`
     }
 
     function renderHero(data: DashboardData) {
@@ -972,6 +1012,8 @@ export function TargetsPage() {
       const targetPana = totals.targetPana ?? null
       const pct = totals.procent ?? (monthlyTotal ? (realizat ?? 0) / monthlyTotal : null)
       const pctVsPana = targetPana && realizat != null ? realizat / targetPana : null
+      const lastYearActual = data.lastYearActual ?? null
+      const lastYearLabel = priorYearLabel(currentKey)
 
       const days = data.zilnic?.days || []
       const daysWithData = days.filter((d) => d.realizat != null).length
@@ -981,8 +1023,21 @@ export function TargetsPage() {
       html += `<div class="hero-title">${escapeHtml(r.title || 'Target vânzări')}</div>`
       if (r.subtitle) html += `<div class="hero-sub">${escapeHtml(r.subtitle)}</div>`
       html += '<div class="stat-row">'
-      html += statTile('Target lunar total', fmtRON(monthlyTotal))
-      html += statTile('Realizat până acum', fmtRON(realizat))
+
+      const targetVsLY = pctChange(monthlyTotal, lastYearActual)
+      const targetSub =
+        targetVsLY != null
+          ? [{ text: `${fmtSignedPct(targetVsLY)} față de ${lastYearLabel} (${fmtRON(lastYearActual)})`, cls: targetVsLY >= 0 ? 'good' : 'bad' }]
+          : undefined
+      html += statTile('Target lunar total', fmtRON(monthlyTotal), undefined, targetSub)
+
+      const realizatVsTarget = pctChange(realizat, monthlyTotal)
+      const realizatVsLY = pctChange(realizat, lastYearActual)
+      const realizatSub: { text: string; cls?: string }[] = []
+      if (realizatVsTarget != null) realizatSub.push({ text: fmtVsTargetPct(realizatVsTarget), cls: realizatVsTarget >= 0 ? 'good' : 'bad' })
+      if (realizatVsLY != null) realizatSub.push({ text: `${fmtSignedPct(realizatVsLY)} față de ${lastYearLabel} (${fmtRON(lastYearActual)})`, cls: realizatVsLY >= 0 ? 'good' : 'bad' })
+      html += statTile('Realizat până acum', fmtRON(realizat), undefined, realizatSub.length ? realizatSub : undefined)
+
       if (targetPana != null) html += statTile('Target până azi', fmtRON(targetPana))
       if (totals.diferenta != null) {
         const cls = totals.diferenta >= 0 ? 'delta-good' : 'delta-bad'
@@ -1255,6 +1310,7 @@ export function TargetsPage() {
       els.dashboard.classList.add('visible')
       els.empty.style.display = 'none'
       els.teamNamesBtn.style.display = 'inline-block'
+      els.lastYearBtn.style.display = 'inline-block'
       const d = new Date(data.savedAt)
       els.updatedLabel.textContent = 'actualizat ' + d.toLocaleDateString('ro-RO') + ' ' + d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
       if (currentKey) {
@@ -1349,6 +1405,7 @@ export function TargetsPage() {
             data.rawRealizat = mergeRawRealizat(data.rawRealizat, existing.rawRealizat)
             recompute(data)
           }
+          if (existing?.lastYearActual != null) data.lastYearActual = existing.lastYearActual
           store[key] = data
           saveStore(store)
           currentKey = key
@@ -1500,6 +1557,29 @@ export function TargetsPage() {
       if (currentData) render(currentData)
     })
 
+    // ---------- last year actual (for YoY comparison in the hero card) ----------
+    els.lastYearBtn.addEventListener('click', () => {
+      if (!currentData || !currentKey) return
+      els.lastYearLabel.textContent = `Realizat ${priorYearLabel(currentKey)} (RON)`
+      els.lastYearInput.value = currentData.lastYearActual != null ? String(currentData.lastYearActual) : ''
+      els.lastYearModal.style.display = 'flex'
+      els.lastYearInput.focus()
+    })
+    $<HTMLButtonElement>('lastYearCancel').addEventListener('click', () => { els.lastYearModal.style.display = 'none' })
+    els.lastYearModal.addEventListener('click', (e) => { if (e.target === els.lastYearModal) els.lastYearModal.style.display = 'none' })
+    $<HTMLButtonElement>('lastYearSave').addEventListener('click', () => {
+      if (!currentKey) { els.lastYearModal.style.display = 'none'; return }
+      const store = loadStore()
+      const data = store[currentKey]
+      if (!data) { els.lastYearModal.style.display = 'none'; return }
+      const v = els.lastYearInput.value.trim()
+      data.lastYearActual = v === '' ? null : parseFloat(v)
+      store[currentKey] = data
+      saveStore(store)
+      els.lastYearModal.style.display = 'none'
+      render(data)
+    })
+
     // ---------- new month ----------
     function renderNewMonthDays() {
       const monthIdx = Number(els.newMonthMonth.value)
@@ -1622,6 +1702,7 @@ export function TargetsPage() {
           <div className="top-actions">
             <select id="monthSelect" style={{ display: 'none' }}></select>
             <button id="teamNamesBtn" style={{ display: 'none' }} title="Înlocuiește «Echipa 1», «Echipa 2» etc. cu numele gestionarilor">✎ Nume echipe</button>
+            <button id="lastYearBtn" style={{ display: 'none' }} title="Introdu cât s-a realizat în aceeași lună anul trecut, pentru comparație">✎ An trecut</button>
             <button id="newMonthBtn" className="btn-primary" title="Creează scheletul (targete + rotație echipe) pentru o lună nouă, fără fișier Excel">+ Lună nouă</button>
             <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
             <button id="backupBtn" title="Descarcă o copie de siguranță a tuturor lunilor salvate">⬇ Backup</button>
@@ -1703,6 +1784,24 @@ export function TargetsPage() {
           <div className="modal-actions">
             <button id="teamNamesCancel">Anulează</button>
             <button id="teamNamesSave" className="btn-primary">Salvează</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-overlay" id="lastYearModal" style={{ display: 'none' }}>
+        <div className="modal-card">
+          <h3>Comparație cu anul trecut</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+            Introdu cât s-a realizat efectiv în aceeași lună, anul trecut — apare apoi lângă target și realizat, ca
+            procent de creștere.
+          </p>
+          <label htmlFor="lastYearInput">
+            <span id="lastYearLabel">Realizat (RON)</span>
+            <input type="number" id="lastYearInput" step="0.01" inputMode="decimal" />
+          </label>
+          <div className="modal-actions">
+            <button id="lastYearCancel">Anulează</button>
+            <button id="lastYearSave" className="btn-primary">Salvează</button>
           </div>
         </div>
       </div>
