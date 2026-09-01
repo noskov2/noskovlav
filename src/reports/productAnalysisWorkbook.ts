@@ -55,6 +55,11 @@ export async function buildProductAnalysisWorkbook(data: ProductAnalysisData): P
   // ---- TURE ----
   sectionTitle(ws, r, 4, 'TURE')
   r++
+  if (!data.pontajConfigured) {
+    ws.getCell(r, 1).value = 'Nicio schemă de rotație (pontaj) găsită pentru această lună — configureaz-o la meniul Target, altfel turele nu pot fi atribuite pe echipă.'
+    styleCell(ws.getCell(r, 1), { align: 'left' })
+    r += 2
+  }
   ;['Echipă', 'Dimineața', 'Seara', 'TOTAL'].forEach((h, i) => {
     const c = ws.getCell(r, i + 1)
     c.value = h

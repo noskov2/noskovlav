@@ -58,7 +58,7 @@ const STATUS_LABEL: Record<ReportStatus, string> = { disponibil: 'Disponibil', g
 const STATUS_TONE: Record<ReportStatus, 'neutral' | 'warn' | 'good'> = { disponibil: 'neutral', generat: 'warn', verificat: 'good' }
 
 export function ReportsPage() {
-  const { transactions, products, cashiers, teams, supplierReceipts, settings, refresh } = useDataStore()
+  const { transactions, products, supplierReceipts, settings, refresh } = useDataStore()
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
 
   const months = useMemo(() => listAvailableMonths(transactions), [transactions])
@@ -100,7 +100,7 @@ export function ReportsPage() {
         await downloadDailyReceiptsReport(data)
         await markGenerated('vanzari')
       } else if (kind === 'produse') {
-        const data = computeProductAnalysisData(year, month, transactions, products, cashiers, teams)
+        const data = computeProductAnalysisData(year, month, transactions, products)
         await downloadProductAnalysisReport(data)
         await markGenerated('produse')
       } else {

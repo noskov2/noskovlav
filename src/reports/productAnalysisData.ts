@@ -1,10 +1,9 @@
-import type { Cashier, Product, Team, TransactionLine } from '@/types/domain'
+import type { Product, TransactionLine } from '@/types/domain'
 import { groupIntoReceipts, type Receipt } from '@/kpi/receipts'
 import { fuelProductIds, productIdsInGroup } from '@/kpi/productGroups'
 import { idsOf, resolveCoffeeVariants, resolveSandwichVariants, SANDWICH_VARIANT_LABELS, type SandwichVariants } from '@/kpi/namedVariants'
 import { monthLabel } from '@/kpi/dateRanges'
-import { NO_TEAM_ID } from '@/kpi/teamRollup'
-import { buildTeamAsOfResolver } from '@/kpi/teamHistory'
+import { buildPontajIndex, scheduledTeamFor, resolveTeamName, loadTeamNames, defaultTeamLabel } from '@/data/pontaj'
 import { computePromoLineLabels } from '@/kpi/promoLines'
 
 // "Analiza Produse" — inspired by the station's own "Analiza produse" workbook
@@ -13,6 +12,15 @@ import { computePromoLineLabels } from '@/kpi/promoLines'
 // product, and a "linii promoții" section. Unlike the monthly report and
 // Raport Bonuri, this one is NOT required to be 1:1 with the reference file
 // — it is meant to improve on it.
+//
+// Team attribution follows the pre-set monthly schedule (pontaj) from the
+// Target page — which team was ROSTERED for a given date+tură — never which
+// cashier happened to be logged into the register that shift. Cashiers swap
+// shifts informally among themselves, so grouping by Cashier.teamId (this
+// report's old approach) could pile up a whole month's sales under the
+// wrong team — e.g. showing a team with more "ture" in a month than the
+// month has days, which is what this fix was reported against. Per the
+// station owner, the pontaj is the schedule of record — see src/data/pontaj.ts.
 //
 // "Linii promoții" is detected two ways, combined with OR:
 //  1. The "Promoție" column mapped at import time (Import date -> Mapare
@@ -24,6 +32,8 @@ import { computePromoLineLabels } from '@/kpi/promoLines'
 //     that only have a dedicated category rather than a per-line column.
 // Until at least one is configured, the section still renders with a clear
 // explanation instead of being silently skipped.
+
+const UNSCHEDULED_KEY = '__unscheduled__'
 
 function pad(n: number): string {
   return n.toString().padStart(2, '0')
@@ -85,6 +95,9 @@ export interface ProductAnalysisData {
 
   teamIds: string[]
   teamNames: Record<string, string>
+  // No pontaj imported on the Target page for this month at all — every row
+  // will be "Fără pontaj" until one is imported/created there.
+  pontajConfigured: boolean
 
   shifts: TeamShiftRow[]
   sandwich: TeamSandwichRow[]
@@ -107,56 +120,66 @@ export function computeProductAnalysisData(
   month: number,
   allTransactions: TransactionLine[],
   products: Product[],
-  cashiers: Cashier[],
-  teams: Team[],
 ): ProductAnalysisData {
   const monthPrefix = `${year}-${pad(month)}`
   const monthTx = allTransactions.filter((t) => t.date.startsWith(monthPrefix))
 
-  // Resolved per transaction/receipt date, not from each cashier's CURRENT
-  // team — a team change recorded after this month must not retroactively
-  // move that month's sales into the new team.
-  const teamAsOf = buildTeamAsOfResolver(cashiers)
-  const cashierTeamOn = (cashierId: string, date: string) => teamAsOf(cashierId, date) ?? NO_TEAM_ID
-  const teamName = new Map<string, string>(teams.map((t) => [t.id, t.name]))
-  teamName.set(NO_TEAM_ID, 'Fără echipă')
-
-  const teamIds = [...teams.map((t) => t.id)]
-  if (monthTx.some((t) => cashierTeamOn(t.cashierId, t.date) === NO_TEAM_ID)) teamIds.push(NO_TEAM_ID)
+  const pontajIndex = buildPontajIndex()
+  const teamNamesOverride = loadTeamNames()
+  const teamLabel = (key: string) => (key === UNSCHEDULED_KEY ? 'Fără pontaj' : resolveTeamName(defaultTeamLabel(key), teamNamesOverride))
+  const teamKeyFor = (date: string, shift: TransactionLine['shift']) => scheduledTeamFor(pontajIndex, date, shift) ?? UNSCHEDULED_KEY
 
   const fuelIds = fuelProductIds(products)
   const receipts = groupIntoReceipts(monthTx, fuelIds)
 
   const linesByTeam = new Map<string, TransactionLine[]>()
   const receiptsByTeam = new Map<string, Receipt[]>()
-  for (const id of teamIds) {
-    linesByTeam.set(id, [])
-    receiptsByTeam.set(id, [])
-  }
   for (const t of monthTx) {
-    const id = cashierTeamOn(t.cashierId, t.date)
-    linesByTeam.get(id)?.push(t)
+    const key = teamKeyFor(t.date, t.shift)
+    const arr = linesByTeam.get(key)
+    if (arr) arr.push(t)
+    else linesByTeam.set(key, [t])
   }
   for (const r of receipts) {
-    const id = cashierTeamOn(r.cashierId, r.date)
-    receiptsByTeam.get(id)?.push(r)
+    const key = teamKeyFor(r.date, r.shift)
+    const arr = receiptsByTeam.get(key)
+    if (arr) arr.push(r)
+    else receiptsByTeam.set(key, [r])
+  }
+  const linesFor = (id: string) => linesByTeam.get(id) ?? []
+  const receiptsFor = (id: string) => receiptsByTeam.get(id) ?? []
+
+  // TURE (shifts): counted straight from the schedule itself — how many days
+  // this month the team was ROSTERED for tură 1 / tură 2 — never from
+  // whether a transaction happens to exist that shift, and never capped by
+  // (or dependent on) which cashier actually rang the register.
+  const shiftCounts = new Map<string, { morning: number; evening: number }>()
+  const ensureShiftCount = (key: string) => {
+    let c = shiftCounts.get(key)
+    if (!c) { c = { morning: 0, evening: 0 }; shiftCounts.set(key, c) }
+    return c
+  }
+  let pontajConfigured = false
+  for (const [iso, day] of pontajIndex) {
+    if (!iso.startsWith(monthPrefix)) continue
+    pontajConfigured = true
+    if (day.tura1) ensureShiftCount(day.tura1).morning++
+    if (day.tura2) ensureShiftCount(day.tura2).evening++
   }
 
-  // ---- TURE (shifts) ----
+  // Every team key that shows up anywhere this month — scheduled shifts,
+  // sales lines, or receipts — gets a row, "Fără pontaj" (if present) always
+  // last.
+  const teamKeySet = new Set<string>([...shiftCounts.keys(), ...linesByTeam.keys(), ...receiptsByTeam.keys()])
+  const hasUnscheduled = teamKeySet.has(UNSCHEDULED_KEY)
+  teamKeySet.delete(UNSCHEDULED_KEY)
+  const teamIds = Array.from(teamKeySet).sort((a, b) => teamLabel(a).localeCompare(teamLabel(b)))
+  if (hasUnscheduled) teamIds.push(UNSCHEDULED_KEY)
+  const teamName = new Map<string, string>(teamIds.map((id) => [id, teamLabel(id)]))
+
   const shifts: TeamShiftRow[] = teamIds.map((id) => {
-    const lines = linesByTeam.get(id)!
-    // One team-shift per date, not per member on duty that date — two
-    // cashiers from the same team working the same date+shift is one tură
-    // for the team, not two.
-    const morningKeys = new Set(lines.filter((t) => t.shift === 1).map((t) => t.date))
-    const eveningKeys = new Set(lines.filter((t) => t.shift === 2).map((t) => t.date))
-    return {
-      teamId: id,
-      teamName: teamName.get(id) ?? id,
-      morning: morningKeys.size,
-      evening: eveningKeys.size,
-      total: morningKeys.size + eveningKeys.size,
-    }
+    const c = shiftCounts.get(id) ?? { morning: 0, evening: 0 }
+    return { teamId: id, teamName: teamName.get(id) ?? id, morning: c.morning, evening: c.evening, total: c.morning + c.evening }
   })
 
   // ---- SANDWICH ----
@@ -178,7 +201,7 @@ export function computeProductAnalysisData(
   const sandwichOtherIds = new Set([...sandwichGroupIds].filter((id) => !sandwichNamedIds.has(id)))
 
   const sandwich: TeamSandwichRow[] = teamIds.map((id) => {
-    const lines = linesByTeam.get(id)!
+    const lines = linesFor(id)
     const values = {} as Record<keyof SandwichVariants, number>
     for (const k of sandwichKeys) {
       values[k] = lines.filter((t) => sandwichSets[k].has(t.productId)).reduce((s, t) => s + t.quantity, 0)
@@ -202,7 +225,7 @@ export function computeProductAnalysisData(
   const coffeeOtherIds = new Set([...coffeeGroupIds].filter((id) => !coffeeNamedIds.has(id)))
 
   const coffee: TeamCoffeeRow[] = teamIds.map((id) => {
-    const lines = linesByTeam.get(id)!
+    const lines = linesFor(id)
     const espressoLung = lines.filter((t) => espressoLungIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
     const espresso = lines.filter((t) => espressoIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
     const cappuccino = lines.filter((t) => cappuccinoIds.has(t.productId)).reduce((s, t) => s + t.quantity, 0)
@@ -230,7 +253,7 @@ export function computeProductAnalysisData(
   const vitrinaProductsById = new Map(products.filter((p) => vitrinaProductIds.has(p.id)).map((p) => [p.id, p]))
   const vitrinaQtyByProductTeam = new Map<string, Map<string, number>>() // productId -> teamId -> qty
   for (const id of teamIds) {
-    const lines = linesByTeam.get(id)!
+    const lines = linesFor(id)
     for (const t of lines) {
       if (!vitrinaProductIds.has(t.productId)) continue
       let byTeam = vitrinaQtyByProductTeam.get(t.productId)
@@ -263,9 +286,9 @@ export function computeProductAnalysisData(
   const promoConfigured = promoProductIds.size > 0 || hasPromoColumn
 
   const promo: TeamPromoRow[] = teamIds.map((id) => {
-    const lines = linesByTeam.get(id)!
+    const lines = linesFor(id)
     const promoLines = lines.filter((t) => promoLabelsById.has(t.id))
-    const totalReceipts = receiptsByTeam.get(id)!.length
+    const totalReceipts = receiptsFor(id).length
     return {
       teamId: id,
       teamName: teamName.get(id) ?? id,
@@ -278,7 +301,7 @@ export function computeProductAnalysisData(
 
   const promoCountByLabelTeam = new Map<string, Map<string, number>>() // label -> teamId -> count
   for (const id of teamIds) {
-    for (const t of linesByTeam.get(id)!) {
+    for (const t of linesFor(id)) {
       const label = promoLabelsById.get(t.id)
       if (!label) continue
       let byTeam = promoCountByLabelTeam.get(label)
@@ -311,6 +334,7 @@ export function computeProductAnalysisData(
     monthLabelText,
     teamIds,
     teamNames: Object.fromEntries(teamIds.map((id) => [id, teamName.get(id) ?? id])),
+    pontajConfigured,
     shifts,
     sandwich,
     sandwichTotals,
