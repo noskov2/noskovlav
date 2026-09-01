@@ -63,6 +63,10 @@ const METRICS: MetricDef[] = [
   { key: 'marginPct', label: 'Marjă', get: (r) => r.marginPct, format: (v) => formatPct(v), group: 'profit' },
 ]
 
+function monthsCountLabel(n: number): string {
+  return n === 1 ? '1 lună' : `${n} luni`
+}
+
 export function MonthlyComparisonPage() {
   const { transactions, products, supplierReceipts, settings } = useDataStore()
   const defaultVatRatePct = settings?.defaultVatRatePct ?? 19
@@ -105,7 +109,7 @@ export function MonthlyComparisonPage() {
     <div>
       <PageHeader
         title="Comparație lunară"
-        description="Fiecare lună cu date, una lângă alta — cu variația față de luna anterioară sub fiecare valoare."
+        description={`Fiecare indicator (vânzări, litri, bonuri, cross-sell, categorii, profit), lună de lună, cu variația față de luna anterioară sub fiecare valoare — acoperă toate lunile cu date importate: ${monthsCountLabel(months.length)}.`}
       />
 
       <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
