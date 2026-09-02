@@ -756,13 +756,60 @@ function monthKeyFrom(data: DashboardData, fileName: string): string {
   return (fileName || 'FIȘIER').toUpperCase()
 }
 
+// One-time self-heal for months created by an earlier build of "Lună nouă"
+// that stamped day.data as "DD.MM.YYYY" — parseRawSales' dateKey is
+// "DD/MM" (built from the raw sales export's "Zi" column), and a real
+// Excel-imported month's own "Data" column already reads back as "DD/MM"
+// text, so the dotted format could never match an uploaded raw-sales file
+// ("Nicio zi din fișier nu corespunde lunii curente", even for a date that
+// is plainly inside the loaded month). Detected and rewritten in place —
+// data.rotation is rebuilt from the corrected dates and any already-entered
+// rawRealizat is remapped onto the new keys, so nothing entered is lost.
+function migrateLegacyDateFormat(data: DashboardData): boolean {
+  const days = data.zilnic?.days
+  if (!days || !days.length) return false
+  const legacy = /^(\d{2})\.(\d{2})\.\d{4}$/
+  const remap: Record<string, string> = {}
+  let changed = false
+  for (const d of days) {
+    const s = String(d.data)
+    const m = s.match(legacy)
+    if (!m) continue
+    const next = `${m[1]}/${m[2]}`
+    remap[s] = next
+    d.data = next
+    changed = true
+  }
+  if (!changed) return false
+  data.rotation = buildRotation(days)
+  if (data.rawRealizat) {
+    const nextRaw: typeof data.rawRealizat = {}
+    for (const [key, value] of Object.entries(data.rawRealizat)) nextRaw[remap[key] ?? key] = value
+    data.rawRealizat = nextRaw
+  }
+  recompute(data)
+  data.savedAt = Date.now()
+  return true
+}
+
 // ---------- storage ----------
 // STORE_KEY/TEAM_NAMES_KEY and the read-only helpers below (teamShortLabel,
 // teamKeyOf, resolveTeamName, loadTeamNames) live in @/data/pontaj so
 // Cross-sell & Casieri and the Dashboard can read this page's pontaj
 // without duplicating the keys/logic — this page stays the only writer.
 function loadStore(): Record<string, DashboardData> {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') } catch { return {} }
+  let store: Record<string, DashboardData>
+  try {
+    store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+  let changed = false
+  for (const key of Object.keys(store)) {
+    if (migrateLegacyDateFormat(store[key])) changed = true
+  }
+  if (changed) saveStore(store)
+  return store
 }
 function saveStore(store: Record<string, DashboardData>) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)) } catch { /* storage full/unavailable */ }
@@ -889,7 +936,14 @@ function buildNewMonthSkeleton(
     const assignment = dayAssignments[zi - 1] || { tura1: 'Echipa 1', tura2: 'Echipa 2' }
     days.push({
       zi,
-      data: `${String(zi).padStart(2, '0')}.${String(monthIdx + 1).padStart(2, '0')}.${year}`,
+      // "DD/MM", no year — MUST match parseRawSales' dateKey format
+      // (`${day}/${month}`, from the raw sales export's "Zi" column,
+      // itself "YYYY.MM.DD...") since that's the only way a later raw
+      // sales upload can find this day in data.rotation and update it.
+      // A real Excel-imported month's "Data" column reads back the same
+      // way (a plain "DD/MM" text cell), so this keeps a wizard-created
+      // month behaving identically to an Excel-imported one.
+      data: `${String(zi).padStart(2, '0')}/${String(monthIdx + 1).padStart(2, '0')}`,
       ziSapt: WEEKDAYS_RO[dateObj.getDay()],
       echipaTura1: assignment.tura1,
       echipaTura2: assignment.tura2,
