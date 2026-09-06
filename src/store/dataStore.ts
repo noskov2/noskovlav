@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { listAllTransactions } from '@/data/repo/transactions'
-import { listProducts } from '@/data/repo/products'
+import { listProducts, bulkSetProducts } from '@/data/repo/products'
+import { computeAutoActivationChanges } from '@/kpi/autoActivation'
 import { listCashiers } from '@/data/repo/cashiers'
 import { listTeams } from '@/data/repo/teams'
 import { listAllSupplierReceipts } from '@/data/repo/suppliers'
@@ -67,7 +68,7 @@ export const useDataStore = create<DataState>((set) => ({
     await ensureDefaultTeamsSeeded()
     const [
       transactions,
-      products,
+      productsLoaded,
       cashiers,
       teams,
       supplierReceipts,
@@ -90,6 +91,21 @@ export const useDataStore = create<DataState>((set) => ({
       listClients(),
       listAllClientInvoices(),
     ])
+
+    // Self-heals Product.active for items with zero known stock and no
+    // purchase in 45+ days (see kpi/autoActivation.ts) — runs on every
+    // refresh so it reflects the calendar, not just the moment of the last
+    // import, and reactivates the moment a fresh supplier receipt appears.
+    const activationChanges = computeAutoActivationChanges(productsLoaded, supplierReceipts)
+    let products = productsLoaded
+    if (activationChanges.length > 0) {
+      const nextActiveById = new Map(activationChanges.map((c) => [c.productId, c.active]))
+      products = productsLoaded.map((p) =>
+        nextActiveById.has(p.id) ? { ...p, active: nextActiveById.get(p.id)!, updatedAt: Date.now() } : p,
+      )
+      await bulkSetProducts(products.filter((p) => nextActiveById.has(p.id)))
+    }
+
     set({
       transactions,
       products,

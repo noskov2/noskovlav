@@ -1,5 +1,6 @@
 import type { Product, SupplierReceiptLine, TransactionLine } from '@/types/domain'
 import { addDays, dayCountInRange, type DateRange } from '@/kpi/dateRanges'
+import { looksLikeRawMaterial } from '@/processing/groupHeuristics'
 
 export type MovementClass = 'activ' | 'lent' | 'foarte-lent' | 'fara-vanzare'
 
@@ -70,7 +71,7 @@ export function computeSlowMovers(
     Math.round((new Date(`${asOf}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000)
 
   return products
-    .filter((p) => p.active && !p.groups.neVandabil)
+    .filter((p) => p.active && !p.groups.neVandabil && !looksLikeRawMaterial(p.name, p.category))
     .map((product) => {
       const agg = byProductInRange.get(product.id) ?? { qty: 0, value: 0 }
       const lastSaleDate = lastSaleByProduct.get(product.id) ?? null

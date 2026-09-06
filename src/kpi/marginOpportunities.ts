@@ -1,6 +1,7 @@
 import type { Product } from '@/types/domain'
 import { computeCategoryProfitability, type ProductProfitRow } from '@/kpi/profitability'
 import { fuelProductIds } from '@/kpi/productGroups'
+import { looksLikeRawMaterial } from '@/processing/groupHeuristics'
 
 // "Marjă prea mică pentru ce e" — compared against the AVERAGE margin of
 // its own category (Cafea, Sandwich, Dulciuri Vitrină, etc.), never against
@@ -36,6 +37,7 @@ export function computeMarginOpportunities(productRows: ProductProfitRow[], vatR
   for (const row of productRows) {
     if (row.marginPct == null || row.salesValue < MIN_SALES_VALUE) continue
     if (row.product.groups.crossSellExcluded || row.product.groups.neVandabil) continue
+    if (looksLikeRawMaterial(row.product.name, row.product.category)) continue
     const category = row.product.category || 'Necategorizat'
     const info = categoryInfo.get(category)
     // Comparing against a peer group of 1 (itself) is meaningless — skip.
@@ -109,6 +111,7 @@ export function computePromoSuggestions(
   const anchors = productRows
     .filter((r) => !fuelIds.has(r.product.id) && !opportunityIds.has(r.product.id))
     .filter((r) => !r.product.groups.crossSellExcluded && !r.product.groups.neVandabil)
+    .filter((r) => !looksLikeRawMaterial(r.product.name, r.product.category))
     .filter((r) => r.marginPct != null && r.quantity > 0)
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, MAX_SUGGESTIONS)

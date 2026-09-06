@@ -1,6 +1,7 @@
 import type { Product, SupplierReceiptLine, TransactionLine } from '@/types/domain'
 import type { StockThresholds } from '@/types/domain'
 import { dayCountInRange, type DateRange } from '@/kpi/dateRanges'
+import { looksLikeRawMaterial } from '@/processing/groupHeuristics'
 
 export type StockRiskClass = 'risc-ruptura' | 'stoc-scazut' | 'stoc-sanatos' | 'suprastoc' | 'necunoscut'
 
@@ -71,7 +72,7 @@ export function computeStockRotation(
   const asOf = range.end
 
   return products
-    .filter((p) => p.active && !p.groups.neVandabil)
+    .filter((p) => p.active && !p.groups.neVandabil && !looksLikeRawMaterial(p.name, p.category))
     .map((product) => {
       const qty = qtyByProduct.get(product.id) ?? 0
       const avgPerDay = qty / days

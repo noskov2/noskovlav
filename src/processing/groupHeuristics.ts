@@ -40,6 +40,11 @@ const LEMONADE_KEYWORDS = ['limonada', 'ceai', 'lemonade', 'ice tea', 'icetea']
 const FUEL_KEYWORDS = ['motorina', 'benzina', 'diesel', 'euro95', 'euro 95', 'premium', 'gpl', 'gaz petrolier', 'autogaz']
 const GPL_KEYWORDS = ['gpl', 'gaz petrolier', 'autogaz']
 const PROMO_KEYWORDS = ['promotie', 'promotii', 'promo', 'pachet promo']
+// A product in a "Materii prime" category is never sold on its own by
+// definition — it's an ingredient/input, not a shelf item — so it must
+// never show up in a "fără vânzare de N zile" alert regardless of whether
+// anyone remembered to tick "Nu se vinde" for it in Nomenclator.
+const RAW_MATERIAL_KEYWORDS = ['materie prima', 'materii prime']
 // Lines that must never count as "marfă" for cross-sell purposes even
 // though they aren't fuel: deposits, discounts, technical/service lines.
 const CROSS_SELL_EXCLUDED_KEYWORDS = [
@@ -77,6 +82,15 @@ export function looksLikeGpl(name: string, category: string): boolean {
   return matches(`${norm(name)} ${norm(category || '')}`, GPL_KEYWORDS)
 }
 
+// Same "fall back to the name/category match, don't trust the checkbox
+// alone" reasoning as looksLikeFuel — used as a safety net under
+// ProductGroups.neVandabil in every weak-sales/no-sale/rotation
+// computation, so a product already imported into a "Materii prime"
+// category is excluded even if nobody has opened Nomenclator to tick it.
+export function looksLikeRawMaterial(name: string, category: string): boolean {
+  return matches(`${norm(name)} ${norm(category || '')}`, RAW_MATERIAL_KEYWORDS)
+}
+
 export function guessGroupsFromName(rawName: string, categoryRaw: string): Partial<ProductGroups> {
   const name = norm(rawName)
   const category = norm(categoryRaw || '')
@@ -91,5 +105,6 @@ export function guessGroupsFromName(rawName: string, categoryRaw: string): Parti
     gpl: matches(haystack, GPL_KEYWORDS),
     promotii: matches(haystack, PROMO_KEYWORDS),
     crossSellExcluded: matches(haystack, CROSS_SELL_EXCLUDED_KEYWORDS),
+    neVandabil: matches(haystack, RAW_MATERIAL_KEYWORDS),
   }
 }
