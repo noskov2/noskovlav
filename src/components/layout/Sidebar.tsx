@@ -16,6 +16,7 @@ const items: NavItem[] = [
   { to: '/zi', label: 'Zi de vânzare', icon: '📅' },
   { to: '/comparatie-lunara', label: 'Comparație lunară', icon: '📈' },
   { to: '/profitabilitate', label: 'Profitabilitate', icon: '💰' },
+  { to: '/marja-promotii', label: 'Marjă & Promoții', icon: '🏷️' },
   { to: '/cross-sell', label: 'Cross-sell & Casieri', icon: '🤝' },
   { to: '/bonuri', label: 'Vânzări & Bonuri', icon: '🛒' },
   { to: '/furnizori', label: 'Furnizori & Prețuri', icon: '🚚' },

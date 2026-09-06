@@ -5,6 +5,7 @@ import { ImportPage } from '@/pages/ImportPage'
 import { SlowMoversPage } from '@/pages/SlowMoversPage'
 import { DailyPerformancePage } from '@/pages/DailyPerformancePage'
 import { ProfitabilityPage } from '@/pages/ProfitabilityPage'
+import { MarginOpportunitiesPage } from '@/pages/MarginOpportunitiesPage'
 import { CrossSellPage } from '@/pages/CrossSellPage'
 import { SuppliersPage } from '@/pages/SuppliersPage'
 import { ReportsPage } from '@/pages/ReportsPage'
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/vanzare-slaba" element={<SlowMoversPage />} />
           <Route path="/zi" element={<DailyPerformancePage />} />
           <Route path="/profitabilitate" element={<ProfitabilityPage />} />
+          <Route path="/marja-promotii" element={<MarginOpportunitiesPage />} />
           <Route path="/cross-sell" element={<CrossSellPage />} />
           <Route path="/furnizori" element={<SuppliersPage />} />
           <Route path="/rapoarte" element={<ReportsPage />} />
