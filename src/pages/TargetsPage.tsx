@@ -610,6 +610,25 @@ function buildRotation(zilnicDays: DayRow[] | undefined): Record<string, { tura1
   })
   return rotation
 }
+// "Detalii pe tură" only ever needs one row per day per tură — the same
+// rotation already sitting in zilnic.days — so it doesn't actually require
+// a separate "Target Echipe" Excel sheet to exist. Used both for a
+// wizard-created month (which never has that sheet) and, retroactively, for
+// any already-saved month whose tracker came out null/empty (see
+// migrateMissingTracker below), so the card stops disappearing either way.
+function buildSyntheticTrackerShifts(days: DayRow[]): ShiftRow[] {
+  // "T1"/"T2", not "Tura 1"/"Tura 2" — recompute's own isT1 test
+  // (/t\s*1(\D|$)/i) needs the "t" immediately (only whitespace between)
+  // before the digit to tell the tures apart; "Tura 1" has "ura" in
+  // between and silently never matches, which swaps every tură's target
+  // and realizat onto the wrong row.
+  const shifts: ShiftRow[] = []
+  for (const d of days) {
+    shifts.push({ data: d.data, tura: 'T 1', echipa: d.echipaTura1, realizat: null, targetTura: null, diferenta: null, procent: null, status: null })
+    shifts.push({ data: d.data, tura: 'T 2', echipa: d.echipaTura2, realizat: null, targetTura: null, diferenta: null, procent: null, status: null })
+  }
+  return shifts
+}
 function seedRawRealizatFromTracker(tracker: { shifts: ShiftRow[] } | null): Record<string, { tura1: number | null; tura2: number | null }> {
   const raw: Record<string, { tura1: number | null; tura2: number | null }> = {}
   if (!tracker) return raw
@@ -792,6 +811,22 @@ function migrateLegacyDateFormat(data: DashboardData): boolean {
   return true
 }
 
+// Self-heal for a month whose "Detalii pe tură" card went missing — either
+// a month created by an earlier build of "Lună nouă" (which used to save
+// tracker: null outright) or a real Excel-imported month whose "Target
+// Echipe" sheet wasn't found. Both cases have everything needed to build
+// the same view from zilnic.days instead, so this backfills it in place
+// rather than leaving the card silently hidden forever.
+function migrateMissingTracker(data: DashboardData): boolean {
+  const days = data.zilnic?.days
+  if (!days || !days.length) return false
+  if (data.tracker && data.tracker.shifts.length > 0) return false
+  data.tracker = { shifts: buildSyntheticTrackerShifts(days) }
+  recompute(data)
+  data.savedAt = Date.now()
+  return true
+}
+
 // ---------- storage ----------
 // STORE_KEY/TEAM_NAMES_KEY and the read-only helpers below (teamShortLabel,
 // teamKeyOf, resolveTeamName, loadTeamNames) live in @/data/pontaj so
@@ -807,6 +842,7 @@ function loadStore(): Record<string, DashboardData> {
   let changed = false
   for (const key of Object.keys(store)) {
     if (migrateLegacyDateFormat(store[key])) changed = true
+    if (migrateMissingTracker(store[key])) changed = true
   }
   if (changed) saveStore(store)
   return store
@@ -959,7 +995,7 @@ function buildNewMonthSkeleton(
   }
   const data: DashboardData = {
     rezumat, situatie: null, bonus: { grila, teams: [], total: null },
-    zilnic: { days, total: null }, tracker: null,
+    zilnic: { days, total: null }, tracker: { shifts: buildSyntheticTrackerShifts(days) },
     config: { shift1Target, shift2Target, dailyTarget, grila },
     rotation: buildRotation(days), rawRealizat: {}, cutoffZi: null, warnings: [], savedAt: Date.now(),
   }
