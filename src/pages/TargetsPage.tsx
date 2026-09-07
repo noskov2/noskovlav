@@ -1010,11 +1010,20 @@ function buildNewMonthSkeleton(
 // different numbers for the same thing (station managers trust this page's
 // Excel-tracked total over a figure recomputed from imported transactions,
 // which can lag behind if an import is incomplete).
+// Days with an entered realizat, most recent first (by zi) — the Target
+// page's own notion of "how many days of data actually back this total",
+// independent of whatever this app's imported sales transactions happen to
+// cover.
+function daysWithRealizat(days: DayRow[]): DayRow[] {
+  return days.filter((d) => d.realizat != null).sort((a, b) => b.zi - a.zi)
+}
+
 async function syncStationTargetToApp(
   storeKey: string,
   monthlyTotal: number | null,
   realizat: number | null,
   targetPana: number | null,
+  zilnicDays: DayRow[],
 ) {
   const m = storeKey.match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
   if (!m) return
@@ -1023,13 +1032,20 @@ async function syncStationTargetToApp(
   const appMonthKey = `${m[2]}-${String(monIdx + 1).padStart(2, '0')}`
   const settings = await getSettings()
   const current = settings.monthlyTargets[appMonthKey] ?? emptyMonthTargets()
+  const withData = daysWithRealizat(zilnicDays)
+  const recentDays = withData.slice(0, 7)
+  const recentAvgPerDay = recentDays.length > 0 ? recentDays.reduce((s, d) => s + (d.realizat ?? 0), 0) / recentDays.length : null
   await updateSettings({
     monthlyTargets: {
       ...settings.monthlyTargets,
       [appMonthKey]: {
         ...current,
         station: { ...current.station, totalSales: monthlyTotal },
-        stationActual: { realizat, targetPana, savedAt: Date.now() },
+        stationActual: {
+          realizat, targetPana, savedAt: Date.now(),
+          daysWithData: withData.length || null,
+          recentAvgPerDay,
+        },
       },
     },
   })
@@ -1408,7 +1424,7 @@ export function TargetsPage() {
         const monthlyTotal = data.rezumat?.monthlyTotal ?? totals?.targetLunar ?? null
         const realizat = totals?.realizat ?? data.zilnic?.total?.realizat ?? null
         const targetPana = totals?.targetPana ?? null
-        syncStationTargetToApp(currentKey, monthlyTotal, realizat, targetPana).catch(() => {})
+        syncStationTargetToApp(currentKey, monthlyTotal, realizat, targetPana, data.zilnic?.days ?? []).catch(() => {})
       }
     }
 

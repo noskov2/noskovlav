@@ -180,7 +180,22 @@ export function DashboardPage() {
   // încă niciun fișier de target.
   const targetRelevantActual = stationActual?.realizat ?? transactionsBasedActual
   const actualSource = stationActual?.realizat != null ? 'target' : 'transactions'
-  const operationalDaysSoFar = useMemo(() => new Set(monthTx.map((t) => t.date)).size, [monthTx])
+  const transactionsDaysSoFar = useMemo(() => new Set(monthTx.map((t) => t.date)).size, [monthTx])
+  // When Actual comes from the Target page, the day count it's divided by
+  // (for the forecast's average-per-day) and the "recent pace" it's judged
+  // against must come from that SAME source — the Target page's own
+  // zilnic.days, synced alongside realizat (see StationActual in
+  // types/domain.ts). Using the count of days that happen to have an
+  // imported sales transaction instead — a different, independently-
+  // updated dataset — silently divides a Target-sourced total by a
+  // transactions-sourced day count, and separately compares it against a
+  // transactions-sourced "last 7 days" average. The two can disagree about
+  // how many days of data exist at all, producing a forecast and a "ritm"
+  // verdict that don't agree with each other or with reality. Falls back
+  // to the transactions-derived values whenever Target-sourced ones aren't
+  // available (no sync yet, or a sync saved before this fix existed).
+  const operationalDaysSoFar =
+    actualSource === 'target' && stationActual?.daysWithData != null ? stationActual.daysWithData : transactionsDaysSoFar
   const daysInCurrentMonth = useMemo(() => {
     const [y, m] = currentMonthKey.split('-').map(Number)
     return new Date(y, m, 0).getDate()
@@ -194,11 +209,13 @@ export function DashboardPage() {
   const recentRange = useMemo(() => ({ start: addDays(reportingEnd, -6), end: reportingEnd }), [reportingEnd])
   const recentTx = useMemo(() => filterByRange(dimFiltered, recentRange.start, recentRange.end), [dimFiltered, recentRange])
   const recentFuelBreakdown = useMemo(() => computeFuelBreakdown(recentTx, products), [recentTx, products])
-  const recentAvgPerDay = useMemo(() => {
+  const transactionsRecentAvgPerDay = useMemo(() => {
     const recentTargetRelevant =
       recentTx.reduce((s, t) => s + t.value, 0) - recentFuelBreakdown.motorina.value - recentFuelBreakdown.benzina.value
     return recentTargetRelevant / dayCountInRange(recentRange)
   }, [recentTx, recentFuelBreakdown, recentRange])
+  const recentAvgPerDay =
+    actualSource === 'target' && stationActual?.recentAvgPerDay != null ? stationActual.recentAvgPerDay : transactionsRecentAvgPerDay
 
   const salesForecast = useMemo(
     () =>
@@ -406,7 +423,8 @@ export function DashboardPage() {
                 </p>
               )}
               <p className="mt-2 text-xs text-slate-400">
-                {salesForecast.operationalDaysSoFar} zile cu vânzări în luna curentă · medie{' '}
+                {salesForecast.operationalDaysSoFar}{' '}
+                {actualSource === 'target' ? 'zile cu date pe pagina Target' : 'zile cu vânzări'} în luna curentă · medie{' '}
                 {formatLei(salesForecast.avgPerOperationalDay)}/zi operațională
               </p>
             </div>

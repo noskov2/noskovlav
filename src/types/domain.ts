@@ -316,6 +316,18 @@ export interface StationActual {
   realizat: number | null
   targetPana: number | null // target cumulat până azi, din Excel
   savedAt: number | null // when this Target-page snapshot was last saved
+  // Both derived from the Target page's own day-by-day data (zilnic.days),
+  // not from this app's imported sales transactions — a different data
+  // source that can cover a different number of days. The Dashboard's
+  // Forecast/Ritm panel divides `realizat` by a day count and computes a
+  // "recent pace" to compare against; doing that with a day count or
+  // recent average sourced from transactions instead produces a
+  // meaningless mix whenever the two sources disagree on how many days of
+  // data actually exist (e.g. an average per day that doesn't actually
+  // multiply back to `realizat`, or a "ritm suficient" verdict based on a
+  // week of data the Target-sourced `realizat` doesn't even cover).
+  daysWithData: number | null // count of days with an entered realizat
+  recentAvgPerDay: number | null // average of the last (up to) 7 days with data
 }
 
 export interface MonthTargets {
