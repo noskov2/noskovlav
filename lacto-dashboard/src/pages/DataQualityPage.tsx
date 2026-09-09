@@ -48,7 +48,7 @@ export function DataQualityPage() {
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Calitatea datelor</h1>
         <button
           onClick={recompute}
-          className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           Recalculează
         </button>
@@ -60,7 +60,7 @@ export function DataQualityPage() {
       {result === undefined ? (
         <div className="text-sm text-slate-500">Se calculează…</div>
       ) : result === null ? null : result.totalTransactions === 0 ? (
-        <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+        <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
           Nu există date importate încă. Mergi la „Import date" pentru a începe.
         </div>
       ) : (

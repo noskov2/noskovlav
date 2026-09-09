@@ -50,7 +50,7 @@ export function PriceOutliersPage() {
           <div className="mb-4">
             <label className="text-xs font-medium text-slate-500 block mb-1">Produs</label>
             <select
-              className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm min-w-[240px]"
+              className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm min-w-[240px]"
               value={productId ?? ''}
               onChange={(e) => setProductId(e.target.value ? Number(e.target.value) : null)}
             >
@@ -67,13 +67,13 @@ export function PriceOutliersPage() {
           </div>
 
           {productId === null ? (
-            <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
               Selectează un produs pentru a analiza prețurile plătite de clienți.
             </div>
           ) : analysis === undefined ? (
             <div className="text-sm text-slate-500">Se calculează…</div>
           ) : analysis === null || analysis.rows.length === 0 ? (
-            <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
               Nu există vânzări cu cantitate pentru acest produs în perioada selectată.
             </div>
           ) : (

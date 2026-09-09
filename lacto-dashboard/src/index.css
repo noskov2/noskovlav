@@ -1,7 +1,13 @@
 @import 'tailwindcss';
 
+/* Aplicația rămâne mereu în temă deschisă (albă) — nu urmărește modul întunecat
+   al sistemului de operare. Clasele `dark:` din componente rămân în cod (pentru
+   o eventuală comutare manuală pe viitor), dar sunt inactive fără o clasă
+   `.dark` pe un element ancestor, care nu e adăugată nicăieri. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 html,
@@ -13,8 +19,31 @@ body,
 body {
   margin: 0;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Scrollbar subțire și rotunjită — mai prietenoasă decât cea implicită a browserului. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+  border: 2px solid #f8fafc;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }

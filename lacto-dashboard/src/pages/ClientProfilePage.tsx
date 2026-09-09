@@ -49,7 +49,7 @@ export function ClientProfilePage() {
       {profile === undefined ? (
         <div className="text-sm text-slate-500">Se calculează…</div>
       ) : profile === null ? (
-        <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+        <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
           Clientul nu a fost găsit (poate a fost șters sau unit cu altul).
         </div>
       ) : (
@@ -75,7 +75,7 @@ function ClientProfileView({ profile: p }: { profile: ClientProfile }) {
       </div>
 
       {p.monthlyEvolution.length > 1 && (
-        <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-6">
+        <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 mb-6">
           <div className="text-sm font-medium mb-3">Evoluție lunară</div>
           <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
@@ -111,7 +111,7 @@ function ClientProfileView({ profile: p }: { profile: ClientProfile }) {
 
 function SimpleTable({ title, rows }: { title: string; rows: { name: string; value: number }[] }) {
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+    <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
       <div className="text-sm font-medium mb-2">{title}</div>
       {rows.length === 0 ? (
         <div className="text-sm text-slate-400">—</div>
@@ -133,7 +133,7 @@ function SimpleTable({ title, rows }: { title: string; rows: { name: string; val
 
 function NameListCard({ title, names, tone }: { title: string; names: string[]; tone: 'positive' | 'negative' }) {
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+    <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
       <div className="text-sm font-medium mb-2">{title}</div>
       {names.length === 0 ? (
         <div className="text-sm text-slate-400">Niciunul.</div>
@@ -152,7 +152,7 @@ function NameListCard({ title, names, tone }: { title: string; names: string[]; 
 
 function TrendListCard({ title, rows }: { title: string; rows: { name: string; diffPercent: number | null }[] }) {
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+    <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
       <div className="text-sm font-medium mb-2">{title}</div>
       {rows.length === 0 ? (
         <div className="text-sm text-slate-400">—</div>

@@ -14,6 +14,10 @@ setul final (calitatea datelor, Generator de rapoarte pe orice dimensiune,
 rapoarte salvate, export Excel/Executive Report, backup/restore). Toate cele
 6 etape din roadmap-ul specificației sunt complete.
 
+Interfața rămâne mereu în temă deschisă (albă), indiferent de preferința de
+„dark mode" a sistemului de operare — vezi `src/index.css` (`@custom-variant
+dark`), care dezactivează clasele `dark:` fără să le elimine din cod.
+
 ## Rulare
 
 ```bash
@@ -251,6 +255,7 @@ npm run test:product-catalog   # import catalog produse → import vânzări →
 npm run test:consolidated-import  # fișier unificat pe toate canalele, An+Lună, coloane standardizate
 npm run test:filterbar-fixes   # preset implicit "An curent" + filtrul Categorie doar cu categorii de top
 npm run test:filter-search     # filtrele multi-select (Client/Produs/Categorie/Canal) au căutare care restrânge lista
+npm run test:light-theme       # aplicația rămâne mereu în temă deschisă, indiferent de preferința sistemului
 ```
 
 ## Arhitectură

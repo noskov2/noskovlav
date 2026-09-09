@@ -33,7 +33,7 @@ export function MonthlyAnalysisPage() {
         return (
           <>
             {r.byMonth.length > 1 && (
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-6">
+              <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 mb-6">
                 <div style={{ width: '100%', height: 260 }}>
                   <ResponsiveContainer>
                     <LineChart data={r.byMonth.map((m) => ({ label: `${MONTH_NAMES[m.month - 1].slice(0, 3)} ${m.year}`, value: m.value }))}>

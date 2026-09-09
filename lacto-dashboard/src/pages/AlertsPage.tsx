@@ -45,7 +45,7 @@ export function AlertsPage() {
         alerts === undefined ? (
           <div className="text-sm text-slate-500">Se calculează…</div>
         ) : alerts.length === 0 ? (
-          <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+          <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
             Nicio alertă pentru filtrele curente — nu s-au găsit variații semnificative.
           </div>
         ) : (

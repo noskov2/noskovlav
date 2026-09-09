@@ -21,7 +21,7 @@ interface Props {
 /** Bara de filtre globale (spec §14) — reutilizată de toate paginile de raport. */
 export function FilterBar({ filters, patchFilters, clients, products, categories, hide }: Props) {
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-6 flex flex-wrap gap-4">
+    <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-4">
       <PeriodSelector
         period={filters.period}
         comparisonMode={filters.comparisonMode}

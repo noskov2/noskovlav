@@ -124,7 +124,7 @@ export function ProductCatalogImportPage() {
       </p>
 
       {!headers ? (
-        <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-10 text-center">
+        <div className="border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-10 text-center">
           <input
             type="file"
             accept=".xlsx,.xls,.csv"
@@ -140,14 +140,14 @@ export function ProductCatalogImportPage() {
         </div>
       ) : (
         <div>
-          <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-4">
+          <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 mb-4">
             <div className="text-sm font-medium mb-3">Mapare coloane ({formatNumber(rows?.length ?? 0)} rânduri detectate)</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {(Object.keys(FIELD_LABELS) as FieldId[]).map((field) => (
                 <div key={field}>
                   <label className="text-xs font-medium text-slate-500 block mb-1">{FIELD_LABELS[field]}</label>
                   <select
-                    className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
                     value={mapping[field] ?? NONE}
                     onChange={(e) => setMapping((m) => ({ ...m, [field]: e.target.value === NONE ? undefined : e.target.value }))}
                   >
@@ -198,7 +198,7 @@ export function ProductCatalogImportPage() {
             <button
               onClick={handleConfirm}
               disabled={!canConfirm || busy}
-              className="rounded-md bg-emerald-600 text-white px-4 py-2 text-sm hover:bg-emerald-700 disabled:opacity-50"
+              className="rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-emerald-700 hover:shadow transition-all disabled:opacity-50 disabled:shadow-none"
             >
               {busy ? 'Se importă…' : 'Confirmă importul'}
             </button>
@@ -210,7 +210,7 @@ export function ProductCatalogImportPage() {
                 setSummary(null)
                 setError(null)
               }}
-              className="rounded-md border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               Alege alt fișier
             </button>

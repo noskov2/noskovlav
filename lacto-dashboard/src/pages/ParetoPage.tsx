@@ -45,7 +45,7 @@ export function ParetoPage() {
             <div className="flex items-center gap-2 mb-4">
               <label className="text-xs font-medium text-slate-500">Dimensiune</label>
               <select
-                className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+                className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
                 value={dimension}
                 onChange={(e) => setDimension(e.target.value as Dimension)}
               >
@@ -89,7 +89,7 @@ export function ParetoPage() {
             </div>
 
             <input
-              className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mb-3 w-full max-w-xs"
+              className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm mb-3 w-full max-w-xs"
               placeholder="Caută…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

@@ -67,28 +67,33 @@ export function Sidebar() {
   ]
 
   return (
-    <aside className="w-64 shrink-0 border-r border-slate-200 bg-slate-50 h-full overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
-      <div className="px-4 py-5">
-        <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">Lacto Dashboard</div>
-        <div className="text-xs text-slate-500 dark:text-slate-400">Lacto Solomonescu</div>
+    <aside className="w-64 shrink-0 border-r border-slate-200 bg-white h-full overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
+      <div className="px-5 py-5 flex items-center gap-2.5">
+        <span className="h-8 w-8 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-semibold">
+          L
+        </span>
+        <div>
+          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-tight">Lacto Dashboard</div>
+          <div className="text-xs text-slate-400 dark:text-slate-400">Lacto Solomonescu</div>
+        </div>
       </div>
-      <nav className="px-2 pb-8">
+      <nav className="px-3 pb-8">
         {SECTIONS.map((section) => (
-          <div key={section.title} className="mb-4">
-            <div className="px-2 mb-1 text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500">
+          <div key={section.title} className="mb-5">
+            <div className="px-2 mb-1.5 text-[11px] font-semibold tracking-wide text-slate-400 dark:text-slate-500">
               {section.title}
             </div>
-            <ul>
+            <ul className="space-y-0.5">
               {section.items.map((item) => (
                 <li key={item.label}>
                   {item.path ? (
                     <NavLink
                       to={item.path}
                       className={({ isActive }) =>
-                        `flex items-center justify-between rounded-md px-3 py-1.5 text-sm mb-0.5 transition-colors ${
+                        `flex items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-colors ${
                           isActive
-                            ? 'bg-emerald-600 text-white'
-                            : 'text-slate-700 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                         }`
                       }
                     >
@@ -101,11 +106,11 @@ export function Sidebar() {
                     </NavLink>
                   ) : (
                     <div
-                      className="flex items-center justify-between rounded-md px-3 py-1.5 text-sm mb-0.5 text-slate-400 dark:text-slate-600 cursor-not-allowed select-none"
+                      className="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm text-slate-400 dark:text-slate-600 cursor-not-allowed select-none"
                       title="Disponibil într-o etapă viitoare"
                     >
                       <span>{item.label}</span>
-                      <span className="text-[10px] rounded bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5">
+                      <span className="text-[10px] rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5">
                         curând
                       </span>
                     </div>

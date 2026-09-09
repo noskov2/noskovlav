@@ -143,7 +143,7 @@ export function ImportPage() {
         {SOURCE_FILE_TYPES.filter((source) => source.id !== 'CONSOLIDATED').map((source) => {
           const slot = slots[source.id]
           return (
-            <div key={source.id} className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+            <div key={source.id} className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
               <FileDropZone
                 label={source.label}
                 disabled={slot.status !== 'idle' && slot.status !== 'error' && slot.status !== 'done'}
@@ -171,7 +171,7 @@ export function ImportPage() {
         {SOURCE_FILE_TYPES.filter((source) => source.id === 'CONSOLIDATED').map((source) => {
           const slot = slots[source.id]
           return (
-            <div key={source.id} className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+            <div key={source.id} className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
               <FileDropZone
                 label={source.label}
                 disabled={slot.status !== 'idle' && slot.status !== 'error' && slot.status !== 'done'}

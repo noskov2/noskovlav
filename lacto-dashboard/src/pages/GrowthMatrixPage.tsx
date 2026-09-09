@@ -91,20 +91,20 @@ export function GrowthMatrixPage() {
     >
       {() =>
         !filters.comparisonPeriod ? (
-          <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+          <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
             Selectează o perioadă de comparație pentru a calcula matricea de creștere.
           </div>
         ) : dynamics === undefined ? (
           <div className="text-sm text-slate-500">Se calculează…</div>
         ) : points.length === 0 ? (
-          <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+          <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
             Nu există suficienți clienți activi în ambele perioade pentru o matrice relevantă.
           </div>
         ) : (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
               {(Object.keys(QUADRANT_LABEL) as Quadrant[]).map((q) => (
-                <div key={q} className="border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                <div key={q} className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-3">
                   <span className="text-xs" style={{ color: QUADRANT_COLOR[q] }}>
                     ● {QUADRANT_LABEL[q]}
                   </span>
@@ -113,7 +113,7 @@ export function GrowthMatrixPage() {
               ))}
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+            <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
               <div style={{ width: '100%', height: 420 }}>
                 <ResponsiveContainer>
                   <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
@@ -130,7 +130,7 @@ export function GrowthMatrixPage() {
                         if (!active || !payload || payload.length === 0) return null
                         const p = payload[0].payload as Point
                         return (
-                          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 text-xs shadow-lg">
+                          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs shadow-lg">
                             <div className="font-medium">{p.name}</div>
                             <div>{formatCurrency(p.value)}</div>
                             <div>{formatPercent(p.growthPercent)}</div>

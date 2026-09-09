@@ -40,7 +40,7 @@ export function ReportShell({
       {description && <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{description}</p>}
 
       {totalTransactions === 0 ? (
-        <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-10 text-center">
+        <div className="text-sm text-slate-500 bg-white border border-dashed border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-xl p-10 text-center">
           Nu există încă date importate. Mergi la „Import date" pentru a încărca primul export din Mentor.
         </div>
       ) : (
@@ -49,7 +49,7 @@ export function ReportShell({
           {loading || !result ? (
             <div className="text-sm text-slate-500">Se calculează…</div>
           ) : result.transactionCount === 0 ? (
-            <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-slate-500 bg-white border border-dashed border-slate-200 dark:bg-slate-900 dark:border-slate-700 rounded-xl p-8 text-center">
               Niciun rând nu corespunde filtrelor selectate.
             </div>
           ) : (

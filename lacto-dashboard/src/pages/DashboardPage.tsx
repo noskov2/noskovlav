@@ -29,7 +29,7 @@ export function DashboardPage() {
     return (
       <div>
         <h1 className="text-xl font-semibold mb-4">Dashboard</h1>
-        <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-10 text-center">
+        <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-10 text-center">
           Nu există încă date importate. Mergi la „Import date" pentru a încărca primul export din Mentor.
         </div>
       </div>
@@ -47,7 +47,7 @@ export function DashboardPage() {
       {loading || !result ? (
         <div className="text-sm text-slate-500">Se calculează…</div>
       ) : result.transactionCount === 0 ? (
-        <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+        <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
           Niciun rând nu corespunde filtrelor selectate.
         </div>
       ) : (
@@ -73,7 +73,7 @@ export function DashboardPage() {
           </div>
 
           {result.byMonth.length > 1 && (
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-6">
+            <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 mb-6">
               <div className="text-sm font-medium mb-3">Evoluție lunară — valoare</div>
               <div style={{ width: '100%', height: 260 }}>
                 <ResponsiveContainer>
@@ -105,7 +105,7 @@ export function DashboardPage() {
             </div>
           )}
 
-          <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+          <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
             <div className="text-sm font-medium mb-3">Valoare pe canal</div>
             <div style={{ width: '100%', height: 220 }}>
               <ResponsiveContainer>
@@ -128,7 +128,7 @@ export function DashboardPage() {
 function TopCard({ title, rows }: { title: string; rows: AggregateResult['byChannel'] }) {
   const top = rows[0]
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+    <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 transition-shadow hover:shadow-md">
       <div className="text-xs text-slate-500 mb-1">{title}</div>
       {top ? (
         <>

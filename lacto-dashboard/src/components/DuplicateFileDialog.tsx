@@ -21,19 +21,19 @@ export function DuplicateFileDialog({ batch, onChoice }: Props) {
         </p>
         <div className="flex flex-col gap-2">
           <button
-            className="px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+            className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
             onClick={() => onChoice('cancel')}
           >
             Anulează importul
           </button>
           <button
-            className="px-4 py-2 text-sm rounded-md border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950"
+            className="px-4 py-2 text-sm rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950"
             onClick={() => onChoice('anyway')}
           >
             Importă oricum (păstrează ambele)
           </button>
           <button
-            className="px-4 py-2 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+            className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium shadow-sm hover:bg-emerald-700 hover:shadow transition-all"
             onClick={() => onChoice('replace')}
           >
             Înlocuiește importul precedent

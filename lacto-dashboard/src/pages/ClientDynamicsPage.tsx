@@ -54,7 +54,7 @@ export function ClientDynamicsPage() {
     >
       {() =>
         !filters.comparisonPeriod ? (
-          <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+          <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
             Selectează o perioadă de comparație (în bara de filtre de mai sus) pentru a calcula dinamica clienților.
           </div>
         ) : dynamics === undefined ? (
@@ -67,7 +67,7 @@ export function ClientDynamicsPage() {
                 type="number"
                 min={1}
                 max={100}
-                className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm w-20"
+                className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm w-20"
                 value={threshold}
                 onChange={(e) => setThreshold(Number(e.target.value) || 10)}
               />

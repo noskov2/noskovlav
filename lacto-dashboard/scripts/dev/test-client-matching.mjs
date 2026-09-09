@@ -126,7 +126,7 @@ async function main() {
   await page.waitForSelector('text=ANABELA', { timeout: 15000 })
   // cardul exact pentru rawName === "ANABELA" (nu "ANABELLA", "ANABELLA IMPEX" etc.)
   const anabelaTitle = page.getByText('ANABELA', { exact: true })
-  const anabelaCard = anabelaTitle.locator('xpath=ancestor::div[contains(@class,"rounded-lg")][1]')
+  const anabelaCard = anabelaTitle.locator('xpath=ancestor::div[.//button[contains(text(),"Este")]][1]')
   const targetButtonText = await anabelaCard.locator('button:has-text("Este ANABELLA SRL")').textContent()
   log('Buton apasat:', targetButtonText)
   await anabelaCard.locator('button:has-text("Este ANABELLA SRL")').click()

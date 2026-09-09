@@ -31,7 +31,7 @@ export function MultiSelectFilter({ label, options, selected, onChange }: Props)
       <label className="text-xs font-medium text-slate-500 block mb-1">{label}</label>
       <button
         type="button"
-        className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm min-w-[140px] text-left"
+        className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm min-w-[140px] text-left hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
         onClick={() => {
           setOpen((v) => !v)
           setSearch('')
@@ -42,7 +42,7 @@ export function MultiSelectFilter({ label, options, selected, onChange }: Props)
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg min-w-[220px] p-1">
+          <div className="absolute z-20 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg min-w-[220px] p-1">
             {options.length > 5 && (
               <input
                 key="search-input"
@@ -55,7 +55,7 @@ export function MultiSelectFilter({ label, options, selected, onChange }: Props)
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setOpen(false)
                 }}
-                className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded px-2 py-1 text-sm mb-1"
+                className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded px-2 py-1 text-sm mb-1"
               />
             )}
             {selected.length > 0 && (

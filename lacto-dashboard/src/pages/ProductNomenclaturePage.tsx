@@ -91,13 +91,13 @@ export function ProductNomenclaturePage() {
         <div>
           <div className="flex gap-2 mb-2">
             <input
-              className="flex-1 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+              className="flex-1 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
               placeholder="Caută produs…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <button
-              className="text-xs px-2 rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="text-xs px-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
               onClick={handleCreateProduct}
             >
               + produs
@@ -122,7 +122,7 @@ export function ProductNomenclaturePage() {
 
         <div>
           {!selected ? (
-            <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
               Selectează un produs din listă.
             </div>
           ) : (
@@ -176,12 +176,12 @@ function ProductDetail({
   const subcategories = product.categoryId != null ? categories.filter((c) => c.parentId === product.categoryId) : []
 
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+    <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div>
           <label className="text-xs font-medium text-slate-500">Denumire canonică</label>
           <input
-            className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mt-1"
+            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm mt-1"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => name.trim() && name !== product.canonicalName && onSave({ canonicalName: name.trim() })}
@@ -190,7 +190,7 @@ function ProductDetail({
         <div>
           <label className="text-xs font-medium text-slate-500">Cod produs Mentor</label>
           <input
-            className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mt-1"
+            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm mt-1"
             value={productCode}
             onChange={(e) => setProductCode(e.target.value)}
             onBlur={() => productCode !== (product.productCode ?? '') && onSave({ productCode: productCode || undefined })}
@@ -199,7 +199,7 @@ function ProductDetail({
         <div>
           <label className="text-xs font-medium text-slate-500">Categorie</label>
           <select
-            className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mt-1"
+            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm mt-1"
             value={product.categoryId ?? NONE}
             onChange={async (e) => {
               if (e.target.value === NEW) {
@@ -226,7 +226,7 @@ function ProductDetail({
         <div>
           <label className="text-xs font-medium text-slate-500">Subcategorie</label>
           <select
-            className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mt-1 disabled:opacity-50"
+            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm mt-1 disabled:opacity-50"
             value={product.subcategoryId ?? NONE}
             disabled={product.categoryId == null}
             onChange={async (e) => {
@@ -255,7 +255,7 @@ function ProductDetail({
         <div>
           <label className="text-xs font-medium text-slate-500">Unitate de măsură</label>
           <input
-            className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mt-1"
+            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm mt-1"
             value={unit}
             placeholder="kg, buc, L…"
             onChange={(e) => setUnit(e.target.value)}
@@ -275,7 +275,7 @@ function ProductDetail({
           + adaugă alias
         </button>
       </div>
-      <div className="border border-slate-200 dark:border-slate-800 rounded-md divide-y divide-slate-100 dark:divide-slate-800">
+      <div className="border border-slate-200 dark:border-slate-800 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
         {aliases.length === 0 && <div className="px-3 py-3 text-sm text-slate-400">Niciun alias.</div>}
         {aliases.map((a) => (
           <div key={a.id} className="flex items-center justify-between px-3 py-1.5 text-sm">

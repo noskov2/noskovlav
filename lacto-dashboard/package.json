@@ -24,7 +24,8 @@
     "test:product-catalog": "node scripts/dev/test-product-catalog.mjs",
     "test:consolidated-import": "node scripts/dev/test-consolidated-import.mjs",
     "test:filterbar-fixes": "node scripts/dev/test-filterbar-fixes.mjs",
-    "test:filter-search": "node scripts/dev/test-filter-search.mjs"
+    "test:filter-search": "node scripts/dev/test-filter-search.mjs",
+    "test:light-theme": "node scripts/dev/test-light-theme.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

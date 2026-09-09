@@ -51,13 +51,13 @@ export function ClientMatchQueuePage() {
       {!sorted ? (
         <div className="text-sm text-slate-500">Se încarcă…</div>
       ) : sorted.length === 0 ? (
-        <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+        <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
           {showIgnored ? 'Nicio intrare ignorată.' : 'Nicio denumire în așteptare — toate rândurile importate au fost identificate.'}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {sorted.map((entry) => (
-            <div key={entry.normalizedName} className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+            <div key={entry.normalizedName} className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
               <div className="flex items-baseline justify-between mb-2">
                 <div className="font-medium">{entry.rawName}</div>
                 <div className="text-xs text-slate-500">

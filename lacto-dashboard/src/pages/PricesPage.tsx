@@ -74,7 +74,7 @@ export function PricesPage() {
             <div>
               <label className="text-xs font-medium text-slate-500 block mb-1">Dimensiune</label>
               <select
-                className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+                className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
                 value={dimension}
                 onChange={(e) => setDimension(e.target.value as Dimension)}
               >
@@ -86,7 +86,7 @@ export function PricesPage() {
               </select>
             </div>
             <input
-              className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+              className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
               placeholder="Caută…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -94,7 +94,7 @@ export function PricesPage() {
           </div>
 
           {filteredRows.length === 0 ? (
-            <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
               Niciun rând cu cantitate &gt; 0 pentru a calcula un preț mediu.
             </div>
           ) : (

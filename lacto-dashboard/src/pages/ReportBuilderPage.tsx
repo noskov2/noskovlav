@@ -178,33 +178,33 @@ export function ReportBuilderPage() {
               {saveMessage && <span className="text-xs text-emerald-600 dark:text-emerald-400">{saveMessage}</span>}
               <button
                 onClick={handleSave}
-                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Salvează raportul
               </button>
               <button
                 onClick={() => handleExportCurrent(displayedRows)}
                 disabled={rows === undefined}
-                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
               >
                 Exportă Excel
               </button>
               <button
                 onClick={handleExportExecutive}
                 disabled={exportingExecutive}
-                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
               >
                 {exportingExecutive ? 'Se generează…' : 'Executive Report'}
               </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-end gap-6 mb-4 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+          <div className="flex flex-wrap items-end gap-6 mb-4 bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Dimensiune</label>
               <select
                 aria-label="Selector dimensiune raport"
-                className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+                className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
                 value={dimension}
                 onChange={(e) => setDimension(e.target.value as ReportDimension)}
               >
@@ -220,7 +220,7 @@ export function ReportBuilderPage() {
               <label className="block text-xs font-medium text-slate-500 mb-1">Top N</label>
               <select
                 aria-label="Selector Top N"
-                className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+                className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
                 value={topN}
                 onChange={(e) => setTopN(e.target.value as TopN)}
               >

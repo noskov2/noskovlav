@@ -91,12 +91,12 @@ export function BreakdownTable({
   return (
     <div>
       <input
-        className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm mb-3 w-full max-w-xs"
+        className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-3 py-1.5 text-sm mb-3 w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
         placeholder={`Caută ${nameLabel.toLowerCase()}…`}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
+      <div className="overflow-x-auto bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400">
             <tr>
@@ -115,7 +115,7 @@ export function BreakdownTable({
           </thead>
           <tbody>
             {sorted.map((r) => (
-              <tr key={`${r.id}-${r.name}`} className="border-t border-slate-100 dark:border-slate-800">
+              <tr key={`${r.id}-${r.name}`} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                 <td className="px-3 py-1.5">
                   {onRowClick && r.id !== null ? (
                     <button className="text-emerald-700 dark:text-emerald-400 hover:underline text-left" onClick={() => onRowClick(r)}>

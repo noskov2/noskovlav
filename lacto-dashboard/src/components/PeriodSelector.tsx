@@ -61,7 +61,7 @@ export function PeriodSelector({ period, comparisonMode, comparisonPeriod, onCha
         <label className="text-xs font-medium text-slate-500 block mb-1">Perioadă</label>
         <select
           aria-label="Selector perioadă"
-          className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+          className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
           value={preset}
           onChange={(e) => handlePresetChange(e.target.value as PeriodPreset)}
         >
@@ -83,7 +83,7 @@ export function PeriodSelector({ period, comparisonMode, comparisonPeriod, onCha
       <div>
         <label className="text-xs font-medium text-slate-500 block mb-1">Compară cu</label>
         <select
-          className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+          className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
           value={comparisonMode}
           onChange={(e) => handleComparisonModeChange(e.target.value as ComparisonMode)}
         >
@@ -116,7 +116,7 @@ function DateInput({ label, value, onChange }: { label: string; value: string; o
       <label className="text-xs font-medium text-slate-500 block mb-1">{label}</label>
       <input
         type="date"
-        className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+        className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

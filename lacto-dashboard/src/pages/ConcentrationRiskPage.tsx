@@ -36,7 +36,7 @@ export function ConcentrationRiskPage() {
       {() =>
         !concentration ? null : (
           <div>
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between">
               <div>
                 <div className="text-xs text-slate-500">Indice de concentrare (Herfindahl-Hirschman)</div>
                 <div className="text-2xl font-semibold">{concentration.herfindahlIndex.toFixed(0)}</div>
@@ -51,7 +51,7 @@ export function ConcentrationRiskPage() {
               <KpiCard label="Top 20 clienți" value={`${concentration.top20Share.toFixed(1)}%`} />
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+            <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
               <div className="text-sm font-medium mb-2">
                 Clienți care reprezintă peste 5% din cifra de vânzări ({formatNumber(concentration.clientsAboveThreshold.length)})
               </div>

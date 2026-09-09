@@ -51,7 +51,7 @@ export function BackupPage() {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-5">
+        <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-5">
           <div className="text-sm font-medium mb-1">Export backup</div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
             Descarcă un fișier .json cu tot conținutul bazei de date curente.
@@ -59,13 +59,13 @@ export function BackupPage() {
           <button
             onClick={handleExport}
             disabled={status.kind === 'busy'}
-            className="rounded-md bg-emerald-600 text-white px-4 py-2 text-sm hover:bg-emerald-700 disabled:opacity-50"
+            className="rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-emerald-700 hover:shadow transition-all disabled:opacity-50 disabled:shadow-none"
           >
             Descarcă backup
           </button>
         </div>
 
-        <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-5">
+        <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-5">
           <div className="text-sm font-medium mb-1">Restaurare backup</div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
             Alege un fișier .json exportat anterior. <strong>Înlocuiește complet</strong> datele curente.
@@ -74,7 +74,7 @@ export function BackupPage() {
           <button
             onClick={handlePickRestoreFile}
             disabled={status.kind === 'busy'}
-            className="rounded-md border border-rose-300 text-rose-600 dark:border-rose-800 dark:text-rose-400 px-4 py-2 text-sm hover:bg-rose-50 dark:hover:bg-rose-950 disabled:opacity-50"
+            className="rounded-lg border border-rose-300 text-rose-600 dark:border-rose-800 dark:text-rose-400 px-4 py-2 text-sm hover:bg-rose-50 dark:hover:bg-rose-950 disabled:opacity-50"
           >
             Restaurează din fișier…
           </button>

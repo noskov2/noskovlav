@@ -49,7 +49,7 @@ export function CrossSellPage() {
           <div className="mb-4">
             <label className="text-xs font-medium text-slate-500 block mb-1">Client</label>
             <select
-              className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm min-w-[240px]"
+              className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm min-w-[240px]"
               value={clientId ?? ''}
               onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : null)}
             >
@@ -66,18 +66,18 @@ export function CrossSellPage() {
           </div>
 
           {clientId === null ? (
-            <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
               Selectează un client pentru a vedea oportunitățile de cross-sell.
             </div>
           ) : crossSell === undefined ? (
             <div className="text-sm text-slate-500">Se calculează…</div>
           ) : crossSell === null ? null : crossSell.purchasedCategories.length === 0 ? (
-            <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+            <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
               Acest client nu are vânzări în perioada selectată.
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+              <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
                 <div className="text-sm font-medium mb-1">Ce cumpără {crossSell.clientName}</div>
                 <div className="text-xs text-slate-400 mb-3">Canal principal: {crossSell.primaryChannel}</div>
                 <table className="w-full text-sm">
@@ -93,7 +93,7 @@ export function CrossSellPage() {
                 </table>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+              <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4">
                 <div className="text-sm font-medium mb-1">Oportunități (nu cumpără încă)</div>
                 <div className="text-xs text-slate-400 mb-3">
                   Comparativ cu {formatNumber(crossSell.peerCount)} clienți similari de pe canalul {crossSell.primaryChannel}

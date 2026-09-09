@@ -50,7 +50,7 @@ export function ColumnMappingModal({ sourceFileType, headers, sample, suggestion
         </p>
 
         {sourceFileType === 'CONSOLIDATED' && (
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 border border-slate-200 dark:border-slate-700 rounded-md p-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 border border-slate-200 dark:border-slate-700 rounded-lg p-2">
             Acest fișier n-are neapărat o coloană „Data" exactă — poți mapa în loc „An" + „Lună (număr)"
             (se folosește prima zi a lunii). „Canal" e obligatoriu aici, ca fiecare rând să știe cărui
             canal îi aparține.
@@ -72,7 +72,7 @@ export function ColumnMappingModal({ sourceFileType, headers, sample, suggestion
                 {isRequired && <span className="text-rose-500"> *</span>}
               </label>
               <select
-                className="border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-md px-2 py-1.5 text-sm"
+                className="border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg px-2 py-1.5 text-sm"
                 value={mapping[field.id] ?? NONE}
                 onChange={(e) => setField(field.id, e.target.value)}
               >
@@ -91,7 +91,7 @@ export function ColumnMappingModal({ sourceFileType, headers, sample, suggestion
         {sample.length > 0 && (
           <div className="mb-4">
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Previzualizare date</div>
-            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-md">
+            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
               <table className="text-xs w-full">
                 <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
@@ -126,13 +126,13 @@ export function ColumnMappingModal({ sourceFileType, headers, sample, suggestion
 
         <div className="flex justify-end gap-2">
           <button
-            className="px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+            className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
             onClick={onCancel}
           >
             Anulează
           </button>
           <button
-            className="px-4 py-2 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium shadow-sm hover:bg-emerald-700 hover:shadow transition-all disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
             disabled={missingRequired.length > 0}
             onClick={() => onConfirm(mapping)}
           >

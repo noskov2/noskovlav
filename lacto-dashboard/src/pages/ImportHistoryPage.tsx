@@ -59,7 +59,7 @@ export function ImportHistoryPage() {
       {!batches ? (
         <div className="text-sm text-slate-500">Se încarcă…</div>
       ) : batches.length === 0 ? (
-        <div className="text-sm text-slate-500 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+        <div className="text-sm text-slate-500 border border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
           Nu există încă niciun import. Mergi la „Import date" pentru a încărca primul fișier.
         </div>
       ) : (

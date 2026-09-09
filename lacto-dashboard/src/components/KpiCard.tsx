@@ -17,7 +17,7 @@ export function KpiCard({ label, value, growth }: Props) {
           : 'text-slate-400'
 
   return (
-    <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+    <div className="bg-white border border-slate-100 dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm p-4 transition-shadow hover:shadow-md">
       <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</div>
       <div className="text-xl font-semibold text-slate-900 dark:text-slate-100">{value}</div>
       {growth !== undefined && growth !== null && (
