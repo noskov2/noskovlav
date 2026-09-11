@@ -173,6 +173,11 @@ const STYLE = `
 .target-tool .new-month-day-row .zi { font-weight: 600; font-size: 12.5px; }
 .target-tool .new-month-day-row .ziSapt { font-size: 11px; color: var(--text-muted); }
 .target-tool .new-month-day-row select { margin-top: 0; padding: 5px 8px; font-size: 12.5px; }
+.target-tool .modal-card input#staffNewInput { margin-top: 0; }
+.target-tool .staff-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 6px 5px 12px; margin: 0 6px 6px 0; font-size: 13px; }
+.target-tool .staff-remove { background: none; border: none; padding: 2px 6px; font-size: 12px; color: var(--text-muted); cursor: pointer; border-radius: 999px; }
+.target-tool .staff-remove:hover { background: var(--critical-bg); color: var(--critical); }
+.target-tool select.staff-select { margin-top: 0; padding: 5px 8px; font-size: 12.5px; min-width: 140px; }
 .target-tool .history-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gridline); font-size: 13px; }
 .target-tool .history-row:last-child { border-bottom: none; }
 .target-tool .history-row .hmonth { width: 90px; flex: none; font-weight: 600; }
@@ -444,6 +449,7 @@ function parseTargetZilnic(wb: WB): { days: DayRow[]; total: { targetZi: number 
 interface ShiftRow {
   data: unknown; tura: unknown; echipa: unknown
   realizat: number | null; targetTura: number | null; diferenta: number | null; procent: number | null; status: unknown
+  persoana: string | null // which gestionar actually worked this shift, picked manually — echipa is the scheduled team, this is the real individual
 }
 function parseTracker(wb: WB): { shifts: ShiftRow[] } | null {
   const sheet = findSheet(wb, 'echipe')
@@ -464,7 +470,7 @@ function parseTracker(wb: WB): { shifts: ShiftRow[] } | null {
     if (!r || r[idx.data] == null || !String(r[idx.data]).includes('/')) break
     shifts.push({
       data: r[idx.data], tura: r[idx.tura], echipa: r[idx.echipa], realizat: toNum(r[idx.realizat]), targetTura: toNum(r[idx.targetTura]),
-      diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]), status: r[idx.status],
+      diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]), status: r[idx.status], persoana: null,
     })
   }
   return { shifts }
@@ -624,8 +630,8 @@ function buildSyntheticTrackerShifts(days: DayRow[]): ShiftRow[] {
   // and realizat onto the wrong row.
   const shifts: ShiftRow[] = []
   for (const d of days) {
-    shifts.push({ data: d.data, tura: 'T 1', echipa: d.echipaTura1, realizat: null, targetTura: null, diferenta: null, procent: null, status: null })
-    shifts.push({ data: d.data, tura: 'T 2', echipa: d.echipaTura2, realizat: null, targetTura: null, diferenta: null, procent: null, status: null })
+    shifts.push({ data: d.data, tura: 'T 1', echipa: d.echipaTura1, realizat: null, targetTura: null, diferenta: null, procent: null, status: null, persoana: null })
+    shifts.push({ data: d.data, tura: 'T 2', echipa: d.echipaTura2, realizat: null, targetTura: null, diferenta: null, procent: null, status: null, persoana: null })
   }
   return shifts
 }
@@ -852,6 +858,52 @@ function saveStore(store: Record<string, DashboardData>) {
 }
 function saveTeamNames(names: Record<string, string>) {
   try { localStorage.setItem(TEAM_NAMES_KEY, JSON.stringify(names)) } catch { /* storage full/unavailable */ }
+}
+
+// Roster of individual gestionari (station staff), independent of the
+// month — same list offered for every "cine a lucrat tura asta" picker
+// regardless of which month is open, so it's only maintained in one place.
+const STAFF_KEY = 'salesDashboard:staff'
+function loadStaffList(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STAFF_KEY) || '[]')
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+function saveStaffList(list: string[]) {
+  try { localStorage.setItem(STAFF_KEY, JSON.stringify(list)) } catch { /* storage full/unavailable */ }
+}
+
+export interface PersonSummary {
+  name: string
+  shiftsWorked: number
+  targetTotal: number
+  realizatTotal: number
+  diferenta: number
+  procent: number | null
+}
+// Rolls up every shift a specific gestionar was marked as having worked
+// (across both tură 1 and tură 2, whichever they were assigned to on a
+// given day) into one target-vs-realizat figure for them individually —
+// same target/realizat each shift already carries from recompute(), just
+// grouped by person instead of by team. Shifts with no one assigned yet
+// don't count toward anybody.
+function computePersonSummaries(shifts: ShiftRow[]): PersonSummary[] {
+  const map = new Map<string, PersonSummary>()
+  shifts.forEach((s) => {
+    const name = s.persoana
+    if (!name) return
+    const p = map.get(name) || { name, shiftsWorked: 0, targetTotal: 0, realizatTotal: 0, diferenta: 0, procent: null }
+    p.shiftsWorked++
+    p.targetTotal += s.targetTura || 0
+    if (s.realizat != null) p.realizatTotal += s.realizat
+    map.set(name, p)
+  })
+  return Array.from(map.values())
+    .map((p) => ({ ...p, diferenta: p.realizatTotal - p.targetTotal, procent: p.targetTotal ? p.realizatTotal / p.targetTotal : null }))
+    .sort((a, b) => b.realizatTotal - a.realizatTotal)
 }
 // Every place a team can show up on this page, so the "Nume echipe" modal
 // offers one input per team actually present in the loaded month instead of
@@ -1091,9 +1143,17 @@ export function TargetsPage() {
       newMonthShift2: $<HTMLInputElement>('newMonthShift2'),
       newMonthNote: $<HTMLDivElement>('newMonthNote'),
       newMonthDays: $<HTMLDivElement>('newMonthDays'),
+      personCard: $<HTMLElement>('personCard'),
+      personGrid: $<HTMLDivElement>('personGrid'),
+      staffBtn: $<HTMLButtonElement>('staffBtn'),
+      staffModal: $<HTMLDivElement>('staffModal'),
+      staffList: $<HTMLDivElement>('staffListFields'),
+      staffNewInput: $<HTMLInputElement>('staffNewInput'),
+      staffAddBtn: $<HTMLButtonElement>('staffAddBtn'),
     }
 
     let teamNames: Record<string, string> = loadTeamNames()
+    let staffList: string[] = loadStaffList()
 
     function showError(msg: string) {
       els.errorBox.textContent = msg
@@ -1286,19 +1346,59 @@ export function TargetsPage() {
     function renderTracker(data: DashboardData) {
       if (!data.tracker || !data.tracker.shifts.length) { els.trackerCard.style.display = 'none'; return }
       els.trackerCard.style.display = 'block'
-      let html = '<table><thead><tr><th>Dată</th><th>Tură</th><th>Echipă</th><th class="num">Realizat</th><th class="num">Target</th><th>Status</th></tr></thead><tbody>'
-      data.tracker.shifts.forEach((s) => {
+      const staffOptionsHtml = staffList.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')
+      let html = '<table><thead><tr><th>Dată</th><th>Tură</th><th>Echipă</th><th>Cine a lucrat</th><th class="num">Realizat</th><th class="num">Target</th><th>Status</th></tr></thead><tbody>'
+      data.tracker.shifts.forEach((s, i) => {
         const pending = s.realizat == null
         const cls = pending ? 'pending' : statusClass(s.status, s.procent)
         const displayName = resolveTeamName(s.echipa, teamNames)
+        const selected = s.persoana || ''
+        // A selected name that's no longer in the roster (removed later)
+        // still shows up as an option so the assignment isn't silently lost.
+        const options =
+          '<option value="">— alege —</option>' +
+          (selected && !staffList.includes(selected) ? `<option value="${escapeHtml(selected)}">${escapeHtml(selected)}</option>` : '') +
+          staffOptionsHtml
         html += `<tr class="${pending ? 'pending' : ''}">
           <td>${escapeHtml(String(s.data || ''))}</td><td>${escapeHtml(String(s.tura || ''))}</td><td>${escapeHtml(displayName)}</td>
+          <td><select class="staff-select" data-shift-idx="${i}">${options}</select></td>
           <td class="num">${pending ? '—' : fmtRON(s.realizat)}</td><td class="num">${fmtRON(s.targetTura)}</td>
           <td>${pending ? '<span class="status-badge status-pending">—</span>' : `<span class="status-badge status-${cls}">${fmtPct(s.procent)}</span>`}</td>
         </tr>`
       })
       html += '</tbody></table>'
+      if (!staffList.length) {
+        html = '<p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;">Adaugă gestionari (butonul „✎ Gestionari” de sus) ca să poți alege cine a lucrat fiecare tură.</p>' + html
+      }
       els.trackerWrap.innerHTML = html
+      data.tracker.shifts.forEach((s, i) => {
+        const sel = els.trackerWrap.querySelector<HTMLSelectElement>(`select[data-shift-idx="${i}"]`)
+        if (sel) sel.value = s.persoana || ''
+      })
+    }
+
+    function renderPersonSummary(data: DashboardData) {
+      const summaries = computePersonSummaries(data.tracker?.shifts || [])
+      if (!summaries.length) { els.personCard.style.display = 'none'; return }
+      els.personCard.style.display = 'block'
+      const accents = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)']
+      els.personGrid.innerHTML = summaries
+        .map((p, i) => {
+          const cls = statusClass(null, p.procent)
+          const barPct = Math.max(0, Math.min(100, (p.procent || 0) * 100))
+          return `<div class="team-card" style="--accent:${accents[i % 3]}">
+          <div class="name">${escapeHtml(p.name)}</div>
+          <div class="members">${p.shiftsWorked} ${p.shiftsWorked === 1 ? 'tură lucrată' : 'ture lucrate'}</div>
+          <div class="pct" style="color:var(--${cls === 'pending' ? 'text-primary' : cls})">${fmtPct(p.procent)}</div>
+          <div class="bar small"><div class="fill" style="width:${barPct}%;background:var(--${cls === 'pending' ? 'series-1' : cls});"></div></div>
+          <div class="stats">
+            <div><span>Target (turele lucrate)</span><b>${fmtRON(p.targetTotal)}</b></div>
+            <div><span>Realizat</span><b>${fmtRON(p.realizatTotal)}</b></div>
+            <div><span>Diferență</span><b style="color:${p.diferenta >= 0 ? 'var(--good)' : 'var(--critical)'}">${p.diferenta >= 0 ? '+' : ''}${fmtRON(p.diferenta)}</b></div>
+          </div>
+        </div>`
+        })
+        .join('')
     }
 
     function renderHistory() {
@@ -1412,11 +1512,13 @@ export function TargetsPage() {
       renderChart(data)
       renderDaily(data)
       renderTracker(data)
+      renderPersonSummary(data)
       renderHistory()
       els.dashboard.classList.add('visible')
       els.empty.style.display = 'none'
       els.teamNamesBtn.style.display = 'inline-block'
       els.lastYearBtn.style.display = 'inline-block'
+      els.staffBtn.style.display = 'inline-block'
       const d = new Date(data.savedAt)
       els.updatedLabel.textContent = 'actualizat ' + d.toLocaleDateString('ro-RO') + ' ' + d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
       if (currentKey) {
@@ -1663,6 +1765,66 @@ export function TargetsPage() {
       if (currentData) render(currentData)
     })
 
+    // ---------- gestionari (staff roster) ----------
+    function renderStaffModalList() {
+      els.staffList.innerHTML = staffList.length
+        ? staffList
+            .map(
+              (name) => `<div class="staff-chip">
+                <span>${escapeHtml(name)}</span>
+                <button type="button" class="staff-remove" data-name="${escapeHtml(name)}" title="Scoate din listă">✕</button>
+              </div>`,
+            )
+            .join('')
+        : '<p style="color:var(--text-muted);font-size:13px;">Niciun gestionar adăugat încă.</p>'
+    }
+    els.staffBtn.addEventListener('click', () => {
+      renderStaffModalList()
+      els.staffModal.style.display = 'flex'
+      els.staffNewInput.value = ''
+      els.staffNewInput.focus()
+    })
+    $<HTMLButtonElement>('staffCancel').addEventListener('click', () => { els.staffModal.style.display = 'none' })
+    els.staffModal.addEventListener('click', (e) => { if (e.target === els.staffModal) els.staffModal.style.display = 'none' })
+    function addStaffName() {
+      const name = els.staffNewInput.value.trim()
+      if (!name || staffList.includes(name)) { els.staffNewInput.value = ''; return }
+      staffList = [...staffList, name].sort((a, b) => a.localeCompare(b))
+      saveStaffList(staffList)
+      renderStaffModalList()
+      els.staffNewInput.value = ''
+      els.staffNewInput.focus()
+      if (currentData) renderTracker(currentData)
+    }
+    els.staffAddBtn.addEventListener('click', addStaffName)
+    els.staffNewInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addStaffName() } })
+    els.staffList.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.staff-remove')
+      if (!btn) return
+      const name = btn.getAttribute('data-name')!
+      staffList = staffList.filter((n) => n !== name)
+      saveStaffList(staffList)
+      renderStaffModalList()
+      if (currentData) renderTracker(currentData)
+    })
+
+    // ---------- who worked each shift ----------
+    els.trackerWrap.addEventListener('change', (e) => {
+      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>('select[data-shift-idx]')
+      if (!sel || !currentKey) return
+      const idx = Number(sel.getAttribute('data-shift-idx'))
+      const store = loadStore()
+      const data = store[currentKey]
+      const shift = data?.tracker?.shifts[idx]
+      if (!data || !shift) return
+      shift.persoana = sel.value || null
+      data.savedAt = Date.now()
+      store[currentKey] = data
+      saveStore(store)
+      currentData = data
+      renderPersonSummary(data)
+    })
+
     // ---------- last year actual (for YoY comparison in the hero card) ----------
     els.lastYearBtn.addEventListener('click', () => {
       if (!currentData || !currentKey) return
@@ -1808,6 +1970,7 @@ export function TargetsPage() {
           <div className="top-actions">
             <select id="monthSelect" style={{ display: 'none' }}></select>
             <button id="teamNamesBtn" style={{ display: 'none' }} title="Înlocuiește «Echipa 1», «Echipa 2» etc. cu numele gestionarilor">✎ Nume echipe</button>
+            <button id="staffBtn" style={{ display: 'none' }} title="Gestionează lista de gestionari, pentru a alege cine a lucrat fiecare tură">✎ Gestionari</button>
             <button id="lastYearBtn" style={{ display: 'none' }} title="Introdu cât s-a realizat în aceeași lună anul trecut, pentru comparație">✎ An trecut</button>
             <button id="newMonthBtn" className="btn-primary" title="Creează scheletul (targete + rotație echipe) pentru o lună nouă, fără fișier Excel">+ Lună nouă</button>
             <button id="printBtn" title="Printează / exportă PDF">🖨 Printează</button>
@@ -1851,6 +2014,14 @@ export function TargetsPage() {
             <summary>Detalii pe tură</summary>
             <div className="table-scroll" id="trackerTableWrap"></div>
           </details>
+          <section className="card" id="personCard" style={{ display: 'none' }}>
+            <h3 style={{ margin: '0 0 12px' }}>Situație pe gestionar</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+              Target și realizat însumate pe turele pe care le-ai atribuit fiecărui gestionar mai sus, în „Detalii pe
+              tură".
+            </p>
+            <div className="team-grid" id="personGrid"></div>
+          </section>
           <section className="card" id="historyCard" style={{ display: 'none' }}></section>
         </main>
 
@@ -1890,6 +2061,24 @@ export function TargetsPage() {
           <div className="modal-actions">
             <button id="teamNamesCancel">Anulează</button>
             <button id="teamNamesSave" className="btn-primary">Salvează</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal-overlay" id="staffModal" style={{ display: 'none' }}>
+        <div className="modal-card">
+          <h3>Gestionari</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+            Lista de gestionari din care alegi, la fiecare tură, cine a lucrat efectiv — în „Detalii pe tură". Listă
+            comună pentru toate lunile.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <input type="text" id="staffNewInput" placeholder="Nume gestionar" style={{ flex: 1 }} />
+            <button id="staffAddBtn" className="btn-primary" type="button">Adaugă</button>
+          </div>
+          <div id="staffListFields"></div>
+          <div className="modal-actions">
+            <button id="staffCancel">Închide</button>
           </div>
         </div>
       </div>
