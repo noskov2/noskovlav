@@ -9,12 +9,14 @@ import { useFilterStore } from '@/store/filterStore'
 import { filterTransactions } from '@/kpi/applyFilters'
 import { computeReceiptAnalysis, RECEIPT_BUCKET_LABELS, type ReceiptBucketKey } from '@/kpi/receiptAnalysis'
 import { computeBasketAnalysis } from '@/kpi/basketAnalysis'
+import { computeReceiptValueDistribution } from '@/kpi/receiptValueDistribution'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 
 const BUCKET_ORDER: ReceiptBucketKey[] = ['toate', 'doarCarburant', 'doarMarfa', 'carburantSiMarfa']
 
 const TABS = [
   { key: 'bonuri', label: 'Bonuri' },
+  { key: 'valoare', label: 'Distribuție valoare bonuri' },
   { key: 'basket', label: 'Basket (produse cumpărate împreună)' },
 ]
 
@@ -30,6 +32,8 @@ export function ReceiptsPage() {
 
   const analysis = useMemo(() => computeReceiptAnalysis(filtered, products), [filtered, products])
   const baskets = useMemo(() => computeBasketAnalysis(filtered, products), [filtered, products])
+  const valueBuckets = useMemo(() => computeReceiptValueDistribution(filtered, products), [filtered, products])
+  const maxBucketCount = useMemo(() => Math.max(1, ...valueBuckets.map((b) => b.receiptCount)), [valueBuckets])
 
   if (transactions.length === 0) {
     return (
@@ -75,6 +79,50 @@ export function ReceiptsPage() {
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {tab === 'valoare' && (
+            <div>
+              <p className="mb-4 text-sm text-slate-500">
+                Câte bonuri au căzut în fiecare interval de valoare, pentru perioada și filtrele selectate. Intervalele
+                sunt „de la — până la", fără a include capătul de sus (un bon de exact 25 lei intră la „25 - 50 lei").
+              </p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-100 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-2 py-1.5">Interval</th>
+                      <th className="px-2 py-1.5 text-right">Bonuri</th>
+                      <th className="px-2 py-1.5 text-right">% din bonuri</th>
+                      <th className="px-2 py-1.5 text-right">Valoare totală</th>
+                      <th className="px-2 py-1.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {valueBuckets.map((b) => (
+                      <tr key={b.key}>
+                        <td className="px-2 py-1.5 font-medium text-slate-800">{b.label}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          <DrillValue title={`Bonuri ${b.label}`} lines={b.lines}>
+                            {formatNumber(b.receiptCount)}
+                          </DrillValue>
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-slate-500">{formatPct(b.pctOfReceipts)}</td>
+                        <td className="px-2 py-1.5 text-right text-slate-500">{formatLei(b.totalValue)}</td>
+                        <td className="px-2 py-1.5">
+                          <div className="h-2 w-24 rounded-full bg-slate-100">
+                            <div
+                              className="h-2 rounded-full bg-brand-500"
+                              style={{ width: `${(b.receiptCount / maxBucketCount) * 100}%` }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
