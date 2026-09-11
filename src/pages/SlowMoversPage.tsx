@@ -8,7 +8,8 @@ import { DeltaBadge } from '@/components/ui/DeltaBadge'
 import { useDataStore } from '@/store/dataStore'
 import { useDrillFilterStore } from '@/store/drillFilterStore'
 import { computeSlowMovers, MOVEMENT_LABELS, type MovementClass, type SlowMoverRow } from '@/kpi/slowMovers'
-import { addDays, reportingEndStr, type DateRange } from '@/kpi/dateRanges'
+import { buildStockActionNote } from '@/kpi/stockRecommendations'
+import { addDays, dayCountInRange, reportingEndStr, type DateRange } from '@/kpi/dateRanges'
 import { previousMonthRange, computeDelta } from '@/kpi/monthComparison'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
 
@@ -79,6 +80,14 @@ export function SlowMoversPage() {
     () => rows.reduce((s, r) => s + (r.blockedStockValue ?? 0), 0),
     [rows],
   )
+
+  const periodDays = useMemo(() => dayCountInRange(range), [range])
+  const actionNotes = useMemo(() => {
+    const withNotes = rows
+      .map((r) => ({ row: r, note: buildStockActionNote(r, periodDays) }))
+      .filter((x): x is { row: SlowMoverRow; note: string } => x.note != null)
+    return withNotes.sort((a, b) => (b.row.blockedStockValue ?? 0) - (a.row.blockedStockValue ?? 0)).slice(0, 8)
+  }, [rows, periodDays])
 
   const latestStockAsOf = useMemo(
     () => (stockSnapshots.length > 0 ? Math.max(...stockSnapshots.map((s) => s.asOf)) : null),
@@ -283,6 +292,23 @@ export function SlowMoversPage() {
           }
         />
       </div>
+
+      {actionNotes.length > 0 && (
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-1 text-sm font-semibold text-slate-700">Acțiuni recomandate</h3>
+          <p className="mb-3 text-xs text-slate-500">
+            Produsele cu cel mai mult stoc blocat, cu o recomandare de acțiune. Nu urmărim date de expirare — durata
+            estimată e doar cât ar mai dura stocul curent la ritmul actual de vânzare, nu momentul expirării.
+          </p>
+          <ul className="space-y-2 text-sm">
+            {actionNotes.map(({ row, note }) => (
+              <li key={row.product.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-slate-700">
+                {note}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {worst.length > 0 && (
         <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

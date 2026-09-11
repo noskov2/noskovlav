@@ -29,6 +29,7 @@ const defaultSettings: AppSettings = {
   stockThresholds: defaultStockThresholds,
   stockThresholdsByCategory: {},
   knownSuppliers: [],
+  supplierDeliveryDays: {},
 }
 
 export function getStockThresholdsForCategory(settings: AppSettings, category: string): StockThresholds {

@@ -419,4 +419,11 @@ export interface AppSettings {
   // typing one by hand in Nomenclator, via a datalist, so the same
   // supplier never ends up spelled three different ways across products.
   knownSuppliers: string[]
+  // Which day(s) of the week each supplier delivers, keyed by supplier name
+  // exactly as it appears on Product.supplier. Values are JS Date.getDay()
+  // indices (0=Duminică..6=Sâmbătă), matching kpi/dateRanges.ts's
+  // weekdayName. Drives the "comenzi recomandate" projection — a supplier
+  // absent from this map (or mapped to []) has no configured schedule, so
+  // no order quantity can be projected for its products.
+  supplierDeliveryDays: Record<string, number[]>
 }

@@ -19,6 +19,7 @@ import { ClosingPage } from '@/pages/ClosingPage'
 import { CondicaPvPage } from '@/pages/CondicaPvPage'
 import { MonthlyComparisonPage } from '@/pages/MonthlyComparisonPage'
 import { ClientsPage } from '@/pages/ClientsPage'
+import { ReorderPage } from '@/pages/ReorderPage'
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/vanzare-slaba" element={<SlowMoversPage />} />
+          <Route path="/comenzi-recomandate" element={<ReorderPage />} />
           <Route path="/zi" element={<DailyPerformancePage />} />
           <Route path="/profitabilitate" element={<ProfitabilityPage />} />
           <Route path="/marja-promotii" element={<MarginOpportunitiesPage />} />
