@@ -178,6 +178,9 @@ const STYLE = `
 .target-tool .staff-remove { background: none; border: none; padding: 2px 6px; font-size: 12px; color: var(--text-muted); cursor: pointer; border-radius: 999px; }
 .target-tool .staff-remove:hover { background: var(--critical-bg); color: var(--critical); }
 .target-tool select.staff-select { margin-top: 0; padding: 5px 8px; font-size: 12.5px; min-width: 140px; }
+.target-tool .shift-people-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 160px; }
+.target-tool .shift-people-cell .staff-chip { margin: 0; padding: 3px 4px 3px 10px; font-size: 12px; }
+.target-tool select.shift-add-select { margin-top: 0; padding: 4px 6px; font-size: 12px; min-width: 90px; }
 .target-tool .history-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gridline); font-size: 13px; }
 .target-tool .history-row:last-child { border-bottom: none; }
 .target-tool .history-row .hmonth { width: 90px; flex: none; font-weight: 600; }
@@ -449,7 +452,7 @@ function parseTargetZilnic(wb: WB): { days: DayRow[]; total: { targetZi: number 
 interface ShiftRow {
   data: unknown; tura: unknown; echipa: unknown
   realizat: number | null; targetTura: number | null; diferenta: number | null; procent: number | null; status: unknown
-  persoana: string | null // which gestionar actually worked this shift, picked manually — echipa is the scheduled team, this is the real individual
+  persoane: string[] // which gestionari actually worked this shift, picked manually (can be more than one) — echipa is the scheduled team, this is the real individuals
 }
 function parseTracker(wb: WB): { shifts: ShiftRow[] } | null {
   const sheet = findSheet(wb, 'echipe')
@@ -470,7 +473,7 @@ function parseTracker(wb: WB): { shifts: ShiftRow[] } | null {
     if (!r || r[idx.data] == null || !String(r[idx.data]).includes('/')) break
     shifts.push({
       data: r[idx.data], tura: r[idx.tura], echipa: r[idx.echipa], realizat: toNum(r[idx.realizat]), targetTura: toNum(r[idx.targetTura]),
-      diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]), status: r[idx.status], persoana: null,
+      diferenta: toNum(r[idx.diferenta]), procent: toNum(r[idx.procent]), status: r[idx.status], persoane: [],
     })
   }
   return { shifts }
@@ -630,8 +633,8 @@ function buildSyntheticTrackerShifts(days: DayRow[]): ShiftRow[] {
   // and realizat onto the wrong row.
   const shifts: ShiftRow[] = []
   for (const d of days) {
-    shifts.push({ data: d.data, tura: 'T 1', echipa: d.echipaTura1, realizat: null, targetTura: null, diferenta: null, procent: null, status: null, persoana: null })
-    shifts.push({ data: d.data, tura: 'T 2', echipa: d.echipaTura2, realizat: null, targetTura: null, diferenta: null, procent: null, status: null, persoana: null })
+    shifts.push({ data: d.data, tura: 'T 1', echipa: d.echipaTura1, realizat: null, targetTura: null, diferenta: null, procent: null, status: null, persoane: [] })
+    shifts.push({ data: d.data, tura: 'T 2', echipa: d.echipaTura2, realizat: null, targetTura: null, diferenta: null, procent: null, status: null, persoane: [] })
   }
   return shifts
 }
@@ -833,6 +836,26 @@ function migrateMissingTracker(data: DashboardData): boolean {
   return true
 }
 
+// Early versions of "cine a lucrat" only allowed one gestionar per shift
+// (a single `persoana: string | null` field) before the owner pointed out
+// that 3 people sometimes cover the same shift — this folds any such
+// already-saved single assignment into the new `persoane: string[]` array
+// so nobody's earlier picks get silently dropped.
+function migratePersoanaToPersoane(data: DashboardData): boolean {
+  const shifts = data.tracker?.shifts
+  if (!shifts || !shifts.length) return false
+  let changed = false
+  for (const s of shifts as (ShiftRow & { persoana?: string | null })[]) {
+    if (!Array.isArray(s.persoane)) { s.persoane = []; changed = true }
+    if (s.persoana) {
+      if (!s.persoane.includes(s.persoana)) s.persoane.push(s.persoana)
+      delete s.persoana
+      changed = true
+    }
+  }
+  return changed
+}
+
 // ---------- storage ----------
 // STORE_KEY/TEAM_NAMES_KEY and the read-only helpers below (teamShortLabel,
 // teamKeyOf, resolveTeamName, loadTeamNames) live in @/data/pontaj so
@@ -849,6 +872,7 @@ function loadStore(): Record<string, DashboardData> {
   for (const key of Object.keys(store)) {
     if (migrateLegacyDateFormat(store[key])) changed = true
     if (migrateMissingTracker(store[key])) changed = true
+    if (migratePersoanaToPersoane(store[key])) changed = true
   }
   if (changed) saveStore(store)
   return store
@@ -893,13 +917,18 @@ export interface PersonSummary {
 function computePersonSummaries(shifts: ShiftRow[]): PersonSummary[] {
   const map = new Map<string, PersonSummary>()
   shifts.forEach((s) => {
-    const name = s.persoana
-    if (!name) return
-    const p = map.get(name) || { name, shiftsWorked: 0, targetTotal: 0, realizatTotal: 0, diferenta: 0, procent: null }
-    p.shiftsWorked++
-    p.targetTotal += s.targetTura || 0
-    if (s.realizat != null) p.realizatTotal += s.realizat
-    map.set(name, p)
+    // When several gestionari cover the same shift, each one is credited
+    // with that shift's full target/realizat (not split between them) —
+    // they were jointly responsible for it, same as how a team's own
+    // target/realizat isn't divided per member either.
+    ;(s.persoane || []).forEach((name) => {
+      if (!name) return
+      const p = map.get(name) || { name, shiftsWorked: 0, targetTotal: 0, realizatTotal: 0, diferenta: 0, procent: null }
+      p.shiftsWorked++
+      p.targetTotal += s.targetTura || 0
+      if (s.realizat != null) p.realizatTotal += s.realizat
+      map.set(name, p)
+    })
   })
   return Array.from(map.values())
     .map((p) => ({ ...p, diferenta: p.realizatTotal - p.targetTotal, procent: p.targetTotal ? p.realizatTotal / p.targetTotal : null }))
@@ -1346,22 +1375,32 @@ export function TargetsPage() {
     function renderTracker(data: DashboardData) {
       if (!data.tracker || !data.tracker.shifts.length) { els.trackerCard.style.display = 'none'; return }
       els.trackerCard.style.display = 'block'
-      const staffOptionsHtml = staffList.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')
       let html = '<table><thead><tr><th>Dată</th><th>Tură</th><th>Echipă</th><th>Cine a lucrat</th><th class="num">Realizat</th><th class="num">Target</th><th>Status</th></tr></thead><tbody>'
       data.tracker.shifts.forEach((s, i) => {
         const pending = s.realizat == null
         const cls = pending ? 'pending' : statusClass(s.status, s.procent)
-        const displayName = resolveTeamName(s.echipa, teamNames)
-        const selected = s.persoana || ''
-        // A selected name that's no longer in the roster (removed later)
-        // still shows up as an option so the assignment isn't silently lost.
-        const options =
-          '<option value="">— alege —</option>' +
-          (selected && !staffList.includes(selected) ? `<option value="${escapeHtml(selected)}">${escapeHtml(selected)}</option>` : '') +
-          staffOptionsHtml
+        const assigned = s.persoane || []
+        const chips = assigned
+          .map(
+            (name) => `<span class="staff-chip">
+              <span>${escapeHtml(name)}</span>
+              <button type="button" class="staff-remove shift-person-remove" data-shift-idx="${i}" data-name="${escapeHtml(name)}" title="Scoate">✕</button>
+            </span>`,
+          )
+          .join('')
+        // Only offer names not already assigned to this shift, so "adaugă"
+        // can't add the same person twice.
+        const addOptions = staffList.filter((n) => !assigned.includes(n))
+        const addSelect =
+          addOptions.length > 0
+            ? `<select class="shift-add-select" data-shift-idx="${i}">
+                <option value="">+ adaugă</option>
+                ${addOptions.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}
+              </select>`
+            : ''
         html += `<tr class="${pending ? 'pending' : ''}">
-          <td>${escapeHtml(String(s.data || ''))}</td><td>${escapeHtml(String(s.tura || ''))}</td><td>${escapeHtml(displayName)}</td>
-          <td><select class="staff-select" data-shift-idx="${i}">${options}</select></td>
+          <td>${escapeHtml(String(s.data || ''))}</td><td>${escapeHtml(String(s.tura || ''))}</td><td></td>
+          <td class="shift-people-cell">${chips}${addSelect}</td>
           <td class="num">${pending ? '—' : fmtRON(s.realizat)}</td><td class="num">${fmtRON(s.targetTura)}</td>
           <td>${pending ? '<span class="status-badge status-pending">—</span>' : `<span class="status-badge status-${cls}">${fmtPct(s.procent)}</span>`}</td>
         </tr>`
@@ -1371,10 +1410,6 @@ export function TargetsPage() {
         html = '<p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;">Adaugă gestionari (butonul „✎ Gestionari” de sus) ca să poți alege cine a lucrat fiecare tură.</p>' + html
       }
       els.trackerWrap.innerHTML = html
-      data.tracker.shifts.forEach((s, i) => {
-        const sel = els.trackerWrap.querySelector<HTMLSelectElement>(`select[data-shift-idx="${i}"]`)
-        if (sel) sel.value = s.persoana || ''
-      })
     }
 
     function renderPersonSummary(data: DashboardData) {
@@ -1808,20 +1843,38 @@ export function TargetsPage() {
       if (currentData) renderTracker(currentData)
     })
 
-    // ---------- who worked each shift ----------
+    // ---------- who worked each shift (can be more than one person) ----------
     els.trackerWrap.addEventListener('change', (e) => {
-      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>('select[data-shift-idx]')
-      if (!sel || !currentKey) return
+      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>('select.shift-add-select[data-shift-idx]')
+      if (!sel || !sel.value || !currentKey) return
       const idx = Number(sel.getAttribute('data-shift-idx'))
       const store = loadStore()
       const data = store[currentKey]
       const shift = data?.tracker?.shifts[idx]
       if (!data || !shift) return
-      shift.persoana = sel.value || null
+      if (!shift.persoane.includes(sel.value)) shift.persoane.push(sel.value)
       data.savedAt = Date.now()
       store[currentKey] = data
       saveStore(store)
       currentData = data
+      renderTracker(data)
+      renderPersonSummary(data)
+    })
+    els.trackerWrap.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.shift-person-remove')
+      if (!btn || !currentKey) return
+      const idx = Number(btn.getAttribute('data-shift-idx'))
+      const name = btn.getAttribute('data-name')!
+      const store = loadStore()
+      const data = store[currentKey]
+      const shift = data?.tracker?.shifts[idx]
+      if (!data || !shift) return
+      shift.persoane = shift.persoane.filter((n) => n !== name)
+      data.savedAt = Date.now()
+      store[currentKey] = data
+      saveStore(store)
+      currentData = data
+      renderTracker(data)
       renderPersonSummary(data)
     })
 
