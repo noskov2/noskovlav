@@ -19,6 +19,7 @@ import { SandwichTab } from '@/pages/crossSell/SandwichTab'
 import { LemonadeTab } from '@/pages/crossSell/LemonadeTab'
 import { PromoTab } from '@/pages/crossSell/PromoTab'
 import { ScoreTab } from '@/pages/crossSell/ScoreTab'
+import { ManagerMessageModal } from '@/pages/crossSell/ManagerMessageModal'
 
 const TABS = [
   { key: 'fuel', label: 'Carburant + Marfă' },
@@ -38,6 +39,7 @@ export function CrossSellPage() {
   const [tab, setTab] = useState('fuel')
   const [groupBy, setGroupBy] = useState<GroupBy>('casier')
   const [compare, setCompare] = useState(false)
+  const [showManagerMessage, setShowManagerMessage] = useState(false)
 
   const filtered = useMemo(
     () => filterTransactions(transactions, filter, productsById, cashiersById),
@@ -86,6 +88,20 @@ export function CrossSellPage() {
       <PageHeader
         title="Cross-sell și performanța casierilor"
         description="Analiza pe bon: carburant + marfă, cafea, dulciuri vitrină, sandwich-uri, limonade/ceaiuri și scorul general al casierilor."
+        action={
+          <button
+            onClick={() => setShowManagerMessage(true)}
+            className="no-print rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+          >
+            💬 Mesaj gestionari
+          </button>
+        }
+      />
+      <ManagerMessageModal
+        open={showManagerMessage}
+        onClose={() => setShowManagerMessage(false)}
+        transactions={transactions}
+        products={products}
       />
       <div className="mb-5">
         <FilterBar hideCategory hideProduct />

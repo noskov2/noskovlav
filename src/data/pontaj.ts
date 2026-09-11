@@ -78,7 +78,7 @@ function loadPontajStore(): Record<string, PontajMonthData> {
   }
 }
 
-function monthKeyToYearMonth(monthKey: string): { year: number; month: number } | null {
+export function monthKeyToYearMonth(monthKey: string): { year: number; month: number } | null {
   const m = monthKey.trim().match(/^([A-ZĂÂÎȘȚ]{3})\s+(\d{4})$/i)
   if (!m) return null
   const mon = RO_MONTH_ABBR[m[1].toLowerCase()]
@@ -128,4 +128,92 @@ export function scheduledTeamFor(index: Map<string, DayRotation>, date: string, 
   const day = index.get(date)
   if (!day) return null
   return shift === 1 ? day.tura1 : day.tura2
+}
+
+// ---------- latest month's team situation (for "Mesaj gestionari") ----------
+// Wider read of the same STORE_KEY blob as loadPontajStore, pulling out the
+// per-team target/realizat/bonus figures TargetsPage already computes
+// (situatie.teams / bonus.teams) — this module stays read-only, so these
+// stay exactly the numbers the owner sees on the Target page itself,
+// instead of being re-derived (and risking drift) from raw transactions.
+interface StoredTeamSituatie {
+  name: unknown
+  targetLunar: number | null
+  targetPana: number | null
+  realizat: number | null
+  diferenta: number | null
+  procent: number | null
+}
+interface StoredBonusTeam {
+  name: unknown
+  bonusOm: number | null
+  bonusEchipa: number | null
+}
+interface StoredMonthFull {
+  rezumat: { title: string | null } | null
+  situatie: { teams: StoredTeamSituatie[] } | null
+  bonus: { teams: StoredBonusTeam[] } | null
+}
+function loadFullPontajStore(): Record<string, StoredMonthFull> {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+export interface TeamSituatieSummary {
+  key: string
+  label: string
+  targetLunar: number | null
+  targetPana: number | null
+  realizat: number | null
+  diferenta: number | null
+  procent: number | null // fraction 0-1
+  bonusOm: number | null
+  bonusEchipa: number | null
+}
+export interface LatestMonthSummary {
+  monthKey: string // e.g. "SEP 2026"
+  monthLabel: string // e.g. "Target Vânzări Septembrie 2026" (rezumat.title), falls back to monthKey
+  teams: TeamSituatieSummary[]
+}
+
+// Chronologically latest stored month (by year+month, not by savedAt) —
+// same "which month is current" notion TargetsPage itself uses.
+export function loadLatestMonthTeamSummary(teamNames: Record<string, string>): LatestMonthSummary | null {
+  const store = loadFullPontajStore()
+  let latestKey: string | null = null
+  let latestVal = -Infinity
+  for (const key of Object.keys(store)) {
+    const ym = monthKeyToYearMonth(key)
+    if (!ym) continue
+    const val = ym.year * 12 + ym.month
+    if (val > latestVal) {
+      latestVal = val
+      latestKey = key
+    }
+  }
+  if (!latestKey) return null
+  const data = store[latestKey]
+  const bonusByKey = new Map<string, StoredBonusTeam>()
+  ;(data.bonus?.teams || []).forEach((t) => bonusByKey.set(teamKeyOf(t.name), t))
+
+  const teams: TeamSituatieSummary[] = (data.situatie?.teams || []).map((t) => {
+    const key = teamKeyOf(t.name)
+    const bonus = bonusByKey.get(key)
+    return {
+      key,
+      label: resolveTeamName(defaultTeamLabel(key), teamNames),
+      targetLunar: t.targetLunar,
+      targetPana: t.targetPana,
+      realizat: t.realizat,
+      diferenta: t.diferenta,
+      procent: t.procent,
+      bonusOm: bonus?.bonusOm ?? null,
+      bonusEchipa: bonus?.bonusEchipa ?? null,
+    }
+  })
+
+  return { monthKey: latestKey, monthLabel: data.rezumat?.title || latestKey, teams }
 }
