@@ -5,6 +5,8 @@ import { recomputeAllShifts } from '@/data/repo/transactions'
 import { determineShift } from '@/processing/shift'
 import { downloadBackup, restoreBackup, validateBackup, type BackupData, type BackupValidation } from '@/data/backup'
 import { MIN_SHIFTS_FOR_SCORE } from '@/kpi/cashierScore'
+import { FUEL_LABELS } from '@/kpi/tankFuel'
+import { TankSettingsPanel } from '@/pages/tanks/TankSettingsPanel'
 import { useDataStore } from '@/store/dataStore'
 import {
   defaultScoreWeights,
@@ -18,7 +20,7 @@ import {
 import { formatNumber } from '@/lib/format'
 
 export function SettingsPage() {
-  const { refresh, transactions, importBatches } = useDataStore()
+  const { refresh, transactions, importBatches, tankReadings, fuelMovements, settings: liveSettings } = useDataStore()
   const [backingUp, setBackingUp] = useState(false)
   const [restoreFile, setRestoreFile] = useState<{ data: BackupData; validation: BackupValidation } | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
@@ -114,6 +116,22 @@ export function SettingsPage() {
       setRestoreError('Fișierul nu a putut fi citit ca JSON valid.')
     }
   }
+
+  const tankIds = useMemo(() => {
+    const set = new Set<string>()
+    tankReadings.forEach((r) => set.add(r.tankId))
+    fuelMovements.forEach((m) => {
+      if (m.tankId) set.add(m.tankId)
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  }, [tankReadings, fuelMovements])
+  const tankFuelLabels = useMemo(() => {
+    const map: Record<string, string> = {}
+    tankReadings.forEach((r) => {
+      if (!map[r.tankId]) map[r.tankId] = FUEL_LABELS[r.fuel]
+    })
+    return map
+  }, [tankReadings])
 
   async function confirmRestore() {
     if (!restoreFile) return
@@ -362,6 +380,26 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+
+      {tankIds.length > 0 && (
+        <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-1 text-sm font-semibold text-slate-700">Rezervoare — capacitate și praguri</h3>
+          <p className="mb-3 text-xs text-slate-500">
+            Folosite de pagina Rezervoare & Mișcări pentru procentul de umplere, alertele de diferență/stoc minim și
+            comanda recomandată. Fără capacitate configurată, acele calcule rămân dezactivate pentru rezervorul
+            respectiv.
+          </p>
+          <TankSettingsPanel
+            tankIds={tankIds}
+            tankFuelLabels={tankFuelLabels}
+            tankSettings={liveSettings?.tankSettings ?? {}}
+            onSave={async (next) => {
+              await updateSettings({ tankSettings: next })
+              await refresh()
+            }}
+          />
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="mb-2 text-sm font-semibold text-slate-700">Despre stocarea datelor</h3>

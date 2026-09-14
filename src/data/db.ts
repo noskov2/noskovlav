@@ -11,6 +11,8 @@ import type {
   MonthSnapshot,
   Client,
   ClientInvoiceLine,
+  TankReading,
+  FuelMovement,
 } from '@/types/domain'
 
 // Single IndexedDB database for the whole app. All persistence goes through
@@ -29,6 +31,8 @@ class PecoDatabase extends Dexie {
   monthSnapshots!: EntityTable<MonthSnapshot, 'id'>
   clients!: EntityTable<Client, 'id'>
   clientInvoices!: EntityTable<ClientInvoiceLine, 'id'>
+  tankReadings!: EntityTable<TankReading, 'id'>
+  fuelMovements!: EntityTable<FuelMovement, 'id'>
 
   constructor() {
     super('peco-station-db')
@@ -92,6 +96,26 @@ class PecoDatabase extends Dexie {
       monthSnapshots: 'id, monthKey, closedAt',
       clients: 'id, name, fiscalCode',
       clientInvoices: 'id, importBatchId, clientId, invoiceNo, date, onCredit',
+    })
+    // v6: tankReadings + fuelMovements for the Rezervoare & Mișcări module
+    // (FCC tank probe readings and fuel stock movements) — entirely separate
+    // tables from products/transactions, since this module tracks tanks, not
+    // the store's product catalog.
+    this.version(6).stores({
+      transactions:
+        'id, importBatchId, date, timestamp, cashierId, productId, receiptNo, shift, fingerprint',
+      products: 'id, name, category, active',
+      cashiers: 'id, name, active, teamId',
+      teams: 'id, name',
+      importBatches: 'id, importedAt, kind',
+      supplierReceipts: 'id, importBatchId, productId, supplier, date',
+      stockSnapshots: 'id, importBatchId, productId, asOf',
+      settings: 'id',
+      monthSnapshots: 'id, monthKey, closedAt',
+      clients: 'id, name, fiscalCode',
+      clientInvoices: 'id, importBatchId, clientId, invoiceNo, date, onCredit',
+      tankReadings: 'id, importBatchId, tankId, lastUpdate, fuel',
+      fuelMovements: 'id, importBatchId, tankId, timestamp, fingerprint, direction, movementTypeRaw',
     })
   }
 }

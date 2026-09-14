@@ -8,6 +8,8 @@ import {
 } from '@/data/repo/stockSnapshots'
 import { getProduct, upsertProduct } from '@/data/repo/products'
 import { deleteImportBatchClientInvoices } from '@/data/repo/clientInvoices'
+import { deleteImportBatchTankReadings } from '@/data/repo/tankReadings'
+import { deleteImportBatchFuelMovements } from '@/data/repo/fuelMovements'
 import type { ImportBatch } from '@/types/domain'
 
 /**
@@ -24,6 +26,10 @@ export async function deleteImportBatchData(batch: ImportBatch): Promise<void> {
     await deleteImportBatchSupplierReceipts(batch.id)
   } else if (batch.kind === 'invoices') {
     await deleteImportBatchClientInvoices(batch.id)
+  } else if (batch.kind === 'tankReadings') {
+    await deleteImportBatchTankReadings(batch.id)
+  } else if (batch.kind === 'fuelMovements') {
+    await deleteImportBatchFuelMovements(batch.id)
   } else {
     const rows = await listStockSnapshotsByImportBatch(batch.id)
     const affectedProductIds = Array.from(new Set(rows.map((r) => r.productId)))

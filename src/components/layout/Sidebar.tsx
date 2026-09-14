@@ -31,6 +31,7 @@ const groups: NavGroup[] = [
       { to: '/import', label: 'Import date', icon: '📥' },
       { to: '/vanzare-slaba', label: 'Vânzare slabă', icon: '🐢' },
       { to: '/comenzi-recomandate', label: 'Comenzi recomandate', icon: '🧾' },
+      { to: '/rezervoare', label: 'Rezervoare & Mișcări', icon: '⛽' },
       { to: '/stoc', label: 'Stoc & Rotație', icon: '📦' },
       { to: '/zi', label: 'Zi de vânzare', icon: '📅' },
       { to: '/condica-pv', label: 'Condică PV-uri', icon: '📋' },

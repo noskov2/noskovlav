@@ -1,4 +1,11 @@
-import type { InvoiceColumnMapping, PurchaseColumnMapping, SalesColumnMapping, StockColumnMapping } from '@/types/domain'
+import type {
+  FuelMovementColumnMapping,
+  InvoiceColumnMapping,
+  PurchaseColumnMapping,
+  SalesColumnMapping,
+  StockColumnMapping,
+  TankReadingColumnMapping,
+} from '@/types/domain'
 
 // Keyword hints used only to pre-select a likely column in the mapping
 // wizard. The user always confirms (or corrects) the mapping — nothing is
@@ -58,6 +65,28 @@ const HINTS: Record<string, string[]> = {
   county: ['judet'],
   driver: ['sofer'],
   vehicle: ['vehicul', 'nr. inmatriculare', 'numar inmatriculare'],
+  // Rezervoare & Mișcări (FCC tank readings + fuel stock movements) —
+  // "ID Rezervor FCC" is shared verbatim between both file types, so both
+  // guess functions reuse the same tankIdFcc key.
+  station: ['statie', 'magazin'],
+  tankIdFcc: ['id rezervor', 'rezervor fcc'],
+  fuelCarburant: ['carburant'],
+  levelMm: ['nivel'],
+  waterLevelMm: ['nivel apa'],
+  totalObservedVolume: ['volum total observat'],
+  waterVolume: ['volum apa'],
+  actualVolume: ['faptic', 'reala'],
+  bookStock: ['stoc scriptic', 'scriptic'],
+  tankDifference: ['diferenta'],
+  volume15C: ['ct 15', 'ct15', '15 c'],
+  avgTemperature: ['temperatura medie'],
+  lastUpdate: ['ultima actualizare'],
+  mainState: ['stare principala'],
+  movementType: ['tip miscare', 'tip operatie'],
+  documentNo: ['id operatiune', 'nr document', 'numar document', 'document'],
+  explanation: ['explicatie', 'observatii', 'motiv'],
+  gestiune: ['gestiune'],
+  stockAfter: ['stoc nou rezervor', 'stoc nou'],
 }
 
 // A column whose header contains any of these must never be auto-picked for
@@ -77,6 +106,9 @@ const EXCLUDE_FOR_FIELD: Partial<Record<keyof typeof HINTS, string[]>> = {
   // keyword would land on whichever of the three comes first in the file,
   // not necessarily the actual gross-total column.
   invoiceValue: ['tva'],
+  // "Nivel" alone must never match "Nivel Apă" — the tank-readings export
+  // names both with that shared substring.
+  levelMm: ['apa'],
 }
 
 function norm(s: string): string {
@@ -166,6 +198,49 @@ export function guessInvoiceMapping(headers: string[]): InvoiceColumnMapping {
 
 export function isInvoiceMappingComplete(m: InvoiceColumnMapping): boolean {
   return !!m.invoiceNo && !!m.date && !!m.value && !!m.clientName
+}
+
+export function guessTankReadingMapping(headers: string[]): TankReadingColumnMapping {
+  return {
+    station: guessColumn(headers, 'station'),
+    tankId: guessColumn(headers, 'tankIdFcc') ?? '',
+    fuel: guessColumn(headers, 'fuelCarburant') ?? '',
+    level: guessColumn(headers, 'levelMm'),
+    waterLevel: guessColumn(headers, 'waterLevelMm'),
+    totalObservedVolume: guessColumn(headers, 'totalObservedVolume'),
+    waterVolume: guessColumn(headers, 'waterVolume'),
+    actualVolume: guessColumn(headers, 'actualVolume') ?? '',
+    bookStock: guessColumn(headers, 'bookStock') ?? '',
+    difference: guessColumn(headers, 'tankDifference'),
+    volume15C: guessColumn(headers, 'volume15C'),
+    avgTemperature: guessColumn(headers, 'avgTemperature'),
+    lastUpdate: guessColumn(headers, 'lastUpdate') ?? '',
+    mainState: guessColumn(headers, 'mainState'),
+  }
+}
+
+export function isTankReadingMappingComplete(m: TankReadingColumnMapping): boolean {
+  return !!m.tankId && !!m.fuel && !!m.actualVolume && !!m.bookStock && !!m.lastUpdate
+}
+
+export function guessFuelMovementMapping(headers: string[]): FuelMovementColumnMapping {
+  return {
+    datetime: guessColumn(headers, 'datetime') ?? '',
+    product: guessColumn(headers, 'product') ?? '',
+    movementType: guessColumn(headers, 'movementType'),
+    quantity: guessColumn(headers, 'quantity') ?? '',
+    documentNo: guessColumn(headers, 'documentNo'),
+    explanation: guessColumn(headers, 'explanation'),
+    gestiune: guessColumn(headers, 'gestiune'),
+    supplier: guessColumn(headers, 'supplier'),
+    price: guessColumn(headers, 'price'),
+    stockAfter: guessColumn(headers, 'stockAfter'),
+    tankId: guessColumn(headers, 'tankIdFcc'),
+  }
+}
+
+export function isFuelMovementMappingComplete(m: FuelMovementColumnMapping): boolean {
+  return !!m.datetime && !!m.product && !!m.quantity
 }
 
 export function isSalesMappingComplete(m: SalesColumnMapping): boolean {

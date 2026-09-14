@@ -1,27 +1,36 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { parseExcelFile, type ParsedSheet } from '@/import/excelParser'
+import { parseExcelFile, parseExcelFileAutoHeader, type ParsedSheet } from '@/import/excelParser'
 import {
+  guessFuelMovementMapping,
   guessInvoiceMapping,
   guessPurchaseMapping,
   guessSalesMapping,
   guessStockMapping,
+  guessTankReadingMapping,
+  isFuelMovementMappingComplete,
   isInvoiceMappingComplete,
   isPurchaseMappingComplete,
   isSalesMappingComplete,
   isStockMappingComplete,
+  isTankReadingMappingComplete,
 } from '@/import/columnMapping'
 import { importSalesSheet } from '@/import/importTransactions'
 import { importPurchaseSheet } from '@/import/importPurchases'
 import { importStockSheet } from '@/import/importStock'
 import { importInvoiceSheet } from '@/import/importInvoices'
+import { importTankReadingSheet } from '@/import/importTankReadings'
+import { importFuelMovementSheet } from '@/import/importFuelMovements'
 import { deleteImportBatchData } from '@/import/deleteImport'
 import { backfillPurchaseBatchDates } from '@/data/repo/importBatches'
 import { getSettings, updateSettings } from '@/data/repo/settings'
 import { useDataStore } from '@/store/dataStore'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
+import { FUEL_LABELS } from '@/kpi/tankFuel'
 import type {
+  FuelMovement,
+  FuelMovementColumnMapping,
   ImportKind,
   InvoiceColumnMapping,
   PurchaseColumnMapping,
@@ -30,6 +39,8 @@ import type {
   SupplierReceiptLine,
   StockSnapshotLine,
   ClientInvoiceLine,
+  TankReading,
+  TankReadingColumnMapping,
 } from '@/types/domain'
 
 const SALES_FIELDS: { key: keyof SalesColumnMapping; label: string; required: boolean }[] = [
@@ -80,11 +91,44 @@ const INVOICE_FIELDS: { key: keyof InvoiceColumnMapping; label: string; required
   { key: 'vehicle', label: 'Detalii Vehicul', required: false },
 ]
 
+const TANK_READING_FIELDS: { key: keyof TankReadingColumnMapping; label: string; required: boolean }[] = [
+  { key: 'tankId', label: 'ID Rezervor FCC', required: true },
+  { key: 'fuel', label: 'Carburant', required: true },
+  { key: 'actualVolume', label: 'Volum T Reală (faptic)', required: true },
+  { key: 'bookStock', label: 'Stoc Scriptic', required: true },
+  { key: 'lastUpdate', label: 'Ultima Actualizare', required: true },
+  { key: 'difference', label: 'Diferență (dacă lipsește, se calculează: faptic − scriptic)', required: false },
+  { key: 'volume15C', label: 'Volum CT 15°C', required: false },
+  { key: 'avgTemperature', label: 'Temperatură Medie', required: false },
+  { key: 'level', label: 'Nivel', required: false },
+  { key: 'waterLevel', label: 'Nivel Apă', required: false },
+  { key: 'totalObservedVolume', label: 'Volum Total Observat', required: false },
+  { key: 'waterVolume', label: 'Volum Apă', required: false },
+  { key: 'mainState', label: 'Stare Principală', required: false },
+  { key: 'station', label: 'Stație/Magazin', required: false },
+]
+
+const FUEL_MOVEMENT_FIELDS: { key: keyof FuelMovementColumnMapping; label: string; required: boolean }[] = [
+  { key: 'datetime', label: 'Data + Ora', required: true },
+  { key: 'product', label: 'Produs/Carburant', required: true },
+  { key: 'quantity', label: 'Cantitate (negativ = ieșire, pozitiv = intrare)', required: true },
+  { key: 'tankId', label: 'ID Rezervor FCC', required: false },
+  { key: 'movementType', label: 'Tip Mișcare', required: false },
+  { key: 'documentNo', label: 'Nr. Document / ID Operațiune', required: false },
+  { key: 'stockAfter', label: 'Stoc după mișcare (preferă „Stoc Nou Rezervor")', required: false },
+  { key: 'price', label: 'Preț / Valoare', required: false },
+  { key: 'explanation', label: 'Explicație', required: false },
+  { key: 'gestiune', label: 'Gestiune', required: false },
+  { key: 'supplier', label: 'Furnizor', required: false },
+]
+
 const KIND_LABELS: Record<ImportKind, string> = {
   sales: 'Vânzări',
   purchases: 'Achiziții',
   stock: 'Stoc',
   invoices: 'Facturi clienți',
+  tankReadings: 'Citiri rezervoare FCC',
+  fuelMovements: 'Mișcări stoc combustibil',
 }
 
 function normalizeHeader(h: string): string {
@@ -125,13 +169,12 @@ function nowTime(): string {
 }
 
 export function ImportPage() {
-  const { refresh, importBatches, supplierReceipts, stockSnapshots, clientInvoices } = useDataStore()
+  const { refresh, importBatches, supplierReceipts, stockSnapshots, clientInvoices, tankReadings, fuelMovements } = useDataStore()
   const [searchParams] = useSearchParams()
+  const ALL_KINDS: ImportKind[] = ['sales', 'purchases', 'stock', 'invoices', 'tankReadings', 'fuelMovements']
   const [kind, setKind] = useState<ImportKind>(() => {
     const requested = searchParams.get('kind')
-    return requested === 'sales' || requested === 'purchases' || requested === 'stock' || requested === 'invoices'
-      ? requested
-      : 'sales'
+    return ALL_KINDS.includes(requested as ImportKind) ? (requested as ImportKind) : 'sales'
   })
   const [file, setFile] = useState<File | null>(null)
   const [sheet, setSheet] = useState<ParsedSheet | null>(null)
@@ -139,6 +182,8 @@ export function ImportPage() {
   const [purchaseMapping, setPurchaseMapping] = useState<PurchaseColumnMapping | null>(null)
   const [stockMapping, setStockMapping] = useState<StockColumnMapping | null>(null)
   const [invoiceMapping, setInvoiceMapping] = useState<InvoiceColumnMapping | null>(null)
+  const [tankReadingMapping, setTankReadingMapping] = useState<TankReadingColumnMapping | null>(null)
+  const [fuelMovementMapping, setFuelMovementMapping] = useState<FuelMovementColumnMapping | null>(null)
   const [asOfDate, setAsOfDate] = useState(nowDate())
   const [asOfTime, setAsOfTime] = useState(nowTime())
   const [status, setStatus] = useState<string | null>(null)
@@ -175,7 +220,12 @@ export function ImportPage() {
     setStatus(null)
     setFile(f)
     try {
-      const parsed = await parseExcelFile(f)
+      // The FCC tank-readings export prefixes a "Stație/Magazin" label row
+      // before its real header — parseExcelFileAutoHeader finds the actual
+      // header row instead of assuming it's row 1. Used for both new fuel
+      // import kinds for consistency, since it degrades to the same result
+      // as parseExcelFile when there's no preamble (the movements export).
+      const parsed = kind === 'tankReadings' || kind === 'fuelMovements' ? await parseExcelFileAutoHeader(f) : await parseExcelFile(f)
       if (parsed.rows.length === 0) {
         setError('Fișierul nu conține rânduri de date.')
         return
@@ -191,6 +241,12 @@ export function ImportPage() {
       } else if (kind === 'invoices') {
         const reconciled = settings.invoiceMapping && reconcileMapping(settings.invoiceMapping, parsed.headers)
         setInvoiceMapping(reconciled ?? guessInvoiceMapping(parsed.headers))
+      } else if (kind === 'tankReadings') {
+        const reconciled = settings.tankReadingMapping && reconcileMapping(settings.tankReadingMapping, parsed.headers)
+        setTankReadingMapping(reconciled ?? guessTankReadingMapping(parsed.headers))
+      } else if (kind === 'fuelMovements') {
+        const reconciled = settings.fuelMovementMapping && reconcileMapping(settings.fuelMovementMapping, parsed.headers)
+        setFuelMovementMapping(reconciled ?? guessFuelMovementMapping(parsed.headers))
       } else {
         const reconciled = settings.stockMapping && reconcileMapping(settings.stockMapping, parsed.headers)
         setStockMapping(reconciled ?? guessStockMapping(parsed.headers))
@@ -266,6 +322,36 @@ export function ImportPage() {
           `Import finalizat: ${bits.join(', ')}.` +
             (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
         )
+      } else if (kind === 'tankReadings') {
+        if (!tankReadingMapping || !isTankReadingMappingComplete(tankReadingMapping)) {
+          setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
+          setBusy(false)
+          return
+        }
+        await updateSettings({ tankReadingMapping })
+        const result = await importTankReadingSheet(file.name, sheet, tankReadingMapping)
+        const bits = [`${formatNumber(result.rowCount)} citiri noi importate`]
+        if (result.duplicateRowCount > 0) bits.push(`${formatNumber(result.duplicateRowCount)} duplicate ignorate`)
+        if (result.skippedRows > 0) bits.push(`${formatNumber(result.skippedRows)} rânduri ignorate`)
+        setStatus(
+          `Import finalizat: ${bits.join(', ')}.` +
+            (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
+        )
+      } else if (kind === 'fuelMovements') {
+        if (!fuelMovementMapping || !isFuelMovementMappingComplete(fuelMovementMapping)) {
+          setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
+          setBusy(false)
+          return
+        }
+        await updateSettings({ fuelMovementMapping })
+        const result = await importFuelMovementSheet(file.name, sheet, fuelMovementMapping)
+        const bits = [`${formatNumber(result.rowCount)} mișcări noi importate`]
+        if (result.duplicateRowCount > 0) bits.push(`${formatNumber(result.duplicateRowCount)} duplicate ignorate`)
+        if (result.skippedRows > 0) bits.push(`${formatNumber(result.skippedRows)} rânduri ignorate`)
+        setStatus(
+          `Import finalizat: ${bits.join(', ')}.` +
+            (result.dateMin && result.dateMax ? ` Interval: ${formatDateRo(result.dateMin)} – ${formatDateRo(result.dateMax)}.` : ''),
+        )
       } else {
         if (!stockMapping || !isStockMappingComplete(stockMapping)) {
           setError('Completează toate câmpurile obligatorii din mapare înainte de import.')
@@ -305,7 +391,11 @@ export function ImportPage() {
         ? !!purchaseMapping && isPurchaseMappingComplete(purchaseMapping)
         : kind === 'invoices'
           ? !!invoiceMapping && isInvoiceMappingComplete(invoiceMapping)
-          : !!stockMapping && isStockMappingComplete(stockMapping) && !!asOfDate
+          : kind === 'tankReadings'
+            ? !!tankReadingMapping && isTankReadingMappingComplete(tankReadingMapping)
+            : kind === 'fuelMovements'
+              ? !!fuelMovementMapping && isFuelMovementMappingComplete(fuelMovementMapping)
+              : !!stockMapping && isStockMappingComplete(stockMapping) && !!asOfDate
 
   return (
     <div>
@@ -315,7 +405,7 @@ export function ImportPage() {
       />
 
       <div className="mb-5 flex flex-wrap gap-2">
-        {(['sales', 'purchases', 'stock', 'invoices'] as ImportKind[]).map((k) => (
+        {ALL_KINDS.map((k) => (
           <button
             key={k}
             onClick={() => {
@@ -333,7 +423,11 @@ export function ImportPage() {
                 ? 'Achiziții / Furnizori'
                 : k === 'stock'
                   ? 'Stoc curent'
-                  : 'Facturi clienți'}
+                  : k === 'invoices'
+                    ? 'Facturi clienți'
+                    : k === 'tankReadings'
+                      ? 'Citiri rezervoare FCC'
+                      : 'Mișcări stoc combustibil'}
           </button>
         ))}
       </div>
@@ -450,6 +544,28 @@ export function ImportPage() {
                     onChange={(v) => setInvoiceMapping((m) => (m ? { ...m, [f.key]: v || null } : m))}
                   />
                 ))}
+              {kind === 'tankReadings' &&
+                TANK_READING_FIELDS.map((f) => (
+                  <MappingField
+                    key={f.key}
+                    label={f.label}
+                    required={f.required}
+                    headers={sheet.headers}
+                    value={tankReadingMapping?.[f.key] ?? ''}
+                    onChange={(v) => setTankReadingMapping((m) => (m ? { ...m, [f.key]: v || null } : m))}
+                  />
+                ))}
+              {kind === 'fuelMovements' &&
+                FUEL_MOVEMENT_FIELDS.map((f) => (
+                  <MappingField
+                    key={f.key}
+                    label={f.label}
+                    required={f.required}
+                    headers={sheet.headers}
+                    value={fuelMovementMapping?.[f.key] ?? ''}
+                    onChange={(v) => setFuelMovementMapping((m) => (m ? { ...m, [f.key]: v || null } : m))}
+                  />
+                ))}
             </div>
 
             <button
@@ -486,7 +602,8 @@ export function ImportPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {importBatches.map((b) => {
-                  const canExpand = b.kind === 'purchases' || b.kind === 'stock' || b.kind === 'invoices'
+                  const canExpand =
+                    b.kind === 'purchases' || b.kind === 'stock' || b.kind === 'invoices' || b.kind === 'tankReadings' || b.kind === 'fuelMovements'
                   const expanded = expandedBatchId === b.id
                   return (
                     <Fragment key={b.id}>
@@ -584,6 +701,20 @@ export function ImportPage() {
                         <tr>
                           <td colSpan={7} className="bg-slate-50 px-2 py-2">
                             <InvoiceBatchRows rows={clientInvoices.filter((c) => c.importBatchId === b.id)} />
+                          </td>
+                        </tr>
+                      )}
+                      {expanded && b.kind === 'tankReadings' && (
+                        <tr>
+                          <td colSpan={7} className="bg-slate-50 px-2 py-2">
+                            <TankReadingBatchRows rows={tankReadings.filter((r) => r.importBatchId === b.id)} />
+                          </td>
+                        </tr>
+                      )}
+                      {expanded && b.kind === 'fuelMovements' && (
+                        <tr>
+                          <td colSpan={7} className="bg-slate-50 px-2 py-2">
+                            <FuelMovementBatchRows rows={fuelMovements.filter((m) => m.importBatchId === b.id)} />
                           </td>
                         </tr>
                       )}
@@ -696,6 +827,75 @@ function InvoiceBatchRows({ rows }: { rows: ClientInvoiceLine[] }) {
               <td className="px-2 py-1 text-slate-500">
                 {[r.driver, r.vehicle].filter(Boolean).join(' / ') || '—'}
               </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Same idea for a Citiri rezervoare FCC import — most-recent-first, since
+// that's how the source export itself is already ordered.
+function TankReadingBatchRows({ rows }: { rows: TankReading[] }) {
+  const sorted = [...rows].sort((a, b) => b.lastUpdate - a.lastUpdate)
+  if (sorted.length === 0) return <p className="text-xs text-slate-400">Niciun rând găsit pentru acest import.</p>
+  return (
+    <div className="max-h-80 overflow-y-auto rounded border border-slate-200 bg-white scrollbar-thin">
+      <table className="min-w-full divide-y divide-slate-100 text-xs">
+        <thead className="sticky top-0 bg-slate-50">
+          <tr className="text-left uppercase tracking-wide text-slate-400">
+            <th className="px-2 py-1">Ultima actualizare</th>
+            <th className="px-2 py-1">Rezervor</th>
+            <th className="px-2 py-1">Carburant</th>
+            <th className="px-2 py-1 text-right">Faptic</th>
+            <th className="px-2 py-1 text-right">Scriptic</th>
+            <th className="px-2 py-1 text-right">Diferență</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {sorted.map((r) => (
+            <tr key={r.id}>
+              <td className="px-2 py-1 whitespace-nowrap text-slate-500">{new Date(r.lastUpdate).toLocaleString('ro-RO')}</td>
+              <td className="px-2 py-1">{r.tankId}</td>
+              <td className="px-2 py-1 text-slate-500">{FUEL_LABELS[r.fuel]}</td>
+              <td className="px-2 py-1 text-right">{r.actualVolume != null ? formatNumber(r.actualVolume, 2) : '—'}</td>
+              <td className="px-2 py-1 text-right">{r.bookStock != null ? formatNumber(r.bookStock, 2) : '—'}</td>
+              <td className="px-2 py-1 text-right">{r.difference != null ? formatNumber(r.difference, 2) : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Same idea for a Mișcări stoc combustibil import — most-recent-first.
+function FuelMovementBatchRows({ rows }: { rows: FuelMovement[] }) {
+  const sorted = [...rows].sort((a, b) => b.timestamp - a.timestamp)
+  if (sorted.length === 0) return <p className="text-xs text-slate-400">Niciun rând găsit pentru acest import.</p>
+  return (
+    <div className="max-h-80 overflow-y-auto rounded border border-slate-200 bg-white scrollbar-thin">
+      <table className="min-w-full divide-y divide-slate-100 text-xs">
+        <thead className="sticky top-0 bg-slate-50">
+          <tr className="text-left uppercase tracking-wide text-slate-400">
+            <th className="px-2 py-1">Dată/Oră</th>
+            <th className="px-2 py-1">Produs</th>
+            <th className="px-2 py-1">Tip</th>
+            <th className="px-2 py-1 text-right">Cantitate</th>
+            <th className="px-2 py-1">Document</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {sorted.map((r) => (
+            <tr key={r.id}>
+              <td className="px-2 py-1 whitespace-nowrap text-slate-500">{formatDateRo(r.date)} {r.time}</td>
+              <td className="px-2 py-1">{r.productRaw}</td>
+              <td className="px-2 py-1 text-slate-500">{r.movementTypeRaw ?? '—'}</td>
+              <td className={`px-2 py-1 text-right ${r.direction === 'out' ? 'text-bad' : 'text-good'}`}>
+                {formatNumber(r.quantity, 2)}
+              </td>
+              <td className="px-2 py-1 text-slate-500">{r.documentNo ?? '—'}</td>
             </tr>
           ))}
         </tbody>

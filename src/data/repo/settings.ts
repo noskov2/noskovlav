@@ -30,6 +30,9 @@ const defaultSettings: AppSettings = {
   stockThresholdsByCategory: {},
   knownSuppliers: [],
   supplierDeliveryDays: {},
+  tankReadingMapping: null,
+  fuelMovementMapping: null,
+  tankSettings: {},
 }
 
 export function getStockThresholdsForCategory(settings: AppSettings, category: string): StockThresholds {

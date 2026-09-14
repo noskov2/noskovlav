@@ -11,17 +11,21 @@ import { getSettings } from '@/data/repo/settings'
 import { listMonthSnapshots } from '@/data/repo/monthSnapshots'
 import { listClients } from '@/data/repo/clients'
 import { listAllClientInvoices } from '@/data/repo/clientInvoices'
+import { listAllTankReadings } from '@/data/repo/tankReadings'
+import { listAllFuelMovements } from '@/data/repo/fuelMovements'
 import { ensureDefaultTeamsSeeded } from '@/data/seedTeams'
 import type {
   AppSettings,
   Cashier,
   Client,
   ClientInvoiceLine,
+  FuelMovement,
   ImportBatch,
   MonthSnapshot,
   Product,
   StockSnapshotLine,
   SupplierReceiptLine,
+  TankReading,
   Team,
   TransactionLine,
 } from '@/types/domain'
@@ -40,6 +44,8 @@ interface DataState {
   monthSnapshots: MonthSnapshot[]
   clients: Client[]
   clientInvoices: ClientInvoiceLine[]
+  tankReadings: TankReading[]
+  fuelMovements: FuelMovement[]
   productsById: Map<string, Product>
   cashiersById: Map<string, Cashier>
   teamsById: Map<string, Team>
@@ -60,6 +66,8 @@ export const useDataStore = create<DataState>((set) => ({
   monthSnapshots: [],
   clients: [],
   clientInvoices: [],
+  tankReadings: [],
+  fuelMovements: [],
   productsById: new Map(),
   cashiersById: new Map(),
   teamsById: new Map(),
@@ -78,6 +86,8 @@ export const useDataStore = create<DataState>((set) => ({
       monthSnapshots,
       clients,
       clientInvoices,
+      tankReadings,
+      fuelMovements,
     ] = await Promise.all([
       listAllTransactions(),
       listProducts(),
@@ -90,6 +100,8 @@ export const useDataStore = create<DataState>((set) => ({
       listMonthSnapshots(),
       listClients(),
       listAllClientInvoices(),
+      listAllTankReadings(),
+      listAllFuelMovements(),
     ])
 
     // Self-heals Product.active for items with zero known stock and no
@@ -118,6 +130,8 @@ export const useDataStore = create<DataState>((set) => ({
       monthSnapshots,
       clients,
       clientInvoices,
+      tankReadings,
+      fuelMovements,
       productsById: new Map(products.map((p) => [p.id, p])),
       cashiersById: new Map(cashiers.map((c) => [c.id, c])),
       teamsById: new Map(teams.map((t) => [t.id, t])),

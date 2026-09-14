@@ -145,7 +145,7 @@ export interface TransactionLine {
   rowIndex?: number
 }
 
-export type ImportKind = 'sales' | 'purchases' | 'stock' | 'invoices'
+export type ImportKind = 'sales' | 'purchases' | 'stock' | 'invoices' | 'tankReadings' | 'fuelMovements'
 
 export interface ImportBatch {
   id: string
@@ -426,4 +426,128 @@ export interface AppSettings {
   // absent from this map (or mapped to []) has no configured schedule, so
   // no order quantity can be projected for its products.
   supplierDeliveryDays: Record<string, number[]>
+  tankReadingMapping: TankReadingColumnMapping | null
+  fuelMovementMapping: FuelMovementColumnMapping | null
+  // Per-tank config for the Rezervoare & Mișcări module, keyed by the raw
+  // "ID Rezervor FCC" as it appears in both imports. Absent = not configured
+  // yet — every calculation that needs it (fill %, reorder qty) skips
+  // instead of guessing, per the module's own spec.
+  tankSettings: Record<string, TankSettings>
+}
+
+// A tank's fixed operating parameters — none of this comes from the FCC
+// export itself (which only reports live readings), so the owner enters it
+// once per tank. Every field is optional; calculations that need one simply
+// don't run until it's set, rather than assuming a default that could be
+// wildly wrong for a real tank.
+export interface TankSettings {
+  capacityLiters: number | null
+  minSafetyStockLiters: number | null
+  warnDiffLiters: number | null // absolute |diferență| above which to alert
+  warnDiffPct: number | null // absolute |diferență %| above which to alert
+  normalUpdateIntervalMin: number | null // expected gap between readings — longer than this = "citire neactualizată"
+  resupplyLeadDays: number | null // days notice needed before the tank runs out, for the reorder alert
+  minOrderQuantity: number | null
+}
+
+export const emptyTankSettings = (): TankSettings => ({
+  capacityLiters: null,
+  minSafetyStockLiters: null,
+  warnDiffLiters: null,
+  warnDiffPct: null,
+  normalUpdateIntervalMin: null,
+  resupplyLeadDays: null,
+  minOrderQuantity: null,
+})
+
+// Canonical fuel bucket, derived from the free-text "Carburant"/"Produs"
+// value each import actually carries (see kpi/tankFuel.ts) — kept as a
+// plain string rather than a union so a station whose FCC export uses a
+// wording this app hasn't seen yet still gets *a* bucket instead of an
+// import-time crash; UI code treats anything outside the three known fuels
+// as "ALT".
+export type FuelType = 'MOTORINA' | 'BENZINA' | 'GPL' | 'ALT'
+
+// Column mapping for "Citiri rezervoare FCC" — the periodic tank-probe
+// export. Unlike the other imports, headers here are effectively fixed (a
+// specific monitoring system's own export format), so the wizard
+// auto-fills every field from an exact/near match and the user rarely needs
+// to touch it — but it stays user-editable like every other import, in case
+// a future export renames a column.
+export interface TankReadingColumnMapping {
+  station: string | null
+  tankId: string
+  fuel: string
+  level: string | null
+  waterLevel: string | null
+  totalObservedVolume: string | null
+  waterVolume: string | null
+  actualVolume: string // Volum T Reală (faptic)
+  bookStock: string // Stoc Scriptic
+  difference: string | null // Diferență — recomputed from faptic-scriptic if absent/blank
+  volume15C: string | null
+  avgTemperature: string | null
+  lastUpdate: string
+  mainState: string | null
+}
+
+export interface TankReading {
+  id: string
+  importBatchId: string
+  station: string | null
+  tankId: string // "ID Rezervor FCC", the join key against FuelMovement.tankId
+  fuelRaw: string
+  fuel: FuelType
+  level: number | null // mm
+  waterLevel: number | null // mm
+  totalObservedVolume: number | null
+  waterVolume: number | null
+  actualVolume: number | null // faptic, at probe temperature
+  bookStock: number | null // scriptic
+  difference: number | null // faptic − scriptic
+  volume15C: number | null // corrected to 15°C — never the same axis as actualVolume on a chart
+  avgTemperature: number | null
+  lastUpdate: number // epoch ms
+  mainState: string // e.g. "OPERATIVE", "NOT CONNECTED"
+  connected: boolean // mainState !== 'NOT CONNECTED' — a disconnected probe reports book stock only, everything else null
+}
+
+// Column mapping for "Mișcări stoc combustibil" — deliberately flexible per
+// the station owner's own request, since (unlike the FCC export) this can
+// come from different inventory systems with different column names.
+export interface FuelMovementColumnMapping {
+  datetime: string
+  product: string
+  movementType: string | null
+  quantity: string
+  documentNo: string | null
+  explanation: string | null
+  gestiune: string | null
+  supplier: string | null
+  price: string | null
+  stockAfter: string | null // prefer a tank-level "Stoc Nou Rezervor" column over a product-level one, if both exist
+  tankId: string | null // "ID Rezervor FCC" — the reliable join key against TankReading, when present
+}
+
+export type FuelMovementDirection = 'in' | 'out'
+
+export interface FuelMovement {
+  id: string
+  importBatchId: string
+  timestamp: number
+  date: string // YYYY-MM-DD
+  time: string // HH:mm:ss
+  productRaw: string
+  fuel: FuelType
+  movementTypeRaw: string | null // e.g. "Vânzare", "Intrare", "Ajustare" — whatever the source file actually says
+  direction: FuelMovementDirection // derived from the sign of `quantity`, not from movementTypeRaw — language-independent
+  quantity: number // signed: negative for an ieșire, positive for an intrare (as the source file already encodes it)
+  documentNo: string | null
+  explanation: string | null
+  gestiune: string | null
+  supplier: string | null
+  price: number | null
+  stockAfter: number | null
+  tankId: string | null
+  fingerprint: string // dedup key: tankId+product+date+time+documentNo+quantity
 }
