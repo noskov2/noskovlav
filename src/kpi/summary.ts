@@ -81,7 +81,15 @@ export function computePeriodSummary(
     }
 
     const product = productsById.get(t.productId)
-    const purchaseUnit = t.purchasePriceUnit ?? product?.purchasePrice ?? null
+    // A product's live purchasePrice is only used as a fallback for sales
+    // dated on/after purchasePriceSince — otherwise a price that only became
+    // known today (via a later import, receipt, or manual edit) would
+    // silently reprice weeks of already-imported past sales the moment it's
+    // filled in, which can flip a real, positive profit into a large loss
+    // purely from data that never changed. See Product.purchasePriceSince.
+    const productCostApplies =
+      product?.purchasePrice != null && (product.purchasePriceSince == null || t.date >= product.purchasePriceSince)
+    const purchaseUnit = t.purchasePriceUnit ?? (productCostApplies ? product!.purchasePrice : null)
     if (purchaseUnit != null) {
       const salesNoVat = exVatValue(t, product, defaultVatRatePct)
       grossProfit += salesNoVat - purchaseUnit * t.quantity

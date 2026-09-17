@@ -71,8 +71,9 @@ export interface CategoryProfitRow {
 // itself — most trustworthy). 2) the supplier-receipt price history as of
 // the sale's date (never today's price for an old sale). 3) the product's
 // current purchasePrice, only as a last resort when no history exists at
-// all — and even then it's the best information available, not a silent
-// guess.
+// all, and only for sales on/after purchasePriceSince — a price that only
+// became known later must never retroactively cost sales from before it was
+// evidenced (see Product.purchasePriceSince).
 function unitCostAsOf(
   t: TransactionLine,
   product: Product | undefined,
@@ -81,7 +82,9 @@ function unitCostAsOf(
   if (t.purchasePriceUnit != null) return t.purchasePriceUnit
   const historical = historicalCost(t.productId, t.date)
   if (historical != null) return historical
-  return product?.purchasePrice ?? null
+  if (product?.purchasePrice == null) return null
+  if (product.purchasePriceSince != null && t.date < product.purchasePriceSince) return null
+  return product.purchasePrice
 }
 
 export function computeProductProfitability(

@@ -41,7 +41,7 @@ export async function importPurchaseSheet(
     // product's own "Furnizor" field in Nomenclator — the "Necunoscut"
     // placeholder is fine on the receipt line itself, but it must never
     // fill in the product record as if it were a real answer.
-    const product = await resolveOrCreateProduct(productRaw, '', price, supplierRaw)
+    const product = await resolveOrCreateProduct(productRaw, '', price, supplierRaw, date)
 
     lines.push({
       id: uid('sup'),

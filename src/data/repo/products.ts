@@ -23,6 +23,12 @@ export function buildNewProduct(
   purchasePriceUnit: number | null,
   settings: AppSettings,
   supplierRaw = '',
+  // The date (YYYY-MM-DD) of the row/receipt that carried purchasePriceUnit,
+  // if any — becomes this product's purchasePriceSince. A brand-new product
+  // has no prior sales to protect, so this is purely informational here, but
+  // keeping it consistent from creation is what lets a LATER fill-if-null
+  // (see resolveOrCreateProduct) correctly gate itself against it.
+  purchasePriceDate: string | null = null,
 ): Product {
   const trimmed = rawName.trim()
   const now = Date.now()
@@ -43,6 +49,7 @@ export function buildNewProduct(
     name: trimmed,
     category,
     purchasePrice: purchasePriceUnit,
+    purchasePriceSince: purchasePriceUnit != null ? purchasePriceDate : null,
     salePrice: null,
     currentStock: null,
     supplier: supplierRaw,
@@ -69,6 +76,7 @@ export function buildManualProduct(name: string, category: string): Product {
     name: trimmed,
     category: category.trim() || 'Necategorizat',
     purchasePrice: null,
+    purchasePriceSince: null,
     salePrice: null,
     currentStock: null,
     supplier: '',
@@ -105,6 +113,9 @@ export async function resolveOrCreateProduct(
   categoryRaw: string,
   purchasePriceUnit: number | null,
   supplierRaw?: string,
+  // The date (YYYY-MM-DD) of the row/receipt carrying purchasePriceUnit —
+  // see buildNewProduct and the historical-cost note on Product.purchasePriceSince.
+  purchasePriceDate: string | null = null,
 ): Promise<Product> {
   const trimmed = rawName.trim()
   const existingByAlias = await db.products
@@ -126,10 +137,12 @@ export async function resolveOrCreateProduct(
   const existingById = await db.products.get(id)
   if (existingById) {
     if (!existingById.aliases.includes(trimmed)) {
+      const purchasePriceNewlyKnown = existingById.purchasePrice == null && purchasePriceUnit != null
       const updated: Product = {
         ...existingById,
         aliases: [...existingById.aliases, trimmed],
         purchasePrice: existingById.purchasePrice ?? purchasePriceUnit,
+        purchasePriceSince: purchasePriceNewlyKnown ? purchasePriceDate : existingById.purchasePriceSince,
         supplier: existingById.supplier || supplierRaw || '',
       }
       await db.products.put(updated)
@@ -274,6 +287,7 @@ export async function mergeProducts(sourceId: string, targetId: string): Promise
     ...target,
     aliases: mergedAliases,
     purchasePrice: target.purchasePrice ?? source.purchasePrice,
+    purchasePriceSince: target.purchasePrice != null ? target.purchasePriceSince : source.purchasePriceSince,
     salePrice: target.salePrice ?? source.salePrice,
     currentStock: target.currentStock ?? source.currentStock,
     supplier: target.supplier || source.supplier,

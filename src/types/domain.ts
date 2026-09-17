@@ -61,6 +61,15 @@ export interface Product {
   name: string
   category: string
   purchasePrice: number | null
+  // The date (YYYY-MM-DD) as of which `purchasePrice` is actually evidenced —
+  // set whenever a cost is captured for this product for the FIRST time
+  // (import row date, receipt date, or today's date for a manual Nomenclator
+  // edit). Sales dated before this never fall back to `purchasePrice`, so a
+  // cost becoming known today can never retroactively reprice — and possibly
+  // silently invert the profit of — weeks of already-imported past sales.
+  // null means "no date restriction" (pre-existing data from before this
+  // field existed, or a price known since the product's very first sale).
+  purchasePriceSince: string | null
   salePrice: number | null
   currentStock: number | null
   supplier: string

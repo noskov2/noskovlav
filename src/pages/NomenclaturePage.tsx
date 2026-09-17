@@ -239,11 +239,21 @@ function ProductsTab({
   async function commit(p: Product) {
     const patch = draft[p.id]
     if (!patch) return
+    // A manual purchase-price edit here represents "as of today, this is
+    // the cost" — it must never silently reprice sales from before today
+    // (see Product.purchasePriceSince), so a first-time-set or changed price
+    // is only ever effective starting today.
+    const purchasePriceChanged = 'purchasePrice' in patch && patch.purchasePrice !== p.purchasePrice
+    const purchasePriceSince = purchasePriceChanged
+      ? patch.purchasePrice == null
+        ? null
+        : new Date().toISOString().slice(0, 10)
+      : p.purchasePriceSince
     // Editing any field here IS the manual review the Data Quality score's
     // "Produse revizuite" factor is asking for — previously nothing ever
     // cleared autoCreated, so that factor was stuck at 0% forever no matter
     // what the user changed.
-    await onSave({ ...p, ...patch, autoCreated: false })
+    await onSave({ ...p, ...patch, purchasePriceSince, autoCreated: false })
     setDraft((d) => {
       const copy = { ...d }
       delete copy[p.id]

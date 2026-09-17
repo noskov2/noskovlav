@@ -85,7 +85,12 @@ export async function importSalesSheet(
   const dirtyProducts = new Map<string, Product>()
   const dirtyCashiers = new Map<string, Cashier>()
 
-  function resolveProduct(rawName: string, categoryRaw: string, purchasePriceUnit: number | null): Product {
+  function resolveProduct(
+    rawName: string,
+    categoryRaw: string,
+    purchasePriceUnit: number | null,
+    date: string,
+  ): Product {
     const trimmed = rawName.trim()
     const existingByAlias = productByAlias.get(trimmed)
     if (existingByAlias) return existingByAlias
@@ -94,10 +99,16 @@ export async function importSalesSheet(
     const existingById = productById.get(id)
     if (existingById) {
       if (!existingById.aliases.includes(trimmed)) {
+        // A cost becoming known for the first time on THIS row must never
+        // apply to that product's other, already-resolved past sales — see
+        // Product.purchasePriceSince. Only rows from this date onward may
+        // use it as their fallback cost.
+        const purchasePriceNewlyKnown = existingById.purchasePrice == null && purchasePriceUnit != null
         const updated: Product = {
           ...existingById,
           aliases: [...existingById.aliases, trimmed],
           purchasePrice: existingById.purchasePrice ?? purchasePriceUnit,
+          purchasePriceSince: purchasePriceNewlyKnown ? date : existingById.purchasePriceSince,
         }
         productById.set(id, updated)
         productByAlias.set(trimmed, updated)
@@ -107,7 +118,7 @@ export async function importSalesSheet(
       return existingById
     }
 
-    const product = buildNewProduct(rawName, categoryRaw, purchasePriceUnit, settings)
+    const product = buildNewProduct(rawName, categoryRaw, purchasePriceUnit, settings, '', date)
     productById.set(product.id, product)
     productByAlias.set(trimmed, product)
     dirtyProducts.set(product.id, product)
@@ -204,7 +215,7 @@ export async function importSalesSheet(
     }
 
     const cashier = resolveCashier(cashierRaw)
-    const product = resolveProduct(productRaw, categoryRaw, purchasePriceUnit)
+    const product = resolveProduct(productRaw, categoryRaw, purchasePriceUnit, date)
 
     const timestamp = new Date(`${date}T${time}`).getTime()
     const shift = determineShift(time, shiftConfig)
