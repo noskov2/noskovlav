@@ -1,6 +1,24 @@
 import type { Product, ProductGroups } from '@/types/domain'
 import { looksLikeFuel } from '@/processing/groupHeuristics'
 
+// Shared everywhere a product's curated group needs a human label — the
+// group is a unified classification (set via Nomenclator, by name heuristic,
+// or by a category-group rule) and is independent of `product.category`,
+// which is just the raw, often-inconsistent free text a supplier's export
+// happens to use (the same real shelf can show up under several different
+// category spellings across imports).
+export const GROUP_LABELS: Record<keyof ProductGroups, string> = {
+  cafea: 'Cafea',
+  dulciuriVitrina: 'Dulciuri Vitrină',
+  sandwich: 'Sandwich',
+  limonadaCeai: 'Limonadă/Ceai',
+  carburant: 'Carburant',
+  gpl: 'GPL',
+  promotii: 'Promoții',
+  crossSellExcluded: 'Exclus din Cross-sell',
+  neVandabil: 'Nu se vinde (materii prime etc.)',
+}
+
 export function productIdsInGroup(products: Product[], group: keyof ProductGroups): Set<string> {
   return new Set(products.filter((p) => p.groups[group]).map((p) => p.id))
 }

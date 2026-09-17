@@ -14,8 +14,9 @@ import {
 } from '@/kpi/stockRotation'
 import { computeProductProfitability } from '@/kpi/profitability'
 import { filterByRange } from '@/kpi/applyFilters'
+import { GROUP_LABELS } from '@/kpi/productGroups'
 import { getSettings, updateSettings } from '@/data/repo/settings'
-import { defaultStockThresholds, type Product, type StockThresholds } from '@/types/domain'
+import { defaultStockThresholds, type Product, type ProductGroups, type StockThresholds } from '@/types/domain'
 import { addDays, reportingEndStr, type DateRange } from '@/kpi/dateRanges'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
 
@@ -53,6 +54,7 @@ export function StockPage() {
   const [thresholdsSaved, setThresholdsSaved] = useState(false)
   const [riskFilter, setRiskFilter] = useState<StockRiskClass | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [groupFilter, setGroupFilter] = useState<keyof ProductGroups | 'all'>('all')
   const [productQuery, setProductQuery] = useState('')
   const [presetIds, setPresetIds] = useState<string[] | null>(() => useDrillFilterStore.getState().consume('/stoc'))
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -89,10 +91,11 @@ export function StockPage() {
       if (presetIds && !presetIds.includes(r.product.id)) return false
       if (riskFilter !== 'all' && r.riskClass !== riskFilter) return false
       if (categoryFilter !== 'all' && r.product.category !== categoryFilter) return false
+      if (groupFilter !== 'all' && !r.product.groups[groupFilter]) return false
       if (productQuery && !r.product.name.toLowerCase().includes(productQuery.toLowerCase())) return false
       return true
     })
-  }, [rows, presetIds, riskFilter, categoryFilter, productQuery])
+  }, [rows, presetIds, riskFilter, categoryFilter, groupFilter, productQuery])
 
   const totalBlockedCapital = useMemo(() => rows.reduce((s, r) => s + (r.blockedCapital ?? 0), 0), [rows])
   const ruptureCount = rows.filter((r) => r.riskClass === 'risc-ruptura').length
@@ -297,12 +300,26 @@ export function StockPage() {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
+            title="Categorie = textul brut din fișierul importat — același raft poate apărea sub mai multe variante de text la importuri diferite."
             className="rounded-md border border-slate-200 px-2 py-1 text-xs"
           >
-            <option value="all">Toate categoriile</option>
+            <option value="all">Toate categoriile (text brut)</option>
             {categories.map((c) => (
               <option key={c} value={c}>
                 {c}
+              </option>
+            ))}
+          </select>
+          <select
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value as keyof ProductGroups | 'all')}
+            title="Grup = clasificarea unificată din Nomenclator (indiferent de textul categoriei din fișier) — folosește asta pentru totalul real pe un grup, ex. toate produsele de Dulciuri Vitrină."
+            className="rounded-md border border-slate-200 px-2 py-1 text-xs"
+          >
+            <option value="all">Toate grupurile</option>
+            {(Object.keys(GROUP_LABELS) as (keyof ProductGroups)[]).map((g) => (
+              <option key={g} value={g}>
+                {GROUP_LABELS[g]}
               </option>
             ))}
           </select>

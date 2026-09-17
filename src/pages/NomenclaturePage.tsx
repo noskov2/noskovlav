@@ -24,6 +24,7 @@ import { deleteTeam, upsertTeam } from '@/data/repo/teams'
 import { updateSettings } from '@/data/repo/settings'
 import { slugify, uid } from '@/lib/id'
 import { formatNumber } from '@/lib/format'
+import { GROUP_LABELS } from '@/kpi/productGroups'
 import {
   emptyCategoryGroupRules,
   type Cashier,
@@ -33,18 +34,6 @@ import {
   type Team,
   type TransactionLine,
 } from '@/types/domain'
-
-const GROUP_LABELS: Record<keyof ProductGroups, string> = {
-  cafea: 'Cafea',
-  dulciuriVitrina: 'Dulciuri Vitrină',
-  sandwich: 'Sandwich',
-  limonadaCeai: 'Limonadă/Ceai',
-  carburant: 'Carburant',
-  gpl: 'GPL',
-  promotii: 'Promoții',
-  crossSellExcluded: 'Exclus din Cross-sell',
-  neVandabil: 'Nu se vinde (materii prime etc.)',
-}
 
 export function NomenclaturePage() {
   const [tab, setTab] = useState<'produse' | 'grupuri' | 'casieri'>('produse')
