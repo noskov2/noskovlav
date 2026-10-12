@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/layout/PageHeader'
-import { parseExcelFile, parseExcelFileAutoHeader, type ParsedSheet } from '@/import/excelParser'
+import { parseExcelFileAutoHeader, type ParsedSheet } from '@/import/excelParser'
 import {
   guessFuelMovementMapping,
   guessInvoiceMapping,
@@ -220,12 +220,14 @@ export function ImportPage() {
     setStatus(null)
     setFile(f)
     try {
-      // The FCC tank-readings export prefixes a "Stație/Magazin" label row
-      // before its real header — parseExcelFileAutoHeader finds the actual
-      // header row instead of assuming it's row 1. Used for both new fuel
-      // import kinds for consistency, since it degrades to the same result
-      // as parseExcelFile when there's no preamble (the movements export).
-      const parsed = kind === 'tankReadings' || kind === 'fuelMovements' ? await parseExcelFileAutoHeader(f) : await parseExcelFile(f)
+      // Some exports from this POS (confirmed on both the FCC tank-readings
+      // file AND an ordinary "Articole Vânzare" sales export) prefix a
+      // "Stație/Magazin" label row before the real header —
+      // parseExcelFileAutoHeader finds the actual header row instead of
+      // assuming it's row 1. Used for every import kind, not just the two
+      // fuel ones, since it degrades to the exact same result as
+      // parseExcelFile when a file has no preamble at all.
+      const parsed = await parseExcelFileAutoHeader(f)
       if (parsed.rows.length === 0) {
         setError('Fișierul nu conține rânduri de date.')
         return

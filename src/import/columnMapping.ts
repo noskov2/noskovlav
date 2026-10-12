@@ -96,7 +96,17 @@ const HINTS: Record<string, string[]> = {
 // next to the real "Valoare Totală" and matching the very same keyword.
 const EXCLUDE_FOR_FIELD: Partial<Record<keyof typeof HINTS, string[]>> = {
   value: ['discount', 'reducere'],
-  valueNoVat: ['discount', 'reducere'],
+  // "Preț Fără TVA" is a PER-UNIT price, "CMP (fără TVA)" is the average
+  // purchase COST, and "Cost Vânzări (fără TVA)" is the line's cost — none
+  // of the three is the line's ex-VAT SALES value, yet all three contain
+  // "fara tva" too, so without this exclude one of them gets picked over
+  // the real total column. exVatValue() trusts a mapped valueNoVat
+  // unconditionally, so any of these here silently understates ex-VAT
+  // revenue (and margin) by a factor of quantity on every multi-unit line —
+  // leaving the field unmapped when no real "Valoare Fără TVA" total column
+  // exists is the correct outcome; exVatValue() then derives it from
+  // value ÷ (1+VAT) instead.
+  valueNoVat: ['discount', 'reducere', 'pret', 'cost', 'cmp'],
   purchasePrice: ['discount', 'reducere'],
   price: ['discount', 'reducere'],
   salePrice: ['discount', 'reducere'],
@@ -109,6 +119,16 @@ const EXCLUDE_FOR_FIELD: Partial<Record<keyof typeof HINTS, string[]>> = {
   // "Nivel" alone must never match "Nivel Apă" — the tank-readings export
   // names both with that shared substring.
   levelMm: ['apa'],
+  // "Tip Produs" (and "Tip Extins Produs") are internal type/category CODE
+  // columns ("1440", "1439", ...), not the product's name — but they sit
+  // earlier in the file than "Produs - Nume" and also contain "produs", so
+  // without this exclude the real name column never gets picked at all.
+  product: ['tip'],
+  // "Categorie Nivel 2"/"Categorie Nivel 3" are broad department labels
+  // ("Magazin", "Marfa" — barely a handful of values station-wide), not the
+  // real product category ("CAFELE", "PRODUSE ALIMENTARE", ...) — but both
+  // sit before the plain "Categorie" column and also contain "categorie".
+  category: ['nivel'],
 }
 
 function norm(s: string): string {

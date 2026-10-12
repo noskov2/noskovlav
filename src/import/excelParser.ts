@@ -10,46 +10,14 @@ export interface ParsedSheet {
  * row objects keyed by header. Values are left as whatever SheetJS infers
  * (number, string, Date) — normalization/parsing happens later, per logical
  * field, in columnMapping.ts.
- */
-export async function parseExcelFile(file: File): Promise<ParsedSheet> {
-  const buffer = await file.arrayBuffer()
-  const workbook = XLSX.read(buffer, { cellDates: true })
-
-  const sheetName = workbook.SheetNames.find((name) => {
-    const sheet = workbook.Sheets[name]
-    const ref = sheet['!ref']
-    return !!ref
-  })
-  if (!sheetName) {
-    throw new Error('Fișierul nu conține nicio foaie de calcul cu date.')
-  }
-
-  const sheet = workbook.Sheets[sheetName]
-  const raw: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, {
-    defval: '',
-    raw: true,
-  })
-
-  if (raw.length === 0) {
-    return { headers: [], rows: [] }
-  }
-
-  const headerSet = new Set<string>()
-  for (const row of raw) {
-    Object.keys(row).forEach((h) => headerSet.add(h))
-  }
-
-  return { headers: Array.from(headerSet), rows: raw }
-}
-
-/**
- * Like parseExcelFile, but doesn't assume row 1 is the header row — some
- * exports (e.g. the FCC tank-probe "Citiri Periodice" file) prefix a
- * one-off label row ("Stație/Magazin: X") before the real header. The
- * header row is picked as whichever of the first 10 rows has the most
- * non-empty string cells (ties go to the earliest row) — reliably the
- * header whether or not there's a preamble, since a preamble row has far
- * fewer populated cells than a real header row.
+ *
+ * Doesn't assume row 1 is the header row — several of this POS's exports
+ * (the FCC tank-probe file, and at least one "Articole Vânzare" sales
+ * export) prefix a one-off label row ("Stație/Magazin: X") before the real
+ * header. The header row is picked as whichever of the first 10 rows has
+ * the most non-empty string cells (ties go to the earliest row) — reliably
+ * the header whether or not there's a preamble, since a preamble row has
+ * far fewer populated cells than a real header row.
  */
 export async function parseExcelFileAutoHeader(file: File): Promise<ParsedSheet> {
   const buffer = await file.arrayBuffer()
