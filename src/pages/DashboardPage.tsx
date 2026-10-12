@@ -6,7 +6,8 @@ import { FilterBar } from '@/components/filters/FilterBar'
 import { KpiCard } from '@/components/ui/KpiCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { DrillValue } from '@/components/ui/DrillValue'
-import { Modal } from '@/components/ui/Modal'
+import { PeriodBreakdownModal } from '@/components/ui/PeriodBreakdownModal'
+import { BreakdownHintButton } from '@/components/ui/BreakdownHintButton'
 import { TrendChart } from '@/components/charts/TrendChart'
 import { useDataStore } from '@/store/dataStore'
 import { useFilterStore } from '@/store/filterStore'
@@ -22,12 +23,13 @@ import { computeFuelBreakdown, resolveFuelTypeIds, FUEL_TYPE_LABELS, type FuelTy
 import { computePontajTeamReport } from '@/kpi/pontajTeamReport'
 import { computePromoLineLabels } from '@/kpi/promoLines'
 import { computePromoBreakdown } from '@/kpi/promoBreakdown'
+import { computeProductBreakdown } from '@/kpi/productBreakdown'
 import { computeForecast, computePace, type PaceStatus } from '@/kpi/forecast'
 import { computeActionCenter, type ActionTone } from '@/kpi/actionCenter'
 import { getMonthTargets } from '@/data/repo/settings'
 import { useDrillFilterStore } from '@/store/drillFilterStore'
 import { emptyMonthTargets } from '@/types/domain'
-import { formatDateRo, formatLei, formatNumber, formatPct, formatSignedLei } from '@/lib/format'
+import { formatLei, formatNumber, formatPct, formatSignedLei } from '@/lib/format'
 import { DeltaBadge } from '@/components/ui/DeltaBadge'
 
 const TOP_GENERAL = '__general__'
@@ -58,6 +60,8 @@ export function DashboardPage() {
   const range = effectiveRange(filter)
   const [compare, setCompare] = useState(false)
   const [promoModalOpen, setPromoModalOpen] = useState(false)
+  const [coffeeModalOpen, setCoffeeModalOpen] = useState(false)
+  const [sandwichModalOpen, setSandwichModalOpen] = useState(false)
   const defaultVatRatePct = settings?.defaultVatRatePct ?? 19
   const navigate = useNavigate()
   const setPendingDrillFilter = useDrillFilterStore((s) => s.setPending)
@@ -149,6 +153,14 @@ export function DashboardPage() {
   const promoBreakdown = useMemo(
     () => computePromoBreakdown(periodTx, prevTx, prevMonthFullTx, products),
     [periodTx, prevTx, prevMonthFullTx, products],
+  )
+  const coffeeBreakdown = useMemo(
+    () => computeProductBreakdown(periodTx, prevTx, prevMonthFullTx, products, coffeeIds),
+    [periodTx, prevTx, prevMonthFullTx, products, coffeeIds],
+  )
+  const sandwichBreakdown = useMemo(
+    () => computeProductBreakdown(periodTx, prevTx, prevMonthFullTx, products, sandwichIds),
+    [periodTx, prevTx, prevMonthFullTx, products, sandwichIds],
   )
 
   // Targeturi: momentan sunt configurate per lună calendaristică, la nivel de
@@ -516,6 +528,9 @@ export function DashboardPage() {
               {formatNumber(summary.coffeeCount)}
             </DrillValue>
           }
+          hint={
+            <BreakdownHintButton onClick={() => setCoffeeModalOpen(true)}>detalii pe produs</BreakdownHintButton>
+          }
           trend={trend('coffeeCount')}
         />
         <KpiCard
@@ -524,6 +539,9 @@ export function DashboardPage() {
             <DrillValue title="Sandwich-uri vândute" lines={periodTx.filter((t) => sandwichIds.has(t.productId))}>
               {formatNumber(summary.sandwichCount)}
             </DrillValue>
+          }
+          hint={
+            <BreakdownHintButton onClick={() => setSandwichModalOpen(true)}>detalii pe produs</BreakdownHintButton>
           }
           trend={trend('sandwichCount')}
         />
@@ -553,13 +571,9 @@ export function DashboardPage() {
             </DrillValue>
           }
           hint={
-            <button
-              type="button"
-              onClick={() => setPromoModalOpen(true)}
-              className="rounded underline decoration-dotted decoration-slate-300 underline-offset-2 transition hover:text-brand-600 hover:decoration-brand-400"
-            >
+            <BreakdownHintButton onClick={() => setPromoModalOpen(true)}>
               {formatNumber(promoLines.length)} linii · detalii pe promoție
-            </button>
+            </BreakdownHintButton>
           }
         />
       </div>
@@ -708,64 +722,42 @@ export function DashboardPage() {
         <TrendChart data={dailySeries.map((p) => ({ date: p.date, value: p.summary.totalSales }))} />
       </div>
 
-      <Modal
+      <PeriodBreakdownModal
         open={promoModalOpen}
         onClose={() => setPromoModalOpen(false)}
         title="Promoții pe perioade"
         subtitle="Linii = rânduri de vânzare marcate cu o promoție, aceeași unitate ca pe cardul Promoții."
-        wide
-      >
-        {promoBreakdown.length === 0 ? (
-          <p className="text-sm text-slate-400">Nicio promoție în niciuna dintre cele trei perioade.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100 text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                  <th className="py-2 pr-3">Promoție</th>
-                  <th className="py-2 pr-3 text-right">
-                    {formatDateRo(range.start)} – {formatDateRo(range.end)}
-                    <div className="font-normal normal-case text-slate-400">(perioada curentă)</div>
-                  </th>
-                  <th className="py-2 pr-3 text-right">
-                    {formatDateRo(prevRange.start)} – {formatDateRo(prevRange.end)}
-                    <div className="font-normal normal-case text-slate-400">(lună trecută, aceeași perioadă)</div>
-                  </th>
-                  <th className="py-2 text-right">
-                    {monthLabel(prevMonthFullRange.start)}
-                    <div className="font-normal normal-case text-slate-400">(lună trecută, toată luna)</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {promoBreakdown.map((row) => {
-                  const delta = computeDelta(row.linesCurrent, row.linesPrevSamePeriod)
-                  return (
-                    <tr key={row.label}>
-                      <td className="py-2 pr-3 font-medium text-slate-800">{row.label}</td>
-                      <td className="py-2 pr-3 text-right">
-                        <div className="font-semibold text-slate-800">{formatNumber(row.linesCurrent)}</div>
-                        <div className="text-xs text-slate-400">{formatLei(row.valueCurrent)}</div>
-                      </td>
-                      <td className="py-2 pr-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <span className="font-semibold text-slate-800">{formatNumber(row.linesPrevSamePeriod)}</span>
-                          {delta.pct != null && <DeltaBadge delta={delta} />}
-                        </div>
-                        <div className="text-xs text-slate-400">{formatLei(row.valuePrevSamePeriod)}</div>
-                      </td>
-                      <td className="py-2 text-right">
-                        <div className="font-semibold text-slate-800">{formatNumber(row.linesPrevFullMonth)}</div>
-                        <div className="text-xs text-slate-400">{formatLei(row.valuePrevFullMonth)}</div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Modal>
+        labelColumnHeader="Promoție"
+        emptyMessage="Nicio promoție în niciuna dintre cele trei perioade."
+        rows={promoBreakdown}
+        range={range}
+        prevRange={prevRange}
+        prevMonthFullRange={prevMonthFullRange}
+      />
+      <PeriodBreakdownModal
+        open={coffeeModalOpen}
+        onClose={() => setCoffeeModalOpen(false)}
+        title="Cafele pe perioade"
+        subtitle="Buc = cantitate vândută, aceeași unitate ca pe cardul Cafele."
+        labelColumnHeader="Produs"
+        emptyMessage="Nicio cafea vândută în niciuna dintre cele trei perioade."
+        rows={coffeeBreakdown}
+        range={range}
+        prevRange={prevRange}
+        prevMonthFullRange={prevMonthFullRange}
+      />
+      <PeriodBreakdownModal
+        open={sandwichModalOpen}
+        onClose={() => setSandwichModalOpen(false)}
+        title="Sandwich-uri pe perioade"
+        subtitle="Buc = cantitate vândută, aceeași unitate ca pe cardul Sandwich-uri."
+        labelColumnHeader="Produs"
+        emptyMessage="Niciun sandwich vândut în niciuna dintre cele trei perioade."
+        rows={sandwichBreakdown}
+        range={range}
+        prevRange={prevRange}
+        prevMonthFullRange={prevMonthFullRange}
+      />
     </div>
   )
 }
