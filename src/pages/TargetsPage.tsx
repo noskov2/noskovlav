@@ -596,7 +596,18 @@ interface DashboardData {
   bonus: { grila: GrilaRow[]; teams: BonusTeamRow[]; total: number | null }
   zilnic: { days: DayRow[]; total: { targetZi: number | null; realizat: number | null } | null } | null
   tracker: { shifts: ShiftRow[] } | null
-  config: { shift1Target: number | null; shift2Target: number | null; dailyTarget: number | null; grila: GrilaRow[] }
+  config: {
+    shift1Target: number | null
+    shift2Target: number | null
+    dailyTarget: number | null
+    grila: GrilaRow[]
+    // Owner-entered, independent of any Excel sheet — total shifts (both
+    // tură 1 and tură 2 combined, not tracked separately) a gestionar needs
+    // this month to qualify for the FULL bonus their target % earns them.
+    // null means no attendance requirement is set, so the bonus is never
+    // pro-rated by shift count. See personBonusLei/personBonusEligibility.
+    necesarTureBonus: number | null
+  }
   rotation: Record<string, { tura1: string; tura2: string }>
   rawRealizat: Record<string, { tura1: number | null; tura2: number | null }>
   cutoffZi: number | null
@@ -765,6 +776,7 @@ function deriveDashboard(wb: WB): DashboardData {
     shift2Target: rezumat?.shift2Target ?? null,
     dailyTarget: rezumat?.dailyTarget ?? null,
     grila: bonus?.grila || [],
+    necesarTureBonus: null,
   }
   const rotation = buildRotation(zilnic?.days)
   const rawRealizat = seedRawRealizatFromTracker(tracker)
@@ -943,6 +955,17 @@ function personBonusLei(procent: number | null): 400 | 200 | null {
   if (procent >= 0.9) return 200
   return null
 }
+// Scales the target-based bonus tier by attendance: below `necesarTure`
+// (the owner-set total shift count for a full bonus this month), the
+// bonus is paid direct-proportional to shifts actually worked; at or
+// above it, the full tier amount applies — never more, even with extra
+// shifts. No requirement configured (null/0) means no proration at all.
+function applyBonusAttendance(bonusTier: 400 | 200 | null, shiftsWorked: number, necesarTure: number | null): number | null {
+  if (bonusTier == null) return null
+  if (!necesarTure || necesarTure <= 0) return bonusTier
+  const factor = Math.min(1, shiftsWorked / necesarTure)
+  return Math.round(bonusTier * factor)
+}
 // Every place a team can show up on this page, so the "Nume echipe" modal
 // offers one input per team actually present in the loaded month instead of
 // guessing a fixed count.
@@ -1086,7 +1109,7 @@ function buildNewMonthSkeleton(
   const data: DashboardData = {
     rezumat, situatie: null, bonus: { grila, teams: [], total: null },
     zilnic: { days, total: null }, tracker: { shifts: buildSyntheticTrackerShifts(days) },
-    config: { shift1Target, shift2Target, dailyTarget, grila },
+    config: { shift1Target, shift2Target, dailyTarget, grila, necesarTureBonus: null },
     rotation: buildRotation(days), rawRealizat: {}, cutoffZi: null, warnings: [], savedAt: Date.now(),
   }
   recompute(data)
@@ -1183,6 +1206,7 @@ export function TargetsPage() {
       newMonthDays: $<HTMLDivElement>('newMonthDays'),
       personCard: $<HTMLElement>('personCard'),
       personGrid: $<HTMLDivElement>('personGrid'),
+      necesarTureBonusInput: $<HTMLInputElement>('necesarTureBonusInput'),
       staffBtn: $<HTMLButtonElement>('staffBtn'),
       staffModal: $<HTMLDivElement>('staffModal'),
       staffList: $<HTMLDivElement>('staffListFields'),
@@ -1423,17 +1447,21 @@ export function TargetsPage() {
 
     function renderPersonSummary(data: DashboardData) {
       const summaries = computePersonSummaries(data.tracker?.shifts || [])
+      els.necesarTureBonusInput.value = data.config.necesarTureBonus != null ? String(data.config.necesarTureBonus) : ''
       if (!summaries.length) { els.personCard.style.display = 'none'; return }
       els.personCard.style.display = 'block'
+      const necesarTure = data.config.necesarTureBonus
       const accents = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)']
       els.personGrid.innerHTML = summaries
         .map((p, i) => {
           const cls = statusClass(null, p.procent)
           const barPct = Math.max(0, Math.min(100, (p.procent || 0) * 100))
-          const bonus = personBonusLei(p.procent)
+          const bonusTier = personBonusLei(p.procent)
+          const bonus = applyBonusAttendance(bonusTier, p.shiftsWorked, necesarTure)
+          const prorated = bonus != null && bonusTier != null && bonus < bonusTier
           const bonusRow =
             bonus != null
-              ? `<div><span>Bonus</span><b style="color:var(--${bonus === 400 ? 'good' : 'warning'})">${bonus} lei</b></div>`
+              ? `<div><span>Bonus</span><b style="color:var(--${bonusTier === 400 ? 'good' : 'warning'})">${bonus} lei${prorated ? ` (${p.shiftsWorked}/${necesarTure} ture)` : ''}</b></div>`
               : ''
           return `<div class="team-card" style="--accent:${accents[i % 3]}">
           <div class="name">${escapeHtml(p.name)}</div>
@@ -1664,6 +1692,7 @@ export function TargetsPage() {
             recompute(data)
           }
           if (existing?.lastYearActual != null) data.lastYearActual = existing.lastYearActual
+          if (existing?.config?.necesarTureBonus != null) data.config.necesarTureBonus = existing.config.necesarTureBonus
           store[key] = data
           saveStore(store)
           currentKey = key
@@ -1916,6 +1945,18 @@ export function TargetsPage() {
       render(data)
     })
 
+    els.necesarTureBonusInput.addEventListener('change', () => {
+      if (!currentKey) return
+      const store = loadStore()
+      const data = store[currentKey]
+      if (!data) return
+      const v = els.necesarTureBonusInput.value.trim()
+      data.config.necesarTureBonus = v === '' ? null : Math.max(0, parseFloat(v))
+      store[currentKey] = data
+      saveStore(store)
+      render(data)
+    })
+
     // ---------- new month ----------
     function renderNewMonthDays() {
       const monthIdx = Number(els.newMonthMonth.value)
@@ -2088,6 +2129,22 @@ export function TargetsPage() {
               Target și realizat însumate pe turele pe care le-ai atribuit fiecărui gestionar mai sus, în „Detalii pe
               tură".
             </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 14px', fontSize: 12.5 }}>
+              <label htmlFor="necesarTureBonusInput" style={{ color: 'var(--text-secondary)' }}>
+                Necesar ture (total, luna asta) pentru bonus 100%:
+              </label>
+              <input
+                id="necesarTureBonusInput"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="— neconfigurat —"
+                style={{ width: 90, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12.5 }}
+              />
+              <span style={{ color: 'var(--text-muted)' }}>
+                sub acest număr, bonusul se reduce direct proporțional; peste, rămâne 100%.
+              </span>
+            </div>
             <div className="team-grid" id="personGrid"></div>
           </section>
           <section className="card" id="historyCard" style={{ display: 'none' }}></section>
