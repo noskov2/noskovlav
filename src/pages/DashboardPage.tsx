@@ -726,7 +726,7 @@ export function DashboardPage() {
         open={promoModalOpen}
         onClose={() => setPromoModalOpen(false)}
         title="Promoții pe perioade"
-        subtitle="Linii = rânduri de vânzare marcate cu o promoție, aceeași unitate ca pe cardul Promoții."
+        subtitle="Buc = cantitatea vândută prin acea promoție (suma pe toate liniile marcate cu eticheta ei)."
         labelColumnHeader="Promoție"
         emptyMessage="Nicio promoție în niciuna dintre cele trei perioade."
         rows={promoBreakdown}

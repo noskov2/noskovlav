@@ -10,7 +10,7 @@ function countByLabel(transactions: TransactionLine[], products: Product[]): Map
     const t = byId.get(txId)
     if (!t) continue
     const acc = result.get(label) ?? { count: 0, value: 0 }
-    acc.count += 1
+    acc.count += t.quantity
     acc.value += t.value
     result.set(label, acc)
   }
@@ -19,12 +19,15 @@ function countByLabel(transactions: TransactionLine[], products: Product[]): Map
 
 // One row per distinct promo label (the "Promoție" tag from the POS, or the
 // promotional product's own name when the combo's other half carries no tag
-// of its own — see promoLines.ts), each with its line count/value for three
+// of its own — see promoLines.ts), each with its quantity/value for three
 // windows: the currently viewed period, the same elapsed days one month
-// earlier, and that earlier month in full. The count is LINES, matching
-// exactly what the Dashboard's own "Promoții" tile already counts (its hint
-// reads "N linii") — kept as the same unit here so the breakdown never
-// implies a different, incompatible total.
+// earlier, and that earlier month in full. The count is QUANTITY (buc),
+// summed across every tagged line under that label — for a combo where both
+// items carry the same tag (e.g. "PROMOTIE CASCAVAL RUCAR/DALIA", tagged on
+// both the Dalia and the Rucar lines), this is the total units of either
+// variant sold through the promo, matching how a station manager actually
+// counts "how many cascavaluri went out on this promo" rather than how many
+// receipt lines happened to carry the tag.
 export function computePromoBreakdown(
   currentTx: TransactionLine[],
   prevSamePeriodTx: TransactionLine[],
