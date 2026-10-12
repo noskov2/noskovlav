@@ -11,8 +11,15 @@ import { productIdsInGroup } from '@/kpi/productGroups'
 //
 // A promo where BOTH products carry the same tag (e.g. "PROMOTIE CASCAVAL
 // RUCAR/DALIA", tagged on two consecutive cheese lines) needs no pairing —
-// each line is already counted on its own, and this never re-labels a line
-// that already has its own tag.
+// each line is already counted on its own. But the line AFTER that pair is
+// a real, unrelated line (bread, a drink, whatever else was in the same
+// bon) and must never inherit the tag just because it happens to follow a
+// tagged line — only the first line of a same-tag run gets to look for an
+// untagged partner right after it; a line that is itself a continuation of
+// the SAME tag as the one before it (the second, third, ... line of an
+// already fully-tagged combo) never pairs forward. Without this, a 3-line
+// bon [Dalia(tagged), Rucar(tagged), Bread(untagged)] swept Bread's own
+// quantity into the cascaval promo's total.
 //
 // Line order within a receipt can't be reconstructed from timestamp (every
 // line on one bon typically shares the exact same one) — TransactionLine's
@@ -31,8 +38,12 @@ export function promoLabelsForReceiptLines(
     if (t.promotionRaw) {
       const label = t.promotionRaw.trim()
       labels.set(t.id, label)
-      const next = sorted[i + 1]
-      if (next && !next.promotionRaw && !labels.has(next.id)) labels.set(next.id, label)
+      const prev = sorted[i - 1]
+      const continuesPrevTag = prev?.promotionRaw?.trim() === label
+      if (!continuesPrevTag) {
+        const next = sorted[i + 1]
+        if (next && !next.promotionRaw && !labels.has(next.id)) labels.set(next.id, label)
+      }
     } else if (promoProductIds.has(t.productId) && !labels.has(t.id)) {
       labels.set(t.id, productsById.get(t.productId)?.name ?? t.productRaw)
     }
