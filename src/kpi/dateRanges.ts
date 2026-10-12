@@ -110,3 +110,14 @@ export function monthLabel(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`)
   return `${names[d.getMonth()]} ${d.getFullYear()}`
 }
+
+// The full calendar month (1st to last day) containing dateStr — used
+// whenever a comparison needs "that whole month", not just the portion of
+// it that lines up day-for-day with the currently viewed range (which is
+// what previousMonthRange gives).
+export function fullMonthRange(dateStr: string): DateRange {
+  const d = new Date(`${dateStr}T00:00:00`)
+  const start = fmt(new Date(d.getFullYear(), d.getMonth(), 1))
+  const end = fmt(new Date(d.getFullYear(), d.getMonth() + 1, 0))
+  return { start, end }
+}
