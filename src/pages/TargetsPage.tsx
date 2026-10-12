@@ -601,12 +601,14 @@ interface DashboardData {
     shift2Target: number | null
     dailyTarget: number | null
     grila: GrilaRow[]
-    // Owner-entered, independent of any Excel sheet — total shifts (both
-    // tură 1 and tură 2 combined, not tracked separately) a gestionar needs
-    // this month to qualify for the FULL bonus their target % earns them.
-    // null means no attendance requirement is set, so the bonus is never
-    // pro-rated by shift count. See personBonusLei/personBonusEligibility.
-    necesarTureBonus: number | null
+    // Owner-entered, independent of any Excel sheet, one entry per
+    // gestionar (keyed by their name, same string as PersonSummary.name) —
+    // total shifts (both tură 1 and tură 2 combined, not tracked
+    // separately) THAT PERSON needs this month to qualify for the FULL
+    // bonus their own target % earns them. A name with no entry here has
+    // no attendance requirement, so their bonus is never pro-rated by
+    // shift count. See personBonusLei/applyBonusAttendance.
+    necesarTureBonusByPerson: Record<string, number>
   }
   rotation: Record<string, { tura1: string; tura2: string }>
   rawRealizat: Record<string, { tura1: number | null; tura2: number | null }>
@@ -776,7 +778,7 @@ function deriveDashboard(wb: WB): DashboardData {
     shift2Target: rezumat?.shift2Target ?? null,
     dailyTarget: rezumat?.dailyTarget ?? null,
     grila: bonus?.grila || [],
-    necesarTureBonus: null,
+    necesarTureBonusByPerson: {},
   }
   const rotation = buildRotation(zilnic?.days)
   const rawRealizat = seedRawRealizatFromTracker(tracker)
@@ -1109,7 +1111,7 @@ function buildNewMonthSkeleton(
   const data: DashboardData = {
     rezumat, situatie: null, bonus: { grila, teams: [], total: null },
     zilnic: { days, total: null }, tracker: { shifts: buildSyntheticTrackerShifts(days) },
-    config: { shift1Target, shift2Target, dailyTarget, grila, necesarTureBonus: null },
+    config: { shift1Target, shift2Target, dailyTarget, grila, necesarTureBonusByPerson: {} },
     rotation: buildRotation(days), rawRealizat: {}, cutoffZi: null, warnings: [], savedAt: Date.now(),
   }
   recompute(data)
@@ -1206,7 +1208,6 @@ export function TargetsPage() {
       newMonthDays: $<HTMLDivElement>('newMonthDays'),
       personCard: $<HTMLElement>('personCard'),
       personGrid: $<HTMLDivElement>('personGrid'),
-      necesarTureBonusInput: $<HTMLInputElement>('necesarTureBonusInput'),
       staffBtn: $<HTMLButtonElement>('staffBtn'),
       staffModal: $<HTMLDivElement>('staffModal'),
       staffList: $<HTMLDivElement>('staffListFields'),
@@ -1447,16 +1448,16 @@ export function TargetsPage() {
 
     function renderPersonSummary(data: DashboardData) {
       const summaries = computePersonSummaries(data.tracker?.shifts || [])
-      els.necesarTureBonusInput.value = data.config.necesarTureBonus != null ? String(data.config.necesarTureBonus) : ''
       if (!summaries.length) { els.personCard.style.display = 'none'; return }
       els.personCard.style.display = 'block'
-      const necesarTure = data.config.necesarTureBonus
+      const byPerson = data.config.necesarTureBonusByPerson || {}
       const accents = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)']
       els.personGrid.innerHTML = summaries
         .map((p, i) => {
           const cls = statusClass(null, p.procent)
           const barPct = Math.max(0, Math.min(100, (p.procent || 0) * 100))
           const bonusTier = personBonusLei(p.procent)
+          const necesarTure = byPerson[p.name] ?? null
           const bonus = applyBonusAttendance(bonusTier, p.shiftsWorked, necesarTure)
           const prorated = bonus != null && bonusTier != null && bonus < bonusTier
           const bonusRow =
@@ -1473,6 +1474,12 @@ export function TargetsPage() {
             <div><span>Realizat</span><b>${fmtRON(p.realizatTotal)}</b></div>
             <div><span>Diferență</span><b style="color:${p.diferenta >= 0 ? 'var(--good)' : 'var(--critical)'}">${p.diferenta >= 0 ? '+' : ''}${fmtRON(p.diferenta)}</b></div>
             ${bonusRow}
+            <div>
+              <span>Necesar ture (bonus 100%)</span>
+              <input type="number" class="necesar-ture-input" min="0" step="1" placeholder="— toate ture lucrate —"
+                data-necesar-person="${escapeHtml(p.name)}" value="${necesarTure ?? ''}"
+                style="width:100%;padding:2px 6px;margin-top:2px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-variant-numeric:tabular-nums;" />
+            </div>
           </div>
         </div>`
         })
@@ -1692,7 +1699,7 @@ export function TargetsPage() {
             recompute(data)
           }
           if (existing?.lastYearActual != null) data.lastYearActual = existing.lastYearActual
-          if (existing?.config?.necesarTureBonus != null) data.config.necesarTureBonus = existing.config.necesarTureBonus
+          if (existing?.config?.necesarTureBonusByPerson) data.config.necesarTureBonusByPerson = existing.config.necesarTureBonusByPerson
           store[key] = data
           saveStore(store)
           currentKey = key
@@ -1945,16 +1952,27 @@ export function TargetsPage() {
       render(data)
     })
 
-    els.necesarTureBonusInput.addEventListener('change', () => {
-      if (!currentKey) return
+    // Delegated (not attached per-input) because personGrid's innerHTML —
+    // and every input inside it — gets fully rebuilt on each render(). The
+    // actual re-render is deferred a tick: replacing personGrid's innerHTML
+    // synchronously from within a 'change' handler fired BY one of its own
+    // inputs fights the browser's own blur/change dispatch for that same
+    // node ("node to be removed is no longer a child of this node").
+    els.personGrid.addEventListener('change', (e) => {
+      const input = e.target as HTMLElement
+      const name = input instanceof HTMLInputElement ? input.dataset.necesarPerson : undefined
+      if (!name || !currentKey) return
       const store = loadStore()
       const data = store[currentKey]
       if (!data) return
-      const v = els.necesarTureBonusInput.value.trim()
-      data.config.necesarTureBonus = v === '' ? null : Math.max(0, parseFloat(v))
+      const v = (input as HTMLInputElement).value.trim()
+      const byPerson = { ...data.config.necesarTureBonusByPerson }
+      if (v === '') delete byPerson[name]
+      else byPerson[name] = Math.max(0, parseFloat(v))
+      data.config.necesarTureBonusByPerson = byPerson
       store[currentKey] = data
       saveStore(store)
-      render(data)
+      setTimeout(() => render(data), 0)
     })
 
     // ---------- new month ----------
@@ -2127,24 +2145,9 @@ export function TargetsPage() {
             <h3 style={{ margin: '0 0 12px' }}>Situație pe gestionar</h3>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>
               Target și realizat însumate pe turele pe care le-ai atribuit fiecărui gestionar mai sus, în „Detalii pe
-              tură".
+              tură". Completează „Necesar ture" pe cardul fiecăruia ca să-i prorateze bonusul direct proporțional
+              sub acel număr de ture — peste, rămâne 100%.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 14px', fontSize: 12.5 }}>
-              <label htmlFor="necesarTureBonusInput" style={{ color: 'var(--text-secondary)' }}>
-                Necesar ture (total, luna asta) pentru bonus 100%:
-              </label>
-              <input
-                id="necesarTureBonusInput"
-                type="number"
-                min={0}
-                step={1}
-                placeholder="— neconfigurat —"
-                style={{ width: 90, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12.5 }}
-              />
-              <span style={{ color: 'var(--text-muted)' }}>
-                sub acest număr, bonusul se reduce direct proporțional; peste, rămâne 100%.
-              </span>
-            </div>
             <div className="team-grid" id="personGrid"></div>
           </section>
           <section className="card" id="historyCard" style={{ display: 'none' }}></section>
