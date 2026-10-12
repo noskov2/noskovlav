@@ -934,6 +934,15 @@ function computePersonSummaries(shifts: ShiftRow[]): PersonSummary[] {
     .map((p) => ({ ...p, diferenta: p.realizatTotal - p.targetTotal, procent: p.targetTotal ? p.realizatTotal / p.targetTotal : null }))
     .sort((a, b) => b.realizatTotal - a.realizatTotal)
 }
+// Fixed per-gestionar bonus tied to their individual target completion,
+// shown alongside the "Detalii pe tură" person cards — 400 lei at 100%+,
+// 200 lei for the 90-100% range, nothing below 90%.
+function personBonusLei(procent: number | null): 400 | 200 | null {
+  if (procent == null) return null
+  if (procent >= 1) return 400
+  if (procent >= 0.9) return 200
+  return null
+}
 // Every place a team can show up on this page, so the "Nume echipe" modal
 // offers one input per team actually present in the loaded month instead of
 // guessing a fixed count.
@@ -1421,6 +1430,11 @@ export function TargetsPage() {
         .map((p, i) => {
           const cls = statusClass(null, p.procent)
           const barPct = Math.max(0, Math.min(100, (p.procent || 0) * 100))
+          const bonus = personBonusLei(p.procent)
+          const bonusRow =
+            bonus != null
+              ? `<div><span>Bonus</span><b style="color:var(--${bonus === 400 ? 'good' : 'warning'})">${bonus} lei</b></div>`
+              : ''
           return `<div class="team-card" style="--accent:${accents[i % 3]}">
           <div class="name">${escapeHtml(p.name)}</div>
           <div class="members">${p.shiftsWorked} ${p.shiftsWorked === 1 ? 'tură lucrată' : 'ture lucrate'}</div>
@@ -1430,6 +1444,7 @@ export function TargetsPage() {
             <div><span>Target (turele lucrate)</span><b>${fmtRON(p.targetTotal)}</b></div>
             <div><span>Realizat</span><b>${fmtRON(p.realizatTotal)}</b></div>
             <div><span>Diferență</span><b style="color:${p.diferenta >= 0 ? 'var(--good)' : 'var(--critical)'}">${p.diferenta >= 0 ? '+' : ''}${fmtRON(p.diferenta)}</b></div>
+            ${bonusRow}
           </div>
         </div>`
         })
