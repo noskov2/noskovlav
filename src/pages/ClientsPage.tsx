@@ -7,6 +7,7 @@ import { useDataStore } from '@/store/dataStore'
 import { computeClientSummaries, type ClientSummary } from '@/kpi/clientInvoices'
 import { monthLabel } from '@/kpi/dateRanges'
 import { formatDateRo, formatLei, formatNumber } from '@/lib/format'
+import { downloadSimpleTable } from '@/reports/tankTablesWorkbook'
 import type { ClientInvoiceLine } from '@/types/domain'
 
 export function ClientsPage() {
@@ -151,6 +152,31 @@ export function ClientsPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">Clienți</h3>
+          <button
+            onClick={() =>
+              downloadSimpleTable(
+                'Clienti.xlsx',
+                'Clienți',
+                ['Client', 'Localitate', 'Județ', 'Nr. facturi', 'Total facturat', 'Facturi pe credit', 'Valoare pe credit', 'Ultima factură'],
+                summaries.map((s) => [
+                  s.client.name,
+                  s.client.locality ?? '',
+                  s.client.county ?? '',
+                  s.invoiceCount,
+                  s.totalValue,
+                  s.creditCount,
+                  s.creditValue,
+                  s.lastInvoiceDate ? formatDateRo(s.lastInvoiceDate) : '',
+                ]),
+              )
+            }
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+          >
+            ⬇ Exportă Excel
+          </button>
+        </div>
         <DataTable
           columns={columns}
           rows={summaries}
