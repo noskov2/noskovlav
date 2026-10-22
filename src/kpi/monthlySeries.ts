@@ -37,19 +37,27 @@ function daysInMonth(monthKey: string): number {
  * (and risks re-breaking) the VAT-mixing / historical-cost logic already
  * fixed there — a month's gross profit is just that month's per-product rows
  * summed, restricted to the cost-known slice exactly like every other page.
+ *
+ * `uptoDay`, when given, caps EVERY month's own range at 1..uptoDay
+ * (clamped to that month's real length) instead of the full month — so the
+ * current, still-in-progress month can be compared "egal la egal" against
+ * the same 1..N window of past months, instead of a partial current month
+ * looking artificially behind a complete past one.
  */
 export function computeMonthlySeries(
   allTransactions: TransactionLine[],
   products: Product[],
   supplierReceipts: SupplierReceiptLine[],
   defaultVatRatePct = 19,
+  uptoDay?: number,
 ): MonthlyRow[] {
   const monthKeys = Array.from(new Set(allTransactions.map((t) => t.date.slice(0, 7)))).sort()
   const fuelIds = fuelProductIds(products)
 
   return monthKeys.map((monthKey) => {
     const start = `${monthKey}-01`
-    const end = `${monthKey}-${String(daysInMonth(monthKey)).padStart(2, '0')}`
+    const lastDay = uptoDay != null ? Math.min(uptoDay, daysInMonth(monthKey)) : daysInMonth(monthKey)
+    const end = `${monthKey}-${String(lastDay).padStart(2, '0')}`
     const monthTx = filterByRange(allTransactions, start, end)
     const summary = computePeriodSummary(monthTx, products, defaultVatRatePct)
     const fuelBreakdown = computeFuelBreakdown(monthTx, products)

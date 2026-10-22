@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { DeltaBadge } from '@/components/ui/DeltaBadge'
 import { useDataStore } from '@/store/dataStore'
 import { computeMonthlySeries, type MonthlyRow } from '@/kpi/monthlySeries'
 import { computeDelta } from '@/kpi/monthComparison'
+import { reportingEndStr } from '@/kpi/dateRanges'
 import { formatLei, formatNumber, formatPct } from '@/lib/format'
 import {
   ResponsiveContainer,
@@ -70,15 +71,28 @@ function monthsCountLabel(n: number): string {
 export function MonthlyComparisonPage() {
   const { transactions, products, supplierReceipts, settings } = useDataStore()
   const defaultVatRatePct = settings?.defaultVatRatePct ?? 19
+  const [sameDayRange, setSameDayRange] = useState(false)
+
+  // Yesterday's day-of-month — "azi suntem în 22, am încărcat până pe 21" —
+  // the same "last complete day" cutoff used everywhere else in the app
+  // (reportingEndStr), so flipping this on compares every month's own
+  // 1..cutoffDay window instead of a partial current month against
+  // complete past ones.
+  const cutoffDay = Number(reportingEndStr().slice(8, 10))
 
   const months = useMemo(
     () => computeMonthlySeries(transactions, products, supplierReceipts, defaultVatRatePct),
     [transactions, products, supplierReceipts, defaultVatRatePct],
   )
+  const monthsSameDayRange = useMemo(
+    () => computeMonthlySeries(transactions, products, supplierReceipts, defaultVatRatePct, cutoffDay),
+    [transactions, products, supplierReceipts, defaultVatRatePct, cutoffDay],
+  )
+  const activeMonths = sameDayRange ? monthsSameDayRange : months
 
   const chartData = useMemo(
-    () => months.map((m) => ({ label: m.shortLabel, value: m.summary.totalSales })),
-    [months],
+    () => activeMonths.map((m) => ({ label: m.shortLabel, value: m.summary.totalSales })),
+    [activeMonths],
   )
 
   if (transactions.length === 0) {
@@ -109,7 +123,24 @@ export function MonthlyComparisonPage() {
     <div>
       <PageHeader
         title="Comparație lunară"
-        description={`Fiecare indicator (vânzări, litri, bonuri, cross-sell, categorii, profit), lună de lună, cu variația față de luna anterioară sub fiecare valoare — acoperă toate lunile cu date importate: ${monthsCountLabel(months.length)}.`}
+        description={
+          sameDayRange
+            ? `Fiecare indicator, pentru zilele 1–${cutoffDay} ale fiecărei luni (egal la egal cu luna curentă, în desfășurare) — acoperă ${monthsCountLabel(months.length)}.`
+            : `Fiecare indicator (vânzări, litri, bonuri, cross-sell, categorii, profit), lună de lună, cu variația față de luna anterioară sub fiecare valoare — acoperă toate lunile cu date importate: ${monthsCountLabel(months.length)}.`
+        }
+        action={
+          <button
+            onClick={() => setSameDayRange((v) => !v)}
+            title={`Compară doar zilele 1–${cutoffDay} din fiecare lună, ca să fie egal la egal cu luna curentă (încă în desfășurare)`}
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm ${
+              sameDayRange
+                ? 'border-brand-500 bg-brand-500 text-white hover:bg-brand-600'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            📅 Egal la egal (1–{cutoffDay})
+          </button>
+        }
       />
 
       <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -137,9 +168,10 @@ export function MonthlyComparisonPage() {
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
                 <th className="sticky left-0 bg-white px-3 py-2">Indicator</th>
-                {months.map((m) => (
+                {activeMonths.map((m) => (
                   <th key={m.monthKey} className="whitespace-nowrap px-3 py-2 text-right">
                     {m.label}
+                    {sameDayRange && <span className="ml-1 font-normal normal-case text-slate-400">(1–{cutoffDay})</span>}
                   </th>
                 ))}
               </tr>
@@ -152,12 +184,12 @@ export function MonthlyComparisonPage() {
                   <>
                     {gi > 0 && (
                       <tr key={`${group.key}-spacer`} aria-hidden="true">
-                        <td colSpan={months.length + 1} className="h-3 p-0 border-0" />
+                        <td colSpan={activeMonths.length + 1} className="h-3 p-0 border-0" />
                       </tr>
                     )}
                     <tr key={`${group.key}-header`}>
                       <td
-                        colSpan={months.length + 1}
+                        colSpan={activeMonths.length + 1}
                         className="sticky left-0 rounded-t-md border-2 border-b-0 border-slate-300 bg-slate-100 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
                       >
                         {group.label}
@@ -181,10 +213,10 @@ export function MonthlyComparisonPage() {
                           >
                             {metric.label}
                           </td>
-                          {months.map((m, i) => {
+                          {activeMonths.map((m, i) => {
                             const value = metric.get(m)
-                            const prevValue = i > 0 ? metric.get(months[i - 1]) : null
-                            const isLastCol = i === months.length - 1
+                            const prevValue = i > 0 ? metric.get(activeMonths[i - 1]) : null
+                            const isLastCol = i === activeMonths.length - 1
                             return (
                               <td
                                 key={m.monthKey}
