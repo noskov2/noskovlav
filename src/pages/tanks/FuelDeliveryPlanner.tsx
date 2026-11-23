@@ -89,14 +89,9 @@ export function FuelDeliveryPlanner({
   const visibleDays = plan.days.slice(0, 20)
 
   return (
-    <div className="mt-5 border-t border-slate-100 pt-4">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h4 className="text-sm font-semibold text-slate-700">Planificator alimentare cisternă (Benzină / Motorină)</h4>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Pe baza vânzărilor efective importate — calculează mediile, stocul curent și propune cursele de alimentare.
-          </p>
-        </div>
+        <h3 className="text-sm font-semibold text-slate-700">Plan de alimentare</h3>
         {plan.days.length > 0 && (
           <button
             onClick={exportDays}
