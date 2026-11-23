@@ -442,7 +442,66 @@ export interface AppSettings {
   // yet — every calculation that needs it (fill %, reorder qty) skips
   // instead of guessing, per the module's own spec.
   tankSettings: Record<string, TankSettings>
+  // Planificatorul automat de alimentare (cisternă Constanța → Peco), la
+  // nivel de tip de combustibil (Benzină/Motorină), separat de
+  // monitorizarea per-rezervor fizic de mai sus — vezi FuelDeliveryPlanConfig.
+  fuelDeliveryPlan: FuelDeliveryPlanConfig
 }
+
+// Toți parametrii planificatorului de alimentare sunt editabili — niciunul
+// nu e un adevăr universal, ci o caracteristică a ACESTEI stații/cisterne,
+// pe care proprietarul o poate recalibra oricând (ex. densitatea reală a
+// unui lot de combustibil diferă ușor față de estimarea inițială).
+export interface FuelDeliveryPlanConfig {
+  // Perioada istorică selectată pentru calculul mediilor de vânzare — se
+  // păstrează între sesiuni ca ultima alegere a utilizatorului; null =
+  // nicio selecție încă (pagina alege un implicit la prima afișare).
+  historyStart: string | null // YYYY-MM-DD
+  historyEnd: string | null
+  // Medii introduse manual — au prioritate față de media calculată din
+  // vânzările efective ale perioadei istorice, per cerința explicită.
+  manualAvgBenzinaLitersPerDay: number | null
+  manualAvgMotorinaLitersPerDay: number | null
+  // Stocuri raportate manual, cu data/ora exactă a măsurătorii — baza
+  // pentru "nu scade de două ori vânzările zilei".
+  stockBenzinaLiters: number | null
+  stockBenzinaAsOf: number | null // epoch ms
+  stockMotorinaLiters: number | null
+  stockMotorinaAsOf: number | null // epoch ms
+  // Compartimentele cisternei, în ordinea fixă de încărcare. Implicit:
+  // 12.000 / 8.000 / 10.000 / 6.000 L.
+  compartmentCapacitiesLiters: number[]
+  maxTankerLoadLiters: number // implicit 32.000 — plafonul cisternei, sub suma compartimentelor
+  mandatoryBenzinaLoadLiters: number // implicit 6.000 — cantitatea fixă de benzină per cursă, când e nevoie
+  benzinaDensityKgPerLiter: number // implicit 0,75 — doar o estimare inițială, verifică la fiecare livrare
+  motorinaDensityKgPerLiter: number // implicit 0,84 — doar o estimare inițială, verifică la fiecare livrare
+  benzinaTankCapacityTons: number // implicit 6 tone
+  motorinaTankCapacityTons: number // implicit 48 tone
+  lactoMotorinaTons: number // implicit 8 tone — deviat la Lacto din penultima încărcătură a planului
+  transitDays: number // implicit 1 — zile între plecarea dimineața și sosirea efectivă la Peco
+  horizonDays: number // implicit 45 — orizontul de simulare afișat/planificat înainte
+}
+
+export const emptyFuelDeliveryPlanConfig = (): FuelDeliveryPlanConfig => ({
+  historyStart: null,
+  historyEnd: null,
+  manualAvgBenzinaLitersPerDay: null,
+  manualAvgMotorinaLitersPerDay: null,
+  stockBenzinaLiters: null,
+  stockBenzinaAsOf: null,
+  stockMotorinaLiters: null,
+  stockMotorinaAsOf: null,
+  compartmentCapacitiesLiters: [12000, 8000, 10000, 6000],
+  maxTankerLoadLiters: 32000,
+  mandatoryBenzinaLoadLiters: 6000,
+  benzinaDensityKgPerLiter: 0.75,
+  motorinaDensityKgPerLiter: 0.84,
+  benzinaTankCapacityTons: 6,
+  motorinaTankCapacityTons: 48,
+  lactoMotorinaTons: 8,
+  transitDays: 1,
+  horizonDays: 45,
+})
 
 // A tank's fixed operating parameters — none of this comes from the FCC
 // export itself (which only reports live readings), so the owner enters it

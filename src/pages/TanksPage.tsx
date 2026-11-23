@@ -15,7 +15,7 @@ import {
   Legend as RLegend,
 } from 'recharts'
 import { useDataStore } from '@/store/dataStore'
-import { updateSettings } from '@/data/repo/settings'
+import { updateSettings, updateFuelDeliveryPlanConfig } from '@/data/repo/settings'
 import { addDays, reportingEndStr, type DateRange } from '@/kpi/dateRanges'
 import { computeTankStatuses, type TankStatus } from '@/kpi/tankStatus'
 import { computeTankReconciliation } from '@/kpi/tankReconciliation'
@@ -27,7 +27,8 @@ import { FUEL_LABELS, classifyFuel } from '@/kpi/tankFuel'
 import { formatLei, formatNumber, formatDateRo } from '@/lib/format'
 import { downloadSimpleTable } from '@/reports/tankTablesWorkbook'
 import { TankSettingsPanel } from '@/pages/tanks/TankSettingsPanel'
-import type { FuelMovement, FuelType, TankReading } from '@/types/domain'
+import { FuelDeliveryPlanner } from '@/pages/tanks/FuelDeliveryPlanner'
+import { emptyFuelDeliveryPlanConfig, type FuelDeliveryPlanConfig, type FuelMovement, type FuelType, type TankReading } from '@/types/domain'
 
 type MovementFilterOpt = 'toate' | 'intrari' | 'iesiri' | 'vanzari' | 'corectii'
 
@@ -46,7 +47,7 @@ function fmtTs(ts: number): string {
 }
 
 export function TanksPage() {
-  const { tankReadings, fuelMovements, settings, importBatches, refresh } = useDataStore()
+  const { tankReadings, fuelMovements, transactions, products, settings, importBatches, refresh } = useDataStore()
   const [range, setRange] = useState<DateRange>({ start: addDays(reportingEndStr(), -29), end: reportingEndStr() })
   const [fuelFilter, setFuelFilter] = useState<FuelType | 'toate'>('toate')
   const [tankFilter, setTankFilter] = useState<string>('toate')
@@ -144,17 +145,34 @@ export function TanksPage() {
     await refresh()
   }
 
+  async function saveFuelDeliveryPlanConfig(patch: Partial<FuelDeliveryPlanConfig>) {
+    await updateFuelDeliveryPlanConfig(patch)
+    await refresh()
+  }
+
+  // Planificatorul de alimentare se bazează pe vânzările deja importate +
+  // intrări manuale de stoc — nu pe citirile FCC/mișcările de stoc
+  // combustibil ale modulului de monitorizare per-rezervor de mai jos, deci
+  // rămâne disponibil chiar dacă acelea nu au fost încă importate.
   if (tankReadings.length === 0 && fuelMovements.length === 0) {
     return (
       <div>
         <PageHeader title="Rezervoare & Mișcări" description="Citiri FCC și mișcări de stoc pentru combustibili — separat de Stoc & Rotație, care rămâne pentru produsele din magazin." />
-        <EmptyState
-          icon="⛽"
-          title="Niciun import încă"
-          description="Mergi la Import date → Citiri rezervoare FCC (sau Mișcări stoc combustibil) pentru a încărca primul export."
-          actionTo="/import?kind=tankReadings"
-          actionLabel="Mergi la Import"
+        <FuelDeliveryPlanner
+          transactions={transactions}
+          products={products}
+          config={settings?.fuelDeliveryPlan ?? emptyFuelDeliveryPlanConfig()}
+          onConfigChange={saveFuelDeliveryPlanConfig}
         />
+        <div className="mt-5">
+          <EmptyState
+            icon="⛽"
+            title="Niciun import de citiri/mișcări încă"
+            description="Mergi la Import date → Citiri rezervoare FCC (sau Mișcări stoc combustibil) pentru monitorizarea per-rezervor de mai jos — planificatorul de alimentare de mai sus funcționează deja, pe baza vânzărilor importate."
+            actionTo="/import?kind=tankReadings"
+            actionLabel="Mergi la Import"
+          />
+        </div>
       </div>
     )
   }
@@ -438,6 +456,13 @@ export function TanksPage() {
           </p>
           <TankSettingsPanel tankIds={allTankIds} tankFuelLabels={tankFuelLabels} tankSettings={tankSettings} onSave={saveTankSettings} />
         </div>
+
+        <FuelDeliveryPlanner
+          transactions={transactions}
+          products={products}
+          config={settings?.fuelDeliveryPlan ?? emptyFuelDeliveryPlanConfig()}
+          onConfigChange={saveFuelDeliveryPlanConfig}
+        />
       </div>
 
       {/* ---------- tables ---------- */}
