@@ -477,7 +477,16 @@ export interface FuelDeliveryPlanConfig {
   motorinaDensityKgPerLiter: number // implicit 0,84 — doar o estimare inițială, verifică la fiecare livrare
   benzinaTankCapacityTons: number // implicit 6 tone
   motorinaTankCapacityTons: number // implicit 48 tone
-  lactoMotorinaTons: number // implicit 8 tone — deviat la Lacto din penultima încărcătură a planului
+  // Alegere manuală, per cursă: pe unele curse se transportă motorină și
+  // pentru Lacto Solomonescu, nu doar pentru Solomonescu Oil — proprietarul
+  // marchează explicit UN compartiment (plin, la capacitatea lui declarată)
+  // ca mergând la Lacto pe acea cursă anume, în loc de o regulă automată
+  // (nu orice cursă duce ceva la Lacto, și nu există un tipar fix care să
+  // poată fi ghicit). Cheia e indexul cursei în planul curent (0 = prima
+  // cursă programată, 1 = a doua, ...), valoarea e indexul compartimentului
+  // (poziția lui în compartmentCapacitiesLiters) ales pentru Lacto pe acea
+  // cursă. Absent = nicio cursă marcată pentru Lacto pe poziția respectivă.
+  lactoCompartmentByDeliveryIndex: Record<number, number>
   transitDays: number // implicit 1 — zile între plecarea dimineața și sosirea efectivă la Peco
   horizonDays: number // implicit 45 — orizontul de simulare afișat/planificat înainte
 }
@@ -498,7 +507,7 @@ export const emptyFuelDeliveryPlanConfig = (): FuelDeliveryPlanConfig => ({
   motorinaDensityKgPerLiter: 0.84,
   benzinaTankCapacityTons: 6,
   motorinaTankCapacityTons: 48,
-  lactoMotorinaTons: 8,
+  lactoCompartmentByDeliveryIndex: {},
   transitDays: 1,
   horizonDays: 45,
 })

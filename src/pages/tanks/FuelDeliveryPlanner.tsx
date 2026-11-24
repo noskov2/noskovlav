@@ -24,9 +24,9 @@ function fmtL(n: number | null): string {
 }
 
 const CONTENT_LABELS: Record<string, string> = {
-  'benzina-peco': 'Benzină (Peco)',
-  'motorina-peco': 'Motorină (Peco)',
-  'motorina-lacto': 'Motorină (Lacto)',
+  'benzina-peco': 'Benzină (Solomonescu Oil)',
+  'motorina-peco': 'Motorină (Solomonescu Oil)',
+  'motorina-lacto': 'Motorină (Lacto Solomonescu)',
   gol: 'gol',
 }
 
@@ -70,6 +70,12 @@ export function FuelDeliveryPlanner({
     const next = [...config.compartmentCapacitiesLiters]
     next[index] = value
     patch({ compartmentCapacitiesLiters: next })
+  }
+  function patchLactoCompartment(deliveryIndex: number, raw: string) {
+    const next = { ...config.lactoCompartmentByDeliveryIndex }
+    if (raw === '') delete next[deliveryIndex]
+    else next[deliveryIndex] = Number(raw)
+    patch({ lactoCompartmentByDeliveryIndex: next })
   }
 
   function exportDays() {
@@ -171,6 +177,10 @@ export function FuelDeliveryPlanner({
       {plan.deliveries.length > 0 && (
         <div className="mb-4">
           <p className="mb-2 text-xs font-semibold text-slate-600">Curse de alimentare propuse</p>
+          <p className="mb-2 text-[11px] text-slate-400">
+            Pe cursele unde se transportă și pentru Lacto Solomonescu, alege mai jos ce compartiment (plin) merge la Lacto în loc de Solomonescu
+            Oil — nicio alegere înseamnă că toată motorina de pe cursă merge la Solomonescu Oil.
+          </p>
           <div className="overflow-x-auto rounded-lg border border-slate-100 scrollbar-thin">
             <table className="min-w-full divide-y divide-slate-100 text-xs">
               <thead>
@@ -178,46 +188,67 @@ export function FuelDeliveryPlanner({
                   <th className="px-2 py-1.5">Plecare</th>
                   <th className="px-2 py-1.5">Sosire Peco</th>
                   <th className="px-2 py-1.5">Compartimente</th>
-                  <th className="px-2 py-1.5 text-right">Benzină Peco</th>
-                  <th className="px-2 py-1.5 text-right">Motorină Peco</th>
-                  <th className="px-2 py-1.5 text-right">Motorină Lacto</th>
+                  <th className="px-2 py-1.5">Compartiment pentru Lacto Solomonescu</th>
+                  <th className="px-2 py-1.5 text-right">Benzină Solomonescu Oil</th>
+                  <th className="px-2 py-1.5 text-right">Motorină Solomonescu Oil</th>
+                  <th className="px-2 py-1.5 text-right">Motorină Lacto Solomonescu</th>
                   <th className="px-2 py-1.5 text-right">Total cisternă</th>
                   <th className="px-2 py-1.5">Observații</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {plan.deliveries.map((d) => (
-                  <tr key={d.index}>
-                    <td className="px-2 py-1.5 whitespace-nowrap">{formatDateRo(d.departureDate)}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap font-medium text-slate-700">{formatDateRo(d.arrivalDate)}</td>
-                    <td className="px-2 py-1.5">
-                      <div className="flex flex-wrap gap-1">
-                        {d.compartments.map((c, ci) => (
-                          <span
-                            key={ci}
-                            className={`rounded border px-1.5 py-0.5 text-[10px] whitespace-nowrap ${
-                              c.contents === 'gol' ? 'border-slate-100 text-slate-400' : 'border-slate-200 text-slate-600'
-                            }`}
-                          >
-                            {formatNumber(c.capacityLiters)}L: {CONTENT_LABELS[c.contents]}
-                            {c.contents !== 'gol' ? ` (${formatNumber(c.liters)}L)` : ''}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-2 py-1.5 text-right">{fmtL(d.benzinaPecoLiters)}</td>
-                    <td className="px-2 py-1.5 text-right">{fmtL(d.motorinaPecoLiters)}</td>
-                    <td className="px-2 py-1.5 text-right">{d.motorinaLactoLiters > 0 ? fmtL(d.motorinaLactoLiters) : '—'}</td>
-                    <td className="px-2 py-1.5 text-right font-medium">{fmtL(d.totalLiters)}</td>
-                    <td className="px-2 py-1.5">
-                      <div className="flex flex-wrap gap-1">
-                        {d.isPenultimate && d.motorinaLactoLiters > 0 && <Badge tone="brand">Lacto</Badge>}
-                        {d.lateRisk && <Badge tone="bad">Risc întârziere</Badge>}
-                        {d.benzinaSkippedDueToCapacity && <Badge tone="warn">Benzină omisă</Badge>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {plan.deliveries.map((d) => {
+                  const benzinaCompartmentIdx = d.compartments.findIndex((c) => c.contents === 'benzina-peco')
+                  return (
+                    <tr key={d.index}>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{formatDateRo(d.departureDate)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap font-medium text-slate-700">{formatDateRo(d.arrivalDate)}</td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex flex-wrap gap-1">
+                          {d.compartments.map((c, ci) => (
+                            <span
+                              key={ci}
+                              className={`rounded border px-1.5 py-0.5 text-[10px] whitespace-nowrap ${
+                                c.contents === 'gol' ? 'border-slate-100 text-slate-400' : 'border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {formatNumber(c.capacityLiters)}L: {CONTENT_LABELS[c.contents]}
+                              {c.contents !== 'gol' ? ` (${formatNumber(c.liters)}L)` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <select
+                          value={config.lactoCompartmentByDeliveryIndex[d.index] ?? ''}
+                          onChange={(e) => patchLactoCompartment(d.index, e.target.value)}
+                          className="rounded border border-slate-200 px-1.5 py-1 text-xs"
+                        >
+                          <option value="">— (totul la Solomonescu Oil)</option>
+                          {config.compartmentCapacitiesLiters.map((cap, ci) =>
+                            ci === benzinaCompartmentIdx ? null : (
+                              <option key={ci} value={ci}>
+                                {formatNumber(cap)} L
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </td>
+                      <td className="px-2 py-1.5 text-right">{fmtL(d.benzinaPecoLiters)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmtL(d.motorinaPecoLiters)}</td>
+                      <td className="px-2 py-1.5 text-right">{d.motorinaLactoLiters > 0 ? fmtL(d.motorinaLactoLiters) : '—'}</td>
+                      <td className="px-2 py-1.5 text-right font-medium">{fmtL(d.totalLiters)}</td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex flex-wrap gap-1">
+                          {d.motorinaLactoLiters > 0 && <Badge tone="brand">Lacto</Badge>}
+                          {d.lactoConflict && <Badge tone="warn">Compartiment Lacto ocupat de benzină</Badge>}
+                          {d.lateRisk && <Badge tone="bad">Risc întârziere</Badge>}
+                          {d.benzinaSkippedDueToCapacity && <Badge tone="warn">Benzină omisă</Badge>}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -271,7 +302,6 @@ export function FuelDeliveryPlanner({
           <ParamField label="Densitate motorină (kg/L)" value={config.motorinaDensityKgPerLiter} step="0.001" onBlur={(raw) => patchNumber('motorinaDensityKgPerLiter', raw, { allowNull: false })} />
           <ParamField label="Capacitate rezervor benzină (tone)" value={config.benzinaTankCapacityTons} onBlur={(raw) => patchNumber('benzinaTankCapacityTons', raw, { allowNull: false })} />
           <ParamField label="Capacitate rezervor motorină (tone)" value={config.motorinaTankCapacityTons} onBlur={(raw) => patchNumber('motorinaTankCapacityTons', raw, { allowNull: false })} />
-          <ParamField label="Motorină deviată la Lacto (tone)" value={config.lactoMotorinaTons} onBlur={(raw) => patchNumber('lactoMotorinaTons', raw, { allowNull: false })} />
           <ParamField label="Zile transport (plecare → sosire)" value={config.transitDays} onBlur={(raw) => patchNumber('transitDays', raw, { allowNull: false })} />
           <ParamField label="Orizont plan (zile)" value={config.horizonDays} onBlur={(raw) => patchNumber('horizonDays', raw, { allowNull: false })} />
         </div>

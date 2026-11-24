@@ -53,7 +53,8 @@ export interface ScheduledDelivery {
   motorinaPecoLiters: number
   motorinaLactoLiters: number
   totalLiters: number
-  isPenultimate: boolean
+  lactoCompartmentIndex: number | null // compartimentul ales manual pentru Lacto pe cursa asta, dacă există
+  lactoConflict: boolean // compartimentul ales pentru Lacto era ocupat de benzină pe cursa asta — a fost ignorat
   compartments: CompartmentLoad[]
   lateRisk: boolean // nu s-a putut respecta termenul sigur — stocul ajunge la zero înainte de sosire
   benzinaSkippedDueToCapacity: boolean // benzina era necesară, dar ar fi depășit plafonul de 6 tone la descărcare
@@ -231,19 +232,23 @@ interface RawDelivery {
   departureDate: string
   arrivalDate: string
   benzinaPecoLiters: number
-  motorinaTotalLiters: number // Peco + Lacto combinat — Lacto se decide într-o a doua trecere (penultima livrare)
+  motorinaPecoLiters: number
+  motorinaLactoLiters: number
+  lactoCompartmentIndex: number | null
+  lactoConflict: boolean
   lateRisk: boolean
   benzinaSkippedDueToCapacity: boolean
 }
 
 // Alocă pe compartimente, în ordinea fixă declarată. Benzina (dacă există)
 // ocupă mereu ultimul compartiment din listă (cel de 6.000 L, per regulă).
-// Motorina Lacto (dacă există) ocupă primele compartimente rămase, pline,
-// până se epuizează cantitatea; restul merge la motorină Peco.
+// Compartimentul ales manual pentru Lacto (dacă există, și nu e cel ocupat
+// de benzină) merge INTEGRAL — la capacitatea lui declarată — la Lacto;
+// restul compartimentelor merg la motorină Peco, în ordine.
 function allocateCompartments(
   compartments: number[],
   benzinaLiters: number,
-  motorinaLactoLiters: number,
+  lactoCompartmentIndex: number | null,
   motorinaPecoLiters: number,
 ): CompartmentLoad[] {
   const result: CompartmentLoad[] = compartments.map((c) => ({ capacityLiters: c, contents: 'gol', liters: 0 }))
@@ -253,23 +258,20 @@ function allocateCompartments(
     const last = order[order.length - 1]
     result[last].contents = 'benzina-peco'
     result[last].liters = benzinaLiters
-    order.pop()
+    order.splice(order.indexOf(last), 1)
   }
-  let lacto = motorinaLactoLiters
+  if (lactoCompartmentIndex != null && order.includes(lactoCompartmentIndex)) {
+    result[lactoCompartmentIndex].contents = 'motorina-lacto'
+    result[lactoCompartmentIndex].liters = result[lactoCompartmentIndex].capacityLiters
+    order.splice(order.indexOf(lactoCompartmentIndex), 1)
+  }
   let peco = motorinaPecoLiters
   for (const idx of order) {
-    if (lacto > 0) {
-      const amt = Math.min(lacto, result[idx].capacityLiters)
-      result[idx].contents = 'motorina-lacto'
-      result[idx].liters = amt
-      lacto -= amt
-      if (amt < result[idx].capacityLiters) continue // compartiment parțial — nu mai pune nimic altceva aici
-    } else if (peco > 0) {
-      const amt = Math.min(peco, result[idx].capacityLiters)
-      result[idx].contents = 'motorina-peco'
-      result[idx].liters = amt
-      peco -= amt
-    }
+    if (peco <= 0) break
+    const amt = Math.min(peco, result[idx].capacityLiters)
+    result[idx].contents = 'motorina-peco'
+    result[idx].liters = amt
+    peco -= amt
   }
   return result
 }
@@ -352,21 +354,42 @@ function scheduleDeliveries(
         }
       }
 
+      // Compartimentul de benzină (ultimul din listă) nu e disponibil
+      // pentru Lacto pe cursele unde se încarcă benzină — dacă proprietarul
+      // a ales totuși exact acel compartiment pentru Lacto pe cursa asta,
+      // alegerea e ignorată (lactoConflict) în loc de a suprascrie benzina.
+      const benzinaCompartmentIdx = benzinaPecoLiters > 0 ? config.compartmentCapacitiesLiters.length - 1 : null
+      const requestedLactoIdx = config.lactoCompartmentByDeliveryIndex[deliveries.length] ?? null
+      const lactoConflict = requestedLactoIdx != null && requestedLactoIdx === benzinaCompartmentIdx
+      const lactoCompartmentIndex = lactoConflict ? null : requestedLactoIdx
+      const lactoLitersRequested = lactoCompartmentIndex != null ? (config.compartmentCapacitiesLiters[lactoCompartmentIndex] ?? 0) : 0
+
       const motorinaCapForTrip = config.maxTankerLoadLiters - benzinaPecoLiters
+      // Lacto e o alegere fixă (compartiment plin) — se reține primul din
+      // capacitatea cisternei disponibilă pentru motorină pe cursa asta;
+      // restul merge la Peco, limitat suplimentar de locul rămas în
+      // rezervorul propriu de motorină (Lacto nu intră niciodată în
+      // rezervorul Peco, deci nu e limitat de capacitatea lui).
+      const motorinaLactoLiters = Math.min(lactoLitersRequested, motorinaCapForTrip)
       const motorinaRoomInTank = Math.max(0, motorinaTankCapacityLiters - motorinaAtArrivalEnd)
-      const motorinaTotalLiters = Math.min(motorinaCapForTrip, motorinaRoomInTank)
+      const motorinaPecoLiters = Math.min(motorinaCapForTrip - motorinaLactoLiters, motorinaRoomInTank)
 
       deliveries.push({
         departureDate,
         arrivalDate,
         benzinaPecoLiters,
-        motorinaTotalLiters,
+        motorinaPecoLiters,
+        motorinaLactoLiters,
+        lactoCompartmentIndex: motorinaLactoLiters > 0 ? lactoCompartmentIndex : null,
+        lactoConflict,
         lateRisk,
         benzinaSkippedDueToCapacity: benzinaSkipped,
       })
 
       benzinaStock = benzinaAtArrivalEnd + benzinaPecoLiters
-      motorinaStock = motorinaAtArrivalEnd + motorinaTotalLiters
+      // Doar partea Peco intră în rezervorul propriu — Lacto se livrează
+      // direct acolo, fără să treacă prin stocul urmărit aici.
+      motorinaStock = motorinaAtArrivalEnd + motorinaPecoLiters
       // Cursor-ul trece la ziua URMĂTOARE sosirii, nu la ziua sosirii
       // însăși — vânzarea zilei de sosire e deja scăzută în
       // benzinaAtArrivalEnd/motorinaAtArrivalEnd de mai sus, așa că
@@ -452,35 +475,31 @@ export function computeFuelDeliveryPlan(
     dates,
   )
 
-  // Penultima livrare a planului primește deviația de motorină către Lacto.
-  const penultimateIdx = rawDeliveries.length >= 2 ? rawDeliveries.length - 2 : -1
-  const lactoLiters = tonsToLiters(config.lactoMotorinaTons, config.motorinaDensityKgPerLiter)
-
   const benzinaDeliveriesByDate = new Map<string, number>()
   const motorinaDeliveriesByDate = new Map<string, number>()
   const deliveries: ScheduledDelivery[] = rawDeliveries.map((d, idx) => {
-    const isPenultimate = idx === penultimateIdx
-    const motorinaLacto = isPenultimate ? Math.min(lactoLiters, d.motorinaTotalLiters) : 0
-    const motorinaPeco = d.motorinaTotalLiters - motorinaLacto
     benzinaDeliveriesByDate.set(d.arrivalDate, (benzinaDeliveriesByDate.get(d.arrivalDate) ?? 0) + d.benzinaPecoLiters)
-    motorinaDeliveriesByDate.set(d.arrivalDate, (motorinaDeliveriesByDate.get(d.arrivalDate) ?? 0) + motorinaPeco)
+    // Doar partea Peco e "livrare" în rezervorul propriu simulat zi-cu-zi —
+    // Lacto e livrat direct acolo, nu trece prin stocul Peco.
+    motorinaDeliveriesByDate.set(d.arrivalDate, (motorinaDeliveriesByDate.get(d.arrivalDate) ?? 0) + d.motorinaPecoLiters)
     return {
       index: idx,
       departureDate: d.departureDate,
       arrivalDate: d.arrivalDate,
       benzinaPecoLiters: d.benzinaPecoLiters,
-      motorinaPecoLiters: motorinaPeco,
-      motorinaLactoLiters: motorinaLacto,
-      totalLiters: d.benzinaPecoLiters + d.motorinaTotalLiters,
-      isPenultimate,
-      compartments: allocateCompartments(config.compartmentCapacitiesLiters, d.benzinaPecoLiters, motorinaLacto, motorinaPeco),
+      motorinaPecoLiters: d.motorinaPecoLiters,
+      motorinaLactoLiters: d.motorinaLactoLiters,
+      totalLiters: d.benzinaPecoLiters + d.motorinaPecoLiters + d.motorinaLactoLiters,
+      lactoCompartmentIndex: d.lactoCompartmentIndex,
+      lactoConflict: d.lactoConflict,
+      compartments: allocateCompartments(config.compartmentCapacitiesLiters, d.benzinaPecoLiters, d.lactoCompartmentIndex, d.motorinaPecoLiters),
       lateRisk: d.lateRisk,
       benzinaSkippedDueToCapacity: d.benzinaSkippedDueToCapacity,
     }
   })
 
-  // A doua trecere: simulare finală zi-cu-zi, cu livrările (și eventuala
-  // deviație Lacto) deja fixate — aceasta e simularea afișată în tabel.
+  // A doua trecere: simulare finală zi-cu-zi, cu livrările deja fixate —
+  // aceasta e simularea afișată în tabel.
   const benzinaRows = runSimulation(benzinaStockNow.value, benzinaSalePerDate, benzinaDeliveriesByDate, dates, config.benzinaDensityKgPerLiter, benzinaTankCapacityLiters)
   const motorinaRows = runSimulation(motorinaStockNow.value, motorinaSalePerDate, motorinaDeliveriesByDate, dates, config.motorinaDensityKgPerLiter, motorinaTankCapacityLiters)
 
@@ -518,6 +537,12 @@ export function computeFuelDeliveryPlan(
         message: `Pe cursa din ${formatDateInternal(d.departureDate)}, cei 6.000 L obligatorii de benzină ar depăși plafonul de ${config.benzinaTankCapacityTons} tone la descărcare — nu au fost încărcați.${
           firstFeasibleBenzinaDate ? ` Prima dată fezabilă pentru benzină: ${formatDateInternal(firstFeasibleBenzinaDate)}.` : ''
         }`,
+      })
+    }
+    if (d.lactoConflict) {
+      warnings.push({
+        severity: 'warn',
+        message: `Pe cursa din ${formatDateInternal(d.departureDate)}, compartimentul ales pentru Lacto Solomonescu e ocupat de benzină — alege alt compartiment pentru această cursă.`,
       })
     }
   }
